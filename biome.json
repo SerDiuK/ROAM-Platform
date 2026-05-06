@@ -1,0 +1,226 @@
+{
+	"$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+	"formatter": {
+		"enabled": true
+	},
+	"linter": {
+		"enabled": true,
+		"rules": {
+			"recommended": true,
+			"suspicious": {
+				"noExplicitAny": "error",
+				"noArrayIndexKey": "off"
+			},
+			"complexity": {
+				"noForEach": "off"
+			},
+			"correctness": {
+				"useExhaustiveDependencies": "info",
+				"noUnusedImports": "error"
+			},
+			"style": {
+				"noUnusedTemplateLiteral": {
+					"level": "error",
+					"fix": "safe"
+				},
+				"noNonNullAssertion": "warn"
+			},
+			"a11y": {
+				"noStaticElementInteractions": "warn"
+			}
+		}
+	},
+	"overrides": [
+		{
+			"includes": ["**/tsconfig.*.json", "**/tsconfig.json", "**/nextjs.json"],
+			"json": {
+				"parser": {
+					"allowComments": true,
+					"allowTrailingCommas": true
+				},
+				"formatter": {
+					"trailingCommas": "all"
+				}
+			}
+		},
+		{
+			"includes": ["turbo.json"],
+			"json": {
+				"parser": {
+					"allowComments": true,
+					"allowTrailingCommas": false
+				},
+				"formatter": {
+					"trailingCommas": "none"
+				}
+			}
+		},
+		{
+			"includes": ["**/*.css"],
+			"css": {
+				"parser": {
+					"tailwindDirectives": true
+				}
+			}
+		},
+		{
+			"includes": ["apps/mobile/**/*.css"],
+			"linter": {
+				"rules": {
+					"suspicious": {
+						"noUnknownAtRules": "off"
+					}
+				}
+			}
+		},
+		{
+			"includes": [
+				"**/*.spec.ts",
+				"**/*.test.ts",
+				"**/*.spec.tsx",
+				"**/*.test.tsx"
+			],
+			"linter": {
+				"rules": {
+					"suspicious": {
+						"noExplicitAny": "off"
+					},
+					"performance": {
+						"noDelete": "off"
+					}
+				}
+			}
+		},
+		{
+			"includes": [
+				"packages/**/src/index.ts",
+				"packages/**/src/shared/**/*.ts",
+				"packages/**/src/shared/**/*.tsx"
+			],
+			"linter": {
+				"rules": {
+					"style": {
+						"noRestrictedImports": {
+							"level": "error",
+							"options": {
+								"patterns": [
+									{
+										"group": [
+											"./**/*.client",
+											"./**/*.client.*",
+											"../**/*.client",
+											"../**/*.client.*",
+											"./**/client/**",
+											"../**/client/**",
+											"./**/*.server",
+											"./**/*.server.*",
+											"../**/*.server",
+											"../**/*.server.*",
+											"./**/server/**",
+											"../**/server/**"
+										],
+										"message": "Shared entry points must not import client or server modules."
+									}
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"includes": [
+				"packages/**/src/**/client/**/*.ts",
+				"packages/**/src/**/client/**/*.tsx"
+			],
+			"linter": {
+				"rules": {
+					"style": {
+						"noRestrictedImports": {
+							"level": "error",
+							"options": {
+								"patterns": [
+									{
+										"group": [
+											"./**/*.server",
+											"./**/*.server.*",
+											"../**/*.server",
+											"../**/*.server.*",
+											"./**/server/**",
+											"../**/server/**"
+										],
+										"message": "Client modules must not import server modules."
+									}
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"includes": [
+				"packages/**/src/**/server/**/*.ts",
+				"packages/**/src/**/server/**/*.tsx"
+			],
+			"linter": {
+				"rules": {
+					"style": {
+						"noRestrictedImports": {
+							"level": "error",
+							"options": {
+								"patterns": [
+									{
+										"group": [
+											"./**/*.client",
+											"./**/*.client.*",
+											"../**/*.client",
+											"../**/*.client.*",
+											"./**/client/**",
+											"../**/client/**"
+										],
+										"message": "Server modules must not import client modules."
+									}
+								]
+							}
+						}
+					}
+				}
+			}
+		}
+	],
+	"assist": {
+		"actions": {
+			"source": {
+				"organizeImports": "on"
+			}
+		}
+	},
+	"files": {
+		"includes": [
+			"**",
+			"!!**/.react-email",
+			"!!**/.next",
+			"!!**/.turbo",
+			"!!**/node_modules",
+			"!!**/dist",
+			"!!**/build",
+			"!!**/tmp",
+			"!!**/output",
+			"!!**/.output",
+			"!!**/__tests__/fixtures",
+			"!!**/target",
+			"!**/types.generated.ts",
+			"!**/.expo",
+			"!**/apps/mobile/ios",
+			"!**/apps/mobile/android",
+			"!**/apps/mobile/web-build"
+		]
+	},
+	"javascript": {
+		"jsxRuntime": "reactClassic",
+		"parser": {
+			"unsafeParameterDecoratorsEnabled": true
+		}
+	}
+}

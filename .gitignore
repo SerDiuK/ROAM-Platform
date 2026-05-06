@@ -1,0 +1,43 @@
+node_modules
+dist
+.turbo
+.next
+next-env.d.ts
+.env.local
+.env
+*.tsbuildinfo
+
+# Anchor / Rust
+target
+.anchor
+test-ledger
+
+# Expo
+.expo
+.expo-shared
+expo-env.d.ts
+apps/mobile/ios
+apps/mobile/android
+apps/mobile/web-build
+
+# Claude Code (local/runtime state — keep .claude/settings.json committable)
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+
+/plans
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+.idea
+.vscode
+
+# Logs / coverage / archives
+*.log
+coverage
+*.tgz
+*.zip
+
+# Generic secrets (defensive — actual secrets live in app-local .gitignores)
+*.pem
+*.key

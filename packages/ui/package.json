@@ -1,0 +1,24 @@
+{
+	"name": "@roam/ui",
+	"version": "0.0.1",
+	"private": true,
+	"type": "module",
+	"main": "./src/index.ts",
+	"types": "./src/index.ts",
+	"exports": {
+		".": "./src/index.ts",
+		"./tokens.css": "./tokens.css"
+	},
+	"scripts": {
+		"typecheck": "tsc --noEmit",
+		"build": "tsc"
+	},
+	"dependencies": {
+		"@roam/shared": "workspace:*",
+		"clsx": "^2.1.1",
+		"tailwind-merge": "^2.6.0"
+	},
+	"devDependencies": {
+		"typescript": "^5.7.0"
+	}
+}

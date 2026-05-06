@@ -1,0 +1,50 @@
+{
+	"name": "@roam/cli",
+	"version": "0.0.1",
+	"private": true,
+	"type": "module",
+	"bin": {
+		"roam": "./bin/run.js"
+	},
+	"oclif": {
+		"bin": "roam",
+		"dirname": "roam",
+		"commands": "./build/commands",
+		"topicSeparator": " ",
+		"plugins": ["@oclif/plugin-help"],
+		"topics": {
+			"dispatch": {
+				"description": "Create, list, accept, and decline dispatches"
+			},
+			"incident": {
+				"description": "Ingest 911 calls from audio or transcript"
+			},
+			"responder": {
+				"description": "Inspect responders"
+			}
+		}
+	},
+	"scripts": {
+		"build": "tsc",
+		"typecheck": "tsc --noEmit",
+		"dev": "tsx bin/dev.js",
+		"roam": "tsx bin/dev.js"
+	},
+	"dependencies": {
+		"@inquirer/prompts": "^7.0.0",
+		"@oclif/core": "^4.0.0",
+		"@oclif/plugin-help": "^6.2.36",
+		"@oclif/table": "^0.3.0",
+		"@orpc/client": "^1.14.0",
+		"@roam/api": "workspace:*",
+		"@roam/shared": "workspace:*",
+		"chalk": "^5.3.0",
+		"mongoose": "^9.3.3",
+		"ora": "^8.0.0"
+	},
+	"devDependencies": {
+		"@types/node": "^22.10.0",
+		"tsx": "^4.19.0",
+		"typescript": "^5.7.0"
+	}
+}

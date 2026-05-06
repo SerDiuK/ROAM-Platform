@@ -1,0 +1,24 @@
+{
+	"name": "@roam/iot-bridge",
+	"version": "0.0.1",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"typecheck": "tsc --noEmit",
+		"build": "tsc",
+		"dev": "LOCATION_SOURCE=simulate tsx src/index.ts"
+	},
+	"dependencies": {
+		"dotenv": "^16.4.0",
+		"mqtt": "^5.10.0",
+		"pino": "^9.6.0",
+		"serialport": "^12.0.0",
+		"@serialport/parser-readline": "^12.0.0",
+		"zod": "^3.24.0"
+	},
+	"devDependencies": {
+		"typescript": "^5.7.0",
+		"@types/node": "^22.0.0",
+		"tsx": "^4.19.0"
+	}
+}

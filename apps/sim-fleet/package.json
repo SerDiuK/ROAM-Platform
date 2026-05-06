@@ -1,0 +1,22 @@
+{
+	"name": "@roam/sim-fleet",
+	"version": "0.0.1",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"typecheck": "tsc --noEmit",
+		"build": "tsc",
+		"dev": "tsx src/index.ts"
+	},
+	"dependencies": {
+		"dotenv": "^16.4.0",
+		"pino": "^9.6.0",
+		"zod": "^3.24.0",
+		"@roam/shared": "workspace:^"
+	},
+	"devDependencies": {
+		"typescript": "^5.7.0",
+		"tsx": "^4.19.0",
+		"@types/node": "^22.0.0"
+	}
+}

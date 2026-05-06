@@ -1,0 +1,26 @@
+{
+	"name": "roam-platform",
+	"private": true,
+	"scripts": {
+		"dev": "turbo dev",
+		"build": "turbo build",
+		"typecheck": "turbo typecheck",
+		"lint": "turbo lint",
+		"format": "biome format --write .",
+		"check": "biome check --write .",
+		"check:ci": "biome ci .",
+		"roam": "pnpm --filter @roam/cli dev"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.4.11",
+		"eas-cli": "^18.10.0",
+		"turbo": "^2.5.0",
+		"typescript": "^5.7.0"
+	},
+	"packageManager": "pnpm@10.5.2",
+	"pnpm": {
+		"onlyBuiltDependencies": [
+			"@serialport/bindings-cpp"
+		]
+	}
+}

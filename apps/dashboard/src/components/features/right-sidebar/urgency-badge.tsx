@@ -1,0 +1,35 @@
+import type { IncidentUrgency } from "@roam/shared";
+import { cn } from "@roam/ui";
+
+const URGENCY_TINT: Record<IncidentUrgency, string> = {
+	1: "bg-danger/15 text-danger",
+	2: "bg-warning/15 text-warning",
+	3: "bg-muted-foreground/15 text-muted-foreground",
+};
+
+type UrgencyBadgeProps = {
+	urgency: IncidentUrgency;
+	inverted?: boolean;
+	className?: string;
+};
+
+export function UrgencyBadge({
+	urgency,
+	inverted = false,
+	className,
+}: UrgencyBadgeProps) {
+	const tint = inverted
+		? "bg-primary-foreground/20 text-primary-foreground"
+		: URGENCY_TINT[urgency];
+	return (
+		<span
+			className={cn(
+				"inline-flex h-4 w-7 shrink-0 items-center justify-center rounded text-2xs font-bold tracking-wider uppercase",
+				tint,
+				className,
+			)}
+		>
+			P{urgency}
+		</span>
+	);
+}

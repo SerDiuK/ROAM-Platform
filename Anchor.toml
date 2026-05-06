@@ -1,0 +1,21 @@
+[toolchain]
+
+[features]
+seeds = false
+skip-lint = false
+
+[programs.localnet]
+roam = "Ad9AUd1XbFT41b92R6XgqFZQeotynLWF5aUSMp65gKQy"
+
+[programs.devnet]
+roam = "Ad9AUd1XbFT41b92R6XgqFZQeotynLWF5aUSMp65gKQy"
+
+[registry]
+url = "https://api.apr.dev"
+
+[provider]
+cluster = "devnet"
+wallet = "~/.config/solana/roam-operator.json"
+
+[scripts]
+test = "pnpm exec ts-mocha -p programs/roam/tsconfig.json -t 1000000 programs/roam/tests/**/*.ts"

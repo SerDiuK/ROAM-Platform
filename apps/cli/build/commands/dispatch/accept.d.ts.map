@@ -1,0 +1,1 @@
+{"version":3,"file":"accept.d.ts","sourceRoot":"","sources":["../../../src/commands/dispatch/accept.ts"],"names":[],"mappings":"AAIA,OAAO,EAAE,WAAW,EAAE,MAAM,uBAAuB,CAAC;AAIpD,MAAM,CAAC,OAAO,OAAO,cAAe,SAAQ,WAAW;IACtD,OAAgB,OAAO,SAAuC;IAC9D,OAAgB,WAAW,SACyF;IAEpH,OAAgB,QAAQ,WAItB;IAEF,OAAgB,IAAI;;MAElB;IAEF,OAAgB,KAAK;;MAMnB;IAEI,GAAG,IAAI,OAAO,CAAC,IAAI,CAAC;YAgDZ,aAAa;CAwB3B"}
