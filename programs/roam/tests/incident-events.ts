@@ -3,7 +3,7 @@ import type { Program } from "@coral-xyz/anchor";
 import { expect } from "chai";
 import { createHash, randomBytes } from "node:crypto";
 import { Keypair, SystemProgram } from "@solana/web3.js";
-import type { Roam } from "../target/types/roam";
+import type { Roam } from "../../../target/types/roam";
 
 // Anchor tests for the single-instruction event log. Each test exercises a
 // distinct (incident_id, event_kind, responder_id_hash) tuple to avoid PDA

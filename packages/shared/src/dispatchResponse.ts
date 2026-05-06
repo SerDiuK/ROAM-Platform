@@ -12,7 +12,6 @@ export const DispatchResponseSchema = z.object({
 	decision: DispatchDecisionSchema,
 	declineReason: z.string().optional(),
 	respondedAt: z.coerce.date(),
-	solanaTxSignature: z.string().optional(),
 });
 export type DispatchResponse = z.infer<typeof DispatchResponseSchema>;
 

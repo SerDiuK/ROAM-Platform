@@ -39,7 +39,6 @@ export const DispatchSchema = z.object({
 	status: DispatchStatusSchema,
 	claimedByResponderIds: z.array(z.string()),
 	expiresAt: z.coerce.date(),
-	solanaTxSignature: z.string().optional(),
 });
 export type Dispatch = z.infer<typeof DispatchSchema>;
 

@@ -5,10 +5,13 @@ import { useAtom, useAtomValue } from "jotai";
 import * as React from "react";
 import { Pressable, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { DispatchSheet } from "@/components/dispatch-sheet";
 import { LiveMap } from "@/components/live-map";
 import { MyEventsSheet } from "@/components/my-events-sheet";
 import { Text } from "@/components/ui/text";
 import { VehicleDetailsSheet } from "@/components/vehicle-details-sheet";
+import { DispatchNotifications } from "@/dispatch/notifications";
+import { useDispatchInbox } from "@/dispatch/use-dispatch-inbox";
 import type { RootStackParamList } from "@/navigators/navigation-types";
 import { currentResponderAtom } from "@/state/responder";
 import {
@@ -33,6 +36,8 @@ export function HomeScreen(): React.JSX.Element {
 	const [eventsOpen, setEventsOpen] = React.useState(false);
 	const navigation =
 		useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+
+	const inbox = useDispatchInbox({ responderId: responder?._id });
 
 	const transmitting = positions.size;
 
@@ -103,6 +108,23 @@ export function HomeScreen(): React.JSX.Element {
 			/>
 
 			<MyEventsSheet open={eventsOpen} onOpenChange={setEventsOpen} />
+
+			<DispatchSheet
+				state={inbox.state}
+				onAccept={() => {
+					void inbox.acceptDispatch();
+				}}
+				onDecline={() => {
+					void inbox.declineDispatch();
+				}}
+				onDismiss={inbox.dismiss}
+			/>
+
+			<DispatchNotifications
+				onDispatch={(dispatchId) => {
+					void inbox.showFor(dispatchId);
+				}}
+			/>
 		</View>
 	);
 }
