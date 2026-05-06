@@ -5,6 +5,8 @@ dist
 next-env.d.ts
 .env.local
 .env
+.env.production
+.env.development
 *.tsbuildinfo
 
 # Anchor / Rust
@@ -41,3 +43,4 @@ coverage
 # Generic secrets (defensive — actual secrets live in app-local .gitignores)
 *.pem
 *.key
+*.apk

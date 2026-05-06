@@ -22,7 +22,6 @@ const dispatchSchema = new mongoose.Schema({
 	status: { type: String, enum: DISPATCH_STATUSES, required: true },
 	claimedByResponderIds: { type: [String], required: true, default: [] },
 	expiresAt: { type: Date, required: true },
-	solanaTxSignature: { type: String },
 });
 
 dispatchSchema.index({ status: 1, expiresAt: 1 });

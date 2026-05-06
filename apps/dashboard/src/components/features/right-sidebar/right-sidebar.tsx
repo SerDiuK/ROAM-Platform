@@ -10,6 +10,8 @@ import {
 } from "../../ui/sidebar-primitives";
 import { IncidentDetail } from "./incident-detail";
 import { IncidentsList } from "./incidents-list";
+import { TabBar, TabButton } from "@/components/ui/tab-bar";
+import { useState } from "react";
 
 type RightSidebarProps = {
 	open: boolean;
@@ -39,18 +41,20 @@ export function RightSidebar({
 	const selectedIncident =
 		incidents.find((i) => i._id === selectedIncidentId) ?? null;
 
+    const [tab, setTab] = useState("fleet")
+
 	return (
 		<SidebarProvider side="right" open={open} onOpenChange={onOpenChange}>
 			<Sidebar side="right" collapsible="offcanvas">
 				<div className="relative flex h-full w-full flex-col overflow-hidden">
-					<SidebarHeader>
-						<SidebarTrigger className="-ml-1" />
-						<div className="flex items-center gap-2">
-							<Icon name="emergency" className="text-danger" />
-							<span className="text-xs font-semibold uppercase tracking-widest text-foreground">
-								Incidents
-							</span>
-						</div>
+                    <SidebarHeader className="h-auto flex-col items-stretch gap-0 border-b-0 p-0">
+                        <TabBar className="w-full">
+							<TabButton
+								active={tab === "fleet"}
+								onClick={() => setTab("fleet")}
+								label="Incidents"
+							/>
+						</TabBar>
 					</SidebarHeader>
 
 					<IncidentsList

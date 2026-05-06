@@ -1511,6 +1511,12 @@ Acceptance:
 
 ## AD-9 — Anchor program: record_dispatch + record_response
 
+> **SUPERSEDED 2026-05-06.** The on-chain program was rewritten to a single
+> `record_event` instruction with six event kinds (`received`, `dispatched`,
+> `accepted`, `rejected`, `arrived`, `cleared`) — see CLAUDE.md "Active". The
+> `record_dispatch` / `record_response` split below was never built. Plan kept
+> for historical context.
+
 ```
 Add Solana on-chain audit instructions next to the existing record_session.
 
@@ -1572,6 +1578,15 @@ Acceptance:
 ---
 
 ## AD-10 — Solana client helpers + wire dispatch async
+
+> **SUPERSEDED 2026-05-06.** Functionally absorbed by the unified `record_event`
+> design: `recordIncidentEvent()` in `apps/backend/src/services/incidentEvents.ts`
+> wraps the Mongo insert + non-blocking `withSolanaProvider` chain write +
+> `solanaTxSignature` writeback + `incident.event.chain` broadcast, and is fired
+> from `dispatch.confirm` / `dispatch.respond` for the `dispatched` / `accepted`
+> / `rejected` event kinds. Dead `solanaTxSignature` fields removed from
+> `Dispatch` + `DispatchResponse` schemas the same day. Plan kept for historical
+> context.
 
 ```
 Add backend helpers that call the new instructions, and wire them into

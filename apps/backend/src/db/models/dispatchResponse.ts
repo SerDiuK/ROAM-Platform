@@ -11,7 +11,6 @@ const dispatchResponseSchema = new mongoose.Schema({
 	decision: { type: String, enum: DISPATCH_DECISIONS, required: true },
 	declineReason: { type: String },
 	respondedAt: { type: Date, required: true },
-	solanaTxSignature: { type: String },
 });
 
 dispatchResponseSchema.index(

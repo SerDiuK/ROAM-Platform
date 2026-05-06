@@ -20,7 +20,7 @@ const PREFIX = "demo-";
 type DemoIncidentSeed = {
 	suffix: string;
 	minutesAgo: number;
-	status: "live" | "pending" | "responding" | "resolved" | "cancelled";
+	status: "responding" | "arrived" | "resolved";
 	urgency: 1 | 2 | 3;
 	incidentType: string;
 	locationDescription: string;
@@ -30,8 +30,7 @@ type DemoIncidentSeed = {
 	assignVehicleCount: number;
 	assignResponderCount: number;
 	// Minutes after the call start when the dispatcher confirmed dispatch /
-	// the last unit cleared scene. Set on responding/resolved/cancelled-after-
-	// dispatch incidents only.
+	// the last unit cleared scene. Set on responding/arrived/resolved incidents.
 	dispatchedAfterMin?: number;
 	clearedAfterMin?: number;
 };
@@ -40,36 +39,8 @@ type DemoIncidentSeed = {
 // like "2 min ago" / "1 h ago".
 const SEEDS: DemoIncidentSeed[] = [
 	{
-		suffix: "live-biscayne",
-		minutesAgo: 0,
-		status: "live",
-		urgency: 1,
-		incidentType: "Multi-vehicle collision",
-		locationDescription: "Biscayne Blvd & NE 36th St, Miami",
-		location: { lat: 25.8076, lon: -80.1881 },
-		requiredCapabilities: ["medic"],
-		transcript:
-			"911, what's your emergency? — There's been a crash, three cars, intersection of Biscayne and 36th. People are hurt, please hurry.",
-		assignVehicleCount: 0,
-		assignResponderCount: 0,
-	},
-	{
-		suffix: "pending-brickell",
-		minutesAgo: 4,
-		status: "pending",
-		urgency: 2,
-		incidentType: "Cardiac event",
-		locationDescription: "Brickell Ave & SE 8th St, Miami",
-		location: { lat: 25.7656, lon: -80.1922 },
-		requiredCapabilities: ["medic"],
-		transcript:
-			"My husband is having chest pain, he can't breathe properly. We're at the lobby of 800 Brickell.",
-		assignVehicleCount: 0,
-		assignResponderCount: 0,
-	},
-	{
 		suffix: "responding-overtown",
-		minutesAgo: 11,
+		minutesAgo: 6,
 		status: "responding",
 		urgency: 1,
 		incidentType: "Structure fire — occupants",
@@ -81,6 +52,21 @@ const SEEDS: DemoIncidentSeed[] = [
 		assignVehicleCount: 2,
 		assignResponderCount: 2,
 		dispatchedAfterMin: 1,
+	},
+	{
+		suffix: "arrived-edgewater",
+		minutesAgo: 18,
+		status: "arrived",
+		urgency: 2,
+		incidentType: "Fall — elderly",
+		locationDescription: "NE 2nd Ave & 30th St, Edgewater",
+		location: { lat: 25.8019, lon: -80.1908 },
+		requiredCapabilities: ["medic"],
+		transcript:
+			"My mother fell in the bathroom, she's conscious but can't get up. Apartment 1804.",
+		assignVehicleCount: 1,
+		assignResponderCount: 1,
+		dispatchedAfterMin: 2,
 	},
 	{
 		suffix: "resolved-grove",
@@ -97,20 +83,6 @@ const SEEDS: DemoIncidentSeed[] = [
 		assignResponderCount: 1,
 		dispatchedAfterMin: 1,
 		clearedAfterMin: 18,
-	},
-	{
-		suffix: "cancelled-wynwood",
-		minutesAgo: 92,
-		status: "cancelled",
-		urgency: 2,
-		incidentType: "Suspicious package",
-		locationDescription: "NW 2nd Ave & 24th St, Wynwood",
-		location: { lat: 25.7991, lon: -80.1989 },
-		requiredCapabilities: ["medic"],
-		transcript:
-			"There's an unattended bag outside the gallery, looks weird. — Update: owner returned, false alarm, cancel.",
-		assignVehicleCount: 0,
-		assignResponderCount: 0,
 	},
 ];
 

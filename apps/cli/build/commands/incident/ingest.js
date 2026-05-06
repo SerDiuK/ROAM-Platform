@@ -28,6 +28,42 @@ function mimeFromExt(filePath) {
 function truncate(s, n) {
     return s.length > n ? `${s.slice(0, n - 1)}…` : s;
 }
+// Walk the .cause chain (Node wraps low-level network errors) so the user
+// sees the actual signal — ECONNREFUSED, ECONNRESET, etc. — instead of the
+// generic "fetch failed" the top-level fetch throws.
+function describeError(err) {
+    const lines = [];
+    let current = err;
+    let depth = 0;
+    while (current && depth < 5) {
+        const e = current;
+        const code = e.code ? `${e.code} ` : "";
+        const msg = e.message ?? String(current);
+        lines.push(`${code}${msg}`);
+        current = e.cause;
+        depth += 1;
+    }
+    return { headline: lines[0] ?? "unknown error", details: lines.slice(1) };
+}
+// fetch failures during dev usually mean the backend's tsx watch is mid-
+// restart from a file edit. Treat connect-time errors as transient and retry.
+const TRANSIENT_CODES = new Set([
+    "ECONNREFUSED",
+    "ECONNRESET",
+    "EPIPE",
+    "ETIMEDOUT",
+    "UND_ERR_SOCKET",
+]);
+function isTransientFetchError(err) {
+    let current = err;
+    for (let depth = 0; depth < 5 && current; depth += 1) {
+        const code = current.code;
+        if (code && TRANSIENT_CODES.has(code))
+            return true;
+        current = current.cause;
+    }
+    return false;
+}
 export default class IncidentIngest extends BaseCommand {
     static summary = "Ingest a 911 call (audio or transcript) and watch the dashboard pick it up.";
     static description = "Reads an audio file, base64-encodes it, and POSTs to /api/incidents/ingest. The backend transcribes via Deepgram and runs the briefing agent — the dashboard's right sidebar will show the new incident as soon as it's persisted, then fill in the briefing when the agent is done. Default audio is apps/dashboard/public/911call.wav.";
@@ -55,7 +91,7 @@ export default class IncidentIngest extends BaseCommand {
         }),
         timeout: Flags.integer({
             description: "Seconds to wait for the briefing before giving up.",
-            default: 90,
+            default: 180,
         }),
     };
     async run() {
@@ -95,9 +131,14 @@ export default class IncidentIngest extends BaseCommand {
             this.log(chalk.dim("  Confirm via the dashboard → creates a Dispatch and notifies recommended responders"));
         }
         catch (err) {
-            const code = err.code;
-            const message = err.message ?? String(err);
-            spinner.fail(chalk.red(`${code ?? "ERROR"}: ${message}`));
+            const { headline, details } = describeError(err);
+            spinner.fail(chalk.red(headline));
+            for (const line of details) {
+                this.log(chalk.dim(`  ↳ ${line}`));
+            }
+            if (isTransientFetchError(err)) {
+                this.log(chalk.dim(`  Backend at ${this.backend} appears down or restarting. Check the @roam/backend dev terminal — tsx watch usually restarts within a second of an edit.`));
+            }
             this.exit(1);
         }
     }
