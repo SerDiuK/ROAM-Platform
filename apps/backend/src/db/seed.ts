@@ -9,8 +9,7 @@ const VEHICLE_SPECS: VehicleSpecSeed[] = [
 		slug: "ambulance-type-1",
 		manufacturer: "Wheeled Coach",
 		name: "Type I Ambulance",
-		imageUrl:
-			"https://wheeledcoach.com/wp-content/uploads/2023/01/wc-type1.png",
+		imageUrl: "https://i.ibb.co/4BHjLTk/vehicle-ambulance-private.png",
 		description:
 			"Type I medic transport — heavy-duty truck chassis with a modular patient compartment, ALS-capable for advanced life support and primary 911 medical response.",
 		category: "ambulance",
@@ -24,9 +23,7 @@ const VEHICLE_SPECS: VehicleSpecSeed[] = [
 	},
 ];
 
-export async function seedVehicleSpecs(
-	logger: MinimalLogger,
-): Promise<void> {
+export async function seedVehicleSpecs(logger: MinimalLogger): Promise<void> {
 	for (const spec of VEHICLE_SPECS) {
 		await VehicleSpecModel.findOneAndUpdate(
 			{ slug: spec.slug },

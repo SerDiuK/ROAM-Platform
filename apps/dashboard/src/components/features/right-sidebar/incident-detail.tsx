@@ -13,6 +13,14 @@ import { IncidentAssignedBody } from "./incident-assigned-body";
 import { IncidentChainLog } from "./incident-chain-log";
 import { IncidentPendingBody } from "./incident-pending-body";
 
+function playAlertTone(audio: HTMLAudioElement | null): void {
+	if (!audio) return;
+	audio.currentTime = 0;
+	audio.play().catch((err) => {
+		console.warn("[incident-detail] alert tone blocked:", err);
+	});
+}
+
 type IncidentDetailProps = {
 	incident: Incident | null;
 	vehicles: Vehicle[];
@@ -44,6 +52,23 @@ export function IncidentDetail({
 	useEffect(() => {
 		if (incident) lastIncidentRef.current = incident;
 	}, [incident]);
+
+	const alertAudioRef = useRef<HTMLAudioElement | null>(null);
+	useEffect(() => {
+		const audio = new Audio("/911call.wav");
+		audio.preload = "auto";
+		audio.volume = 1;
+		alertAudioRef.current = audio;
+		return () => {
+			audio.pause();
+			alertAudioRef.current = null;
+		};
+	}, []);
+	useEffect(() => {
+		if (!open) return;
+		if (incident?.status !== "live") return;
+		playAlertTone(alertAudioRef.current);
+	}, [open, incident?.status]);
 
 	const display = incident ?? lastIncidentRef.current;
 	const isAssigned =
