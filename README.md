@@ -2,13 +2,25 @@
 
 AI-powered emergency dispatch and fleet accountability platform built on Solana. Every dispatch event — received, dispatched, accepted, on-scene, cleared — is an immutable on-chain transaction signed by the responder's Solana Mobile Seeker.
 
+## Demo
+
+[Repo walkthrough video](https://drive.google.com/file/d/1NKnXrKabCbmse314Kgd5K6qtFnqOAxO7/view?usp=sharing) — guided tour of the codebase.
+
+**Mobile (responder)**
+
+<a href="https://drive.google.com/file/d/1Bd18n86DyV4-B7nvhXkuHcwmE2XgalFj/view?usp=sharing"><img src="https://drive.google.com/thumbnail?id=1Bd18n86DyV4-B7nvhXkuHcwmE2XgalFj&sz=w800" width="320" alt="Responder mobile app" /></a> <a href="https://drive.google.com/file/d/1ygaxEPoTBM8Mu7drS7dSSsfGCuImAF_w/view?usp=sharing"><img src="https://drive.google.com/thumbnail?id=1ygaxEPoTBM8Mu7drS7dSSsfGCuImAF_w&sz=w800" width="320" alt="Responder mobile app" /></a>
+
+**Dispatcher command center**
+
+<a href="https://drive.google.com/file/d/1nkhCFjtsPIzW-3UkVi9pl2BXiw46MjBr/view?usp=sharing"><img src="https://drive.google.com/thumbnail?id=1nkhCFjtsPIzW-3UkVi9pl2BXiw46MjBr&sz=w1400" width="800" alt="Dispatcher dashboard" /></a>
+
 ## How it works
 
 1. **Ingest** — A 911 audio stream (or transcript) is fed to the backend, which uses an LLM to extract location, urgency, and required capability.
 2. **Propose** — The dispatch engine ranks available responders by distance and capability and presents one or more candidates to a human dispatcher.
 3. **Approve** — The dispatcher accepts the briefing in one tap. Responders receive a push notification on their mobile app.
 4. **Attest on-chain** — Each responder signs the `record_event` instruction with their Solana Mobile Seeker, attesting their own dispatch, accept, on-scene, and clear events. The operator key co-signs as fee payer.
-5. **Settle** — The same on-chain log is the audit trail and the basis for autonomous payout — no invoices, no accounts payable.
+5. **Settle** — Completion runs through the [x402 protocol](https://www.x402.org/): `POST /api/dispatch/complete` first replies **HTTP 402 Payment Required** with a SOL settlement spec, the client retries with a signed payment transaction in the `X-Payment` header, and the server verifies and submits it on-chain. The same Solana log doubles as the audit trail and the payout receipt — no invoices, no accounts payable.
 
 ## Architecture
 
