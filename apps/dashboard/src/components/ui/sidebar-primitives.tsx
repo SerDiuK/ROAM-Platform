@@ -1,6 +1,5 @@
 "use client";
 
-import { Slot } from "@radix-ui/react-slot";
 import { cn } from "@roam/ui";
 import { cva, type VariantProps } from "class-variance-authority";
 import {
@@ -245,16 +244,12 @@ export function SidebarGroup({ className, ...props }: ComponentProps<"div">) {
 	);
 }
 
-type SidebarGroupLabelProps = ComponentProps<"div"> & { asChild?: boolean };
-
 export function SidebarGroupLabel({
 	className,
-	asChild = false,
 	...props
-}: SidebarGroupLabelProps) {
-	const Comp = asChild ? Slot : "div";
+}: ComponentProps<"div">) {
 	return (
-		<Comp
+		<div
 			data-slot="sidebar-group-label"
 			data-sidebar="group-label"
 			className={cn(
@@ -319,20 +314,17 @@ const sidebarMenuButtonVariants = cva(
 );
 
 type SidebarMenuButtonProps = ComponentProps<"button"> & {
-	asChild?: boolean;
 	isActive?: boolean;
 } & VariantProps<typeof sidebarMenuButtonVariants>;
 
 export function SidebarMenuButton({
-	asChild = false,
 	isActive = false,
 	size = "default",
 	className,
 	...props
 }: SidebarMenuButtonProps) {
-	const Comp = asChild ? Slot : "button";
 	return (
-		<Comp
+		<button
 			data-slot="sidebar-menu-button"
 			data-sidebar="menu-button"
 			data-active={isActive}
