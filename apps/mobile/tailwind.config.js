@@ -48,7 +48,10 @@ module.exports = {
 					"accent-foreground": "var(--sidebar-accent-foreground)",
 					ring: "var(--sidebar-ring)",
 				},
-				lime: "var(--lime)",
+				lime: {
+					DEFAULT: "var(--lime)",
+					foreground: "var(--lime-foreground)",
+				},
 				border2: "var(--border2)",
 				solana: "var(--solana)",
 			},

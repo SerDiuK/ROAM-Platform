@@ -5,13 +5,12 @@ import { Linking, Pressable, ScrollView, View } from "react-native";
 import { Sheet, SheetTitle } from "@/components/ui/sheet";
 import { Text } from "@/components/ui/text";
 import { api } from "@/lib/api";
+import { solanaExplorerTxUrl } from "@/lib/solana-explorer";
 
 type Props = {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 };
-
-const SOLANA_CLUSTER = "devnet";
 
 const KIND_LABEL: Record<IncidentEventKind, string> = {
 	received: "Call received",
@@ -77,7 +76,7 @@ function Body(): React.JSX.Element {
 						{grouped.map(({ incidentId, items }) => (
 							<View
 								key={incidentId}
-								className="rounded-md border border-border/50 p-3"
+								className="rounded-md border border-sidebar-border bg-sidebar-accent/30 p-3"
 							>
 								<Text className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
 									Incident {incidentId.slice(0, 8)}
@@ -110,11 +109,7 @@ function EventRow({ event }: { event: IncidentEvent }): React.JSX.Element {
 			</View>
 			{sig ? (
 				<Pressable
-					onPress={() =>
-						void Linking.openURL(
-							`https://explorer.solana.com/tx/${sig}?cluster=${SOLANA_CLUSTER}`,
-						)
-					}
+					onPress={() => void Linking.openURL(solanaExplorerTxUrl(sig))}
 					className="rounded border border-solana/40 bg-solana/10 px-2 py-1"
 					accessibilityLabel="Open transaction in Solana explorer"
 				>
@@ -123,7 +118,7 @@ function EventRow({ event }: { event: IncidentEvent }): React.JSX.Element {
 					</Text>
 				</Pressable>
 			) : (
-				<View className="rounded border border-border/40 bg-muted/30 px-2 py-1">
+				<View className="rounded border border-sidebar-border bg-sidebar-accent/40 px-2 py-1">
 					<Text className="text-2xs uppercase tracking-wider text-muted-foreground">
 						⬡ pending
 					</Text>

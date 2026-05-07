@@ -27,10 +27,15 @@ export type FleetData = {
 	vehicles: Vehicle[];
 	responders: Responder[];
 	responderMap: Map<string, Responder>;
+	connected: boolean;
 };
 
 export function useFleetData(): FleetData {
-	const { data } = usePollingResource(loadFleet, EMPTY, FLEET_POLL_MS);
+	const { data, connected } = usePollingResource(
+		loadFleet,
+		EMPTY,
+		FLEET_POLL_MS,
+	);
 	const responderMap = useMemo(
 		() => new Map(data.responders.map((r) => [r._id, r])),
 		[data.responders],
@@ -39,5 +44,6 @@ export function useFleetData(): FleetData {
 		vehicles: data.vehicles,
 		responders: data.responders,
 		responderMap,
+		connected,
 	};
 }

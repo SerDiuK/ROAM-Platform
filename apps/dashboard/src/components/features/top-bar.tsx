@@ -61,22 +61,12 @@ export function TopBar({
 				</div>
 				<Divider className="hidden md:block" />
 				<div className="flex items-center gap-2 text-muted-foreground">
-					<span className="size-1.5 rounded-full bg-warning" />
+					<span className="size-1.5 rounded-full bg-solana" />
 					<span className="font-medium uppercase tracking-wider text-foreground/80">
-						Miami
+						Solana
 					</span>
 				</div>
-
 				<Divider />
-
-				<Button variant="outline" size="sm" onClick={onReportsClick}>
-					<Icon name="summarize" />
-					Reports
-				</Button>
-				<Button variant="primary" size="sm" onClick={onMissionBriefClick}>
-					<Icon name="bolt" />
-					Mission Brief
-				</Button>
 			</div>
 
 			{!rightOpen && (

@@ -13,7 +13,12 @@ import { useIncidentsData } from "@/hooks/use-incidents-data";
 import { getWsUrl } from "@/lib/config";
 
 function Page() {
-	const { vehicles, responderMap } = useFleetData();
+	const {
+		vehicles,
+		responders,
+		responderMap,
+		connected: rosterConnected,
+	} = useFleetData();
 	const {
 		data: incidents,
 		loading: incidentsLoading,
@@ -98,9 +103,11 @@ function Page() {
 						open={leftOpen}
 						onOpenChange={setLeftOpen}
 						vehicles={vehicles}
+						responders={responders}
 						positions={positions}
 						responderMap={responderMap}
 						telemetryConnected={telemetryConnected}
+						rosterConnected={rosterConnected}
 						selectedVehicleId={selectedVehicleId}
 						onSelectVehicle={setSelectedVehicleId}
 					/>

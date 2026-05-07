@@ -9,7 +9,7 @@ import {
 	DispatchInbox,
 	type DispatchInboxApi,
 	type DispatchInboxState,
-} from "@/dispatch/dispatch-inbox";
+} from "./dispatch-inbox";
 import { forgetDeviceAtom } from "@/state/wallet-auth";
 
 // Bridges the pure DispatchInbox state machine into React. One inbox per
@@ -110,7 +110,7 @@ const apiAdapter: DispatchInboxApi = {
 	},
 };
 
-export type { DispatchInboxData, DispatchInboxState } from "@/dispatch/dispatch-inbox";
+export type { DispatchInboxData, DispatchInboxState } from "./dispatch-inbox";
 
 export function useDispatchInbox({ responderId }: Options): UseDispatchInbox {
 	const responderIdRef = React.useRef(responderId);

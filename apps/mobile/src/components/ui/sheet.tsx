@@ -47,7 +47,7 @@ function Sheet({
 						className="absolute inset-x-0 bottom-0 rounded-t-2xl bg-background px-5 pt-2"
 						style={{ paddingBottom: 24 + insets.bottom }}
 					>
-						<View className="mb-3.5 h-1 w-10 self-center rounded-sm bg-white/25" />
+						<View className="mb-3.5 h-1 w-10 self-center rounded-sm bg-foreground/25" />
 						{children}
 					</Animated.View>
 				</Dialog.Content>

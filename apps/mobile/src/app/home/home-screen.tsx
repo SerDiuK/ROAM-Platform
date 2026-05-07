@@ -1,17 +1,19 @@
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { STATUS_HEX } from "@roam/ui";
+import { color, STATUS_HEX } from "@roam/ui";
 import { useAtom, useAtomValue } from "jotai";
+import { History } from "lucide-react-native";
 import * as React from "react";
 import { Pressable, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { DispatchSheet } from "@/components/dispatch-sheet";
-import { LiveMap } from "@/components/live-map";
-import { MyEventsSheet } from "@/components/my-events-sheet";
+import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
-import { VehicleDetailsSheet } from "@/components/vehicle-details-sheet";
-import { DispatchNotifications } from "@/dispatch/notifications";
-import { useDispatchInbox } from "@/dispatch/use-dispatch-inbox";
+import { DispatchNotifications } from "@/features/dispatch/notifications";
+import { DispatchSheet } from "@/features/dispatch/dispatch-sheet/dispatch-sheet";
+import { useDispatchInbox } from "@/features/dispatch/use-dispatch-inbox";
+import { LiveMap } from "@/features/live-map/live-map";
+import { MyEventsSheet } from "@/features/my-events-sheet";
+import { VehicleDetailsSheet } from "@/features/vehicle-details-sheet";
 import type { RootStackParamList } from "@/navigators/navigation-types";
 import { currentResponderAtom } from "@/state/responder";
 import {
@@ -85,15 +87,14 @@ export function HomeScreen(): React.JSX.Element {
 								{transmitting} transmitting / {vehicles.length} total
 							</Text>
 						</View>
-						<Pressable
+						<Button
 							onPress={() => setEventsOpen(true)}
-							className="rounded-lg bg-black/80 px-3 py-2"
+							size="sm"
 							accessibilityLabel="Open my events"
 						>
-							<Text className="text-xs font-sans-semibold text-white">
-								My events
-							</Text>
-						</Pressable>
+							<History size={14} color={color("primaryForeground")} />
+							<Text className="text-xs font-sans-semibold">My events</Text>
+						</Button>
 					</View>
 				</View>
 			</SafeAreaView>
