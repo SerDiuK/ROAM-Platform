@@ -1,5 +1,6 @@
 "use client";
 
+import { Slot } from "@radix-ui/react-slot";
 import { cn } from "@roam/ui";
 import { cva, type VariantProps } from "class-variance-authority";
 import type { ComponentProps } from "react";
@@ -35,20 +36,28 @@ const buttonVariants = cva(
 	},
 );
 
-type ButtonProps = ComponentProps<"button"> & VariantProps<typeof buttonVariants>;
+type ButtonProps = ComponentProps<"button"> &
+	VariantProps<typeof buttonVariants> & {
+		asChild?: boolean;
+	};
 
 export function Button({
 	className,
 	variant,
 	size,
+	asChild = false,
 	type,
 	...props
 }: ButtonProps) {
+	const classes = cn(buttonVariants({ variant, size }), className);
+	if (asChild) {
+		return <Slot data-slot="button" className={classes} {...props} />;
+	}
 	return (
 		<button
 			data-slot="button"
 			type={type ?? "button"}
-			className={cn(buttonVariants({ variant, size }), className)}
+			className={classes}
 			{...props}
 		/>
 	);

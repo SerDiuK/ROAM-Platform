@@ -16,8 +16,7 @@ import { createWalletProvider } from "../src/wallet/index.js";
 // Auth is Seeker-only (SIWS). Drivers' walletAddress is bound on first sign-in
 // from the device — no PIN, no pre-shared secret here.
 
-// Single VehicleSpec seeded today — every demo vehicle resolves to it.
-const DEMO_FLEET_MODEL_SLUG = "ambulance-type-1";
+const FALLBACK_MODEL_SLUG = "ambulance-type-1";
 
 async function main(): Promise<void> {
 	const config = parseConfig();
@@ -29,14 +28,15 @@ async function main(): Promise<void> {
 
 	const wallet = createWalletProvider(config);
 
-	const spec = await VehicleSpecModel.findOne({ slug: DEMO_FLEET_MODEL_SLUG }).lean();
-	if (!spec) {
-		throw new Error(
-			`VehicleSpec '${DEMO_FLEET_MODEL_SLUG}' not seeded — fleet seed cannot proceed`,
-		);
-	}
-
 	for (const vehicle of DEMO_FLEET) {
+		const slug = vehicle.modelSlug ?? FALLBACK_MODEL_SLUG;
+		const spec = await VehicleSpecModel.findOne({ slug }).lean();
+		if (!spec) {
+			throw new Error(
+				`VehicleSpec '${slug}' not seeded — required by ${vehicle.callsign}`,
+			);
+		}
+
 		// Responder first so we can stamp the vehicle's assignedResponderIds in
 		// the same upsert. The agent's find_nearest_vehicles tool joins on this
 		// to honor capability filters.
@@ -80,7 +80,7 @@ async function main(): Promise<void> {
 			{ upsert: true, returnDocument: "after" },
 		);
 		console.log(
-			`[seed-fleet] vehicle ${vehicle.callsign} (${DEMO_FLEET_MODEL_SLUG}) — id=${v._id.toHexString()} driver=${vehicle.responderName}`,
+			`[seed-fleet] vehicle ${vehicle.callsign} (${slug}) — id=${v._id.toHexString()} driver=${vehicle.responderName}`,
 		);
 
 		const { address } = await wallet.createWallet(responder._id);
