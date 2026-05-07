@@ -65,6 +65,17 @@ const ConfigSchema = z.object({
 	// resume — the dispatcher use case is "phone in hand during a shift," not
 	// long-lived sessions.
 	AUTH_TOKEN_TTL_SECS: z.coerce.number().int().positive().default(60),
+	// Coinbase Developer Platform credentials. Optional — used for CDP facilitator
+	// integration (payment verification via CDP instead of local RPC submission).
+	CDP_API_KEY_ID: z.string().optional(),
+	CDP_PRIVATE_KEY: z.string().optional(),
+	// x402 payment settlement config.
+	// Recipient is the ROAM wallet that receives SOL when a dispatch is settled.
+	// Network must match SOLANA_CLUSTER (devnet for local/staging, solana for mainnet).
+	X402_RECIPIENT_ADDRESS: z
+		.string()
+		.default("CxzRUvsir6ZYQkEhsDWDYExjXTyZkrbbj9248gVWL22p"),
+	X402_NETWORK: z.enum(["solana-devnet", "solana"]).default("solana-devnet"),
 	STT_PROVIDER: z.enum(["deepgram"]).default("deepgram"),
 	DEEPGRAM_API_KEY: z.string().min(1),
 	// Anthropic Messages API key for the agent runner (AD-6). Required because

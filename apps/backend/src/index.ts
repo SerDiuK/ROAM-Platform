@@ -9,6 +9,7 @@ import { ZodSmartCoercionPlugin, ZodToJsonSchemaConverter } from "@orpc/zod";
 import type { FastifyBaseLogger, FastifyRequest } from "fastify";
 import Fastify from "fastify";
 import { createTranscriber } from "./agent/transcribe.js";
+import { registerDispatchCompleteRoute } from "./x402/route.js";
 import { resolveUserFromSource } from "./auth/resolveUser.js";
 import { parseConfig } from "./config.js";
 import { connectDb } from "./db/connection.js";
@@ -131,6 +132,9 @@ async function main(): Promise<void> {
 	const openapiGenerator = new OpenAPIGenerator({
 		schemaConverters: [new ZodToJsonSchemaConverter()],
 	});
+
+	// x402-protected payment settlement route (raw Fastify, not oRPC)
+	registerDispatchCompleteRoute(app, config, dispatchBroadcaster, app.log);
 
 	// RPC protocol for typed TS clients (dashboard, future mobile)
 	app.all("/rpc/*", async (request, reply) => {
