@@ -62,7 +62,7 @@ export function ResponseTimer({
 
 	const fillClass =
 		remainingSecs > totalMs / 1000 / 2
-			? "bg-solana"
+			? "bg-primary"
 			: remainingSecs > totalMs / 1000 / 4
 				? "bg-warning"
 				: "bg-danger";
