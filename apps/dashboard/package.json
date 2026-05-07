@@ -11,7 +11,7 @@
 	"dependencies": {
 		"@orpc/client": "^1.14.0",
 		"@orpc/contract": "^1.14.0",
-		"@radix-ui/react-slot": "^1.1.1",
+		"@radix-ui/react-slot": "^1.2.0",
 		"@roam/api": "workspace:*",
 		"@roam/shared": "workspace:*",
 		"@roam/ui": "workspace:*",

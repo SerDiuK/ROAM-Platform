@@ -50,13 +50,11 @@ export function Button({
 	...props
 }: ButtonProps) {
 	const classes = cn(buttonVariants({ variant, size }), className);
-	if (asChild) {
-		return <Slot data-slot="button" className={classes} {...props} />;
-	}
+	const Comp = asChild ? Slot : "button";
 	return (
-		<button
+		<Comp
 			data-slot="button"
-			type={type ?? "button"}
+			type={asChild ? undefined : (type ?? "button")}
 			className={classes}
 			{...props}
 		/>
