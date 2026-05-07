@@ -4,8 +4,8 @@ AI-powered emergency dispatch and fleet accountability platform built on Solana.
 
 ## Demo
 
-[Demo] https://drive.google.com/file/d/1hUOJiqB6wVJGL29Kw7Rb31atHGUzaG8Y/view?usp=drive_link — E2E Demo
-[Repo walkthrough video](https://drive.google.com/file/d/1NKnXrKabCbmse314Kgd5K6qtFnqOAxO7/view?usp=sharing) — guided tour of the codebase.
+* [Demo] https://drive.google.com/file/d/1hUOJiqB6wVJGL29Kw7Rb31atHGUzaG8Y/view?usp=drive_link — E2E Demo
+* [Repo walkthrough video](https://drive.google.com/file/d/1NKnXrKabCbmse314Kgd5K6qtFnqOAxO7/view?usp=sharing) — guided tour of the codebase.
 
 **Mobile (responder)**
 
