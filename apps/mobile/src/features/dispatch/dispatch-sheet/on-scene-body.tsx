@@ -1,8 +1,8 @@
 import type { Vehicle } from "@roam/shared";
-import { cn } from "@roam/ui";
 import { useAtomValue } from "jotai";
 import * as React from "react";
-import { Image, Pressable, View } from "react-native";
+import { Image, View } from "react-native";
+import { Button } from "@/components/ui/button";
 import { SheetTitle } from "@/components/ui/sheet";
 import { Text } from "@/components/ui/text";
 import type { DispatchInboxData } from "../use-dispatch-inbox";
@@ -52,9 +52,15 @@ export function OnSceneBody({
 		<View className="gap-3 pb-2">
 			<View className="flex-row items-start justify-between">
 				<SheetTitle className="tracking-widest">ON SCENE</SheetTitle>
-				<Pressable onPress={onDismiss} hitSlop={8} accessibilityLabel="Dismiss">
+				<Button
+					onPress={onDismiss}
+					variant="ghost"
+					size="icon"
+					hitSlop={8}
+					accessibilityLabel="Dismiss"
+				>
 					<Text className="text-lg leading-none text-muted-foreground">×</Text>
-				</Pressable>
+				</Button>
 			</View>
 
 			<View className="flex-row gap-3">
@@ -85,7 +91,7 @@ export function OnSceneBody({
 				<InfoRow
 					label="Unit"
 					value={vehicle?.callsign ?? "—"}
-					valueClassName="text-lime"
+					valueClassName="text-primary"
 				/>
 				<InfoRow label="Location" value={locationText} />
 				<InfoRow
@@ -96,19 +102,14 @@ export function OnSceneBody({
 
 			<ChainTimeline events={events} responders={responders} />
 
-			<Pressable
+			<Button
 				onPress={onClear}
 				disabled={clearing}
-				className={cn(
-					"h-14 items-center justify-center rounded-md bg-lime",
-					clearing && "opacity-50",
-				)}
+				size="xl"
 				accessibilityLabel="Clear incident"
 			>
-				<Text className="text-base font-sans-bold uppercase tracking-wider text-lime-foreground">
-					{clearing ? "Clearing…" : "Clear incident"}
-				</Text>
-			</Pressable>
+				<Text>{clearing ? "Clearing…" : "Clear incident"}</Text>
+			</Button>
 		</View>
 	);
 }

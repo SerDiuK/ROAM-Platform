@@ -70,9 +70,6 @@ export function IncidentDetail({
 					<Icon name="chevron_left" />
 					Incidents
 				</Button>
-				<span className="font-mono text-2xs tabular-nums text-muted-foreground">
-					{display?._id ?? ""}
-				</span>
 			</SidebarHeader>
 
 			<SidebarContent className="gap-3 px-2 py-3">

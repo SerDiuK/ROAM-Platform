@@ -1,5 +1,6 @@
 import * as React from "react";
-import { Pressable, View } from "react-native";
+import { View } from "react-native";
+import { Button } from "@/components/ui/button";
 import { SheetTitle } from "@/components/ui/sheet";
 import { Text } from "@/components/ui/text";
 import type { DispatchInboxData } from "../use-dispatch-inbox";
@@ -27,15 +28,14 @@ export function ConflictBody({
 			<Text className="text-2xs text-muted-foreground">
 				INC-{data.incident._id.slice(0, 8).toUpperCase()}
 			</Text>
-			<Pressable
+			<Button
 				onPress={onDismiss}
-				className="mt-2 h-12 items-center justify-center rounded-md bg-primary"
+				size="lg"
+				className="mt-2"
 				accessibilityLabel="Close"
 			>
-				<Text className="text-sm font-sans-semibold text-primary-foreground">
-					Got it
-				</Text>
-			</Pressable>
+				<Text className="font-sans-semibold">Got it</Text>
+			</Button>
 		</View>
 	);
 }

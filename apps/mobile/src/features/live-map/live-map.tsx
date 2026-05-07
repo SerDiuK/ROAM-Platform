@@ -32,14 +32,12 @@ const isAndroid = Platform.OS === "android";
 type Props = {
 	vehicles: Vehicle[];
 	positions?: Map<string, Telemetry>;
-	onSelectVehicle?: (vehicleId: string) => void;
 	style?: ViewStyle;
 };
 
 export function LiveMap({
 	vehicles,
 	positions,
-	onSelectVehicle,
 	style,
 }: Props): React.JSX.Element {
 	const mapRef = useRef<MapView>(null);
@@ -76,8 +74,9 @@ export function LiveMap({
 				provider={isAndroid ? PROVIDER_GOOGLE : PROVIDER_DEFAULT}
 				initialRegion={INITIAL_REGION}
 				customMapStyle={isAndroid ? DISPATCH_MAP_STYLE : undefined}
-				showsCompass
-				showsScale
+				showsCompass={false}
+				showsMyLocationButton={false}
+				showsScale={false}
 				showsPointsOfInterest={false}
 				showsTraffic={false}
 				showsUserLocation={hasLocationPermission}
@@ -93,7 +92,6 @@ export function LiveMap({
 							identifier={vehicle._id}
 							coordinate={{ latitude: telemetry.lat, longitude: telemetry.lon }}
 							anchor={{ x: 0.5, y: 0.5 }}
-							onPress={() => onSelectVehicle?.(vehicle._id)}
 						>
 							<View
 								className="h-4 w-4 rounded-full border-2 border-white shadow-sm"

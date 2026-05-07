@@ -20,9 +20,15 @@ export default class DispatchCreate extends BaseCommand {
 		"<%= config.bin %> dispatch create --auto",
 		"<%= config.bin %> dispatch create --expires-in 600 --required 2",
 		"<%= config.bin %> dispatch create --summary 'Cardiac arrest, unresponsive'",
+		"<%= config.bin %> dispatch create --incident-id 296037b2-97d9-4c1f-a2cc-c428e16c71c7",
+		"<%= config.bin %> dispatch create --responder-name THOMAS-1",
 	];
 
 	static override flags = {
+		"incident-id": Flags.string({
+			description:
+				"Confirm the existing briefing for this incident instead of seeding a synthetic one. Use the id printed by `roam incident ingest`.",
+		}),
 		auto: Flags.boolean({
 			description:
 				"Mark the dispatch as ai-auto (decisionMaker='ai-auto'). Default: human.",
@@ -52,6 +58,11 @@ export default class DispatchCreate extends BaseCommand {
 		responders: Flags.integer({
 			description: "How many responders to recommend in the briefing.",
 			default: 2,
+			exclusive: ["responder-name"],
+		}),
+		"responder-name": Flags.string({
+			description:
+				"Recommend exactly this responder by name (e.g. THOMAS-1). Overrides --responders.",
 		}),
 		vehicles: Flags.integer({
 			description: "How many vehicles to recommend in the briefing.",
@@ -61,20 +72,42 @@ export default class DispatchCreate extends BaseCommand {
 
 	async run(): Promise<void> {
 		const { flags } = await this.parse(DispatchCreate);
-		const spinner = ora("Seeding briefing").start();
+		const incidentId = flags["incident-id"];
+		const spinner = ora(
+			incidentId ? "Loading briefing" : "Seeding briefing",
+		).start();
 
 		try {
-			await this.requireDb();
-			const seeded = await seedBriefing({
-				summary: flags.summary,
-				incidentType: flags["incident-type"],
-				totalUsdc: flags.payout,
-				responderCount: flags.responders,
-				vehicleCount: flags.vehicles,
-			});
-			spinner.succeed(
-				`Briefing seeded · ${chalk.cyan(shortId(seeded.briefingId))} (${seeded.recommendedResponderIds.length} responders, ${seeded.recommendedVehicleIds.length} vehicles)`,
-			);
+			let briefingId: string;
+			if (incidentId) {
+				const result = await this.api.incidents.get({ id: incidentId });
+				if (!result.briefing) {
+					spinner.fail(
+						chalk.red(
+							`Incident ${shortId(incidentId)} has no briefing yet. Wait for the agent or re-run \`roam incident ingest\`.`,
+						),
+					);
+					this.exit(1);
+				}
+				briefingId = result.briefing._id;
+				spinner.succeed(
+					`Briefing loaded · ${chalk.cyan(shortId(briefingId))} (${result.briefing.recommendedResponderIds.length} responders, ${result.briefing.recommendedVehicleIds.length} vehicles)`,
+				);
+			} else {
+				await this.requireDb();
+				const seeded = await seedBriefing({
+					summary: flags.summary,
+					incidentType: flags["incident-type"],
+					totalUsdc: flags.payout,
+					responderCount: flags.responders,
+					responderName: flags["responder-name"],
+					vehicleCount: flags.vehicles,
+				});
+				briefingId = seeded.briefingId;
+				spinner.succeed(
+					`Briefing seeded · ${chalk.cyan(shortId(seeded.briefingId))} (${seeded.recommendedResponderIds.length} responders, ${seeded.recommendedVehicleIds.length} vehicles)`,
+				);
+			}
 
 			let decidedBy = flags["decided-by"];
 			if (!decidedBy && !flags.auto) {
@@ -85,7 +118,7 @@ export default class DispatchCreate extends BaseCommand {
 
 			spinner.start("Confirming dispatch");
 			const dispatch = await this.api.dispatch.confirm({
-				briefingId: seeded.briefingId,
+				briefingId,
 				decisionMaker: flags.auto ? "ai-auto" : "human",
 				decidedBy: flags.auto ? undefined : decidedBy,
 				requiredAccepts: flags.required,

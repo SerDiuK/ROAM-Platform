@@ -1,5 +1,6 @@
 import * as React from "react";
-import { Pressable, View } from "react-native";
+import { View } from "react-native";
+import { Button } from "@/components/ui/button";
 import { Sheet, SheetTitle } from "@/components/ui/sheet";
 import { Text } from "@/components/ui/text";
 import type { DispatchInboxState } from "../use-dispatch-inbox";
@@ -70,13 +71,15 @@ function DispatchSheetBody({
 			<View className="gap-2 pb-2">
 				<SheetTitle>Couldn't load dispatch</SheetTitle>
 				<Text className="text-sm text-destructive">{state.message}</Text>
-				<Pressable
+				<Button
 					onPress={onDismiss}
-					className="mt-2 h-11 items-center justify-center rounded-md border border-border"
+					variant="outline"
+					size="lg"
+					className="mt-2"
 					accessibilityLabel="Dismiss"
 				>
-					<Text className="text-sm font-sans-semibold">Dismiss</Text>
-				</Pressable>
+					<Text className="font-sans-semibold">Dismiss</Text>
+				</Button>
 			</View>
 		);
 	}

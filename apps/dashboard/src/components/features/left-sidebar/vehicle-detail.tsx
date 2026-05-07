@@ -60,9 +60,6 @@ export function VehicleDetail({
 					<Icon name="chevron_left" />
 					Fleet
 				</Button>
-				<span className="text-xs tabular-nums text-muted-foreground">
-					{display?._id ?? ""}
-				</span>
 			</SidebarHeader>
 
 			<SidebarContent>

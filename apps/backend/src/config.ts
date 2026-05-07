@@ -74,7 +74,7 @@ const ConfigSchema = z.object({
 	// Network must match SOLANA_CLUSTER (devnet for local/staging, solana for mainnet).
 	X402_RECIPIENT_ADDRESS: z
 		.string()
-		.default("CxzRUvsir6ZYQkEhsDWDYExjXTyZkrbbj9248gVWL22p"),
+		.min(32),
 	X402_NETWORK: z.enum(["solana-devnet", "solana"]).default("solana-devnet"),
 	STT_PROVIDER: z.enum(["deepgram"]).default("deepgram"),
 	DEEPGRAM_API_KEY: z.string().min(1),

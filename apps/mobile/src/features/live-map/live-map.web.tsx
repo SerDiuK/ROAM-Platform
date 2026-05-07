@@ -4,7 +4,6 @@ import { Text, View, type ViewStyle } from "react-native";
 type Props = {
 	vehicles: Vehicle[];
 	positions?: Map<string, Telemetry>;
-	onSelectVehicle?: (vehicleId: string) => void;
 	style?: ViewStyle;
 };
 

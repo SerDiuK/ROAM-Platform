@@ -239,6 +239,10 @@ export const dispatchRouter = {
 		await IncidentModel.findByIdAndUpdate(briefing.incidentId, {
 			status: "responding",
 			dispatchedAt: now,
+			assigned: {
+				vehicles: briefing.recommendedVehicleIds,
+				responders: briefing.recommendedResponderIds,
+			},
 		});
 
 		const persistedDispatch = await DispatchModel.findById(dispatchId).lean();
@@ -646,6 +650,8 @@ export const dispatchRouter = {
 					solanaTxSignature: input.signature,
 				},
 			);
+
+			settleDispatchPayment(context, input.dispatchId);
 
 			return dispatch;
 		},

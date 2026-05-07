@@ -35,11 +35,21 @@ vi.mock("@roam/solana-client", async () => {
 	};
 });
 
+// Mock the x402 client so clear-flow tests can verify the settlement was
+// triggered without dialing the real /api/dispatch/complete endpoint.
+vi.mock("../../x402/client.js", () => ({
+	triggerX402Payment: vi.fn(async () => "fake-x402-sig"),
+	SETTLEMENT_SOL: 0.001,
+}));
+
 const { buildRecordEventTx, partialSignAsFeePayer } = await import(
 	"@roam/solana-client"
 );
 const buildRecordEventTxMock = vi.mocked(buildRecordEventTx);
 const partialSignAsFeePayerMock = vi.mocked(partialSignAsFeePayer);
+
+const { triggerX402Payment } = await import("../../x402/client.js");
+const triggerX402PaymentMock = vi.mocked(triggerX402Payment);
 
 function makeFakePushClient(): {
 	sendPushToResponders: ReturnType<typeof vi.fn>;
@@ -242,6 +252,7 @@ async function commitFor(args: {
 beforeEach(() => {
 	buildRecordEventTxMock.mockReset();
 	partialSignAsFeePayerMock.mockReset();
+	triggerX402PaymentMock.mockReset();
 	// Default: a tx with a recent blockhash that the procedure will serialize.
 	buildRecordEventTxMock.mockImplementation(async (args) => {
 		const tx = new Transaction({
@@ -251,7 +262,14 @@ beforeEach(() => {
 		return { transaction: tx, eventPda: PublicKey.default };
 	});
 	partialSignAsFeePayerMock.mockImplementation(() => {});
+	triggerX402PaymentMock.mockResolvedValue("fake-x402-sig");
 });
+
+// commitSignedClear/clear fire x402 settlement non-blocking via void Promise.
+// Tests need to flush the microtask queue so the mock-call assertion sees it.
+async function flushMicrotasks(): Promise<void> {
+	await new Promise((resolve) => setImmediate(resolve));
+}
 
 describe("dispatch.confirm", () => {
 	it("creates a Dispatch, flips Incident to responding, fires push, broadcasts dispatch.created", async () => {
@@ -951,6 +969,216 @@ describe("dispatch.clear", () => {
 			context: ctx,
 		});
 		expect(list.find((d) => d._id === dispatch._id)).toBeUndefined();
+	});
+
+	it("fires x402 settlement after a successful clear", async () => {
+		const { briefing } = await seedBriefing();
+		const seeker = await seedSiwsResponder();
+		const dispatch = await seedPendingDispatch({
+			briefingId: briefing._id,
+			incidentId: briefing.incidentId,
+			responderIds: [seeker.id],
+			requiredAccepts: 1,
+		});
+		const ctx = buildContext({ user: seeker.user });
+
+		await commitFor({
+			user: seeker.user,
+			dispatchId: dispatch._id,
+			decision: "accept",
+		});
+		await call(
+			dispatchRouter.clear,
+			{ dispatchId: dispatch._id },
+			{ context: ctx },
+		);
+		await flushMicrotasks();
+
+		expect(triggerX402PaymentMock).toHaveBeenCalledTimes(1);
+		expect(triggerX402PaymentMock).toHaveBeenCalledWith(
+			ctx.config,
+			ctx.log,
+			dispatch._id,
+		);
+	});
+
+	it("does not fire x402 settlement when the clear is rejected", async () => {
+		const { briefing } = await seedBriefing();
+		const dispatch = await seedPendingDispatch({
+			briefingId: briefing._id,
+			incidentId: briefing.incidentId,
+			responderIds: ["responder-A"],
+			requiredAccepts: 1,
+		});
+
+		await expect(
+			call(
+				dispatchRouter.clear,
+				{ dispatchId: dispatch._id },
+				{ context: buildContext() },
+			),
+		).rejects.toMatchObject({ code: "CONFLICT" });
+		await flushMicrotasks();
+
+		expect(triggerX402PaymentMock).not.toHaveBeenCalled();
+	});
+});
+
+describe("dispatch.commitSignedClear", () => {
+	it("flips a claimed dispatch to cleared, resolves the incident, broadcasts, and fires x402", async () => {
+		const { incident, briefing } = await seedBriefing();
+		const seeker = await seedSiwsResponder();
+		const dispatch = await seedPendingDispatch({
+			briefingId: briefing._id,
+			incidentId: briefing.incidentId,
+			responderIds: [seeker.id],
+			requiredAccepts: 1,
+		});
+		const ctx = buildContext({ user: seeker.user });
+
+		await commitFor({
+			user: seeker.user,
+			dispatchId: dispatch._id,
+			decision: "accept",
+		});
+
+		const cleared = await call(
+			dispatchRouter.commitSignedClear,
+			{ dispatchId: dispatch._id, signature: "sig-clear-1" },
+			{ context: ctx },
+		);
+		await flushMicrotasks();
+
+		expect(cleared.status).toBe("cleared");
+
+		const updatedIncident = await IncidentModel.findById(incident._id).lean();
+		expect(updatedIncident?.status).toBe("resolved");
+		expect(updatedIncident?.clearedAt).toBeInstanceOf(Date);
+
+		expect(ctx.dispatchBroadcaster.broadcast).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "dispatch.cleared",
+				dispatch: expect.objectContaining({
+					_id: dispatch._id,
+					status: "cleared",
+				}),
+				clearedBy: seeker.id,
+			}),
+		);
+
+		expect(triggerX402PaymentMock).toHaveBeenCalledTimes(1);
+		expect(triggerX402PaymentMock).toHaveBeenCalledWith(
+			ctx.config,
+			ctx.log,
+			dispatch._id,
+		);
+	});
+
+	it("does not fire x402 when the dispatch is still pending (CONFLICT)", async () => {
+		const { briefing } = await seedBriefing();
+		const seeker = await seedSiwsResponder();
+		const dispatch = await seedPendingDispatch({
+			briefingId: briefing._id,
+			incidentId: briefing.incidentId,
+			responderIds: [seeker.id],
+			requiredAccepts: 1,
+		});
+
+		await expect(
+			call(
+				dispatchRouter.commitSignedClear,
+				{ dispatchId: dispatch._id, signature: "sig-clear-pending" },
+				{ context: buildContext({ user: seeker.user }) },
+			),
+		).rejects.toMatchObject({ code: "CONFLICT" });
+		await flushMicrotasks();
+
+		expect(triggerX402PaymentMock).not.toHaveBeenCalled();
+		const unchanged = await DispatchModel.findById(dispatch._id).lean();
+		expect(unchanged?.status).toBe("pending");
+	});
+
+	it("does not fire x402 when the dispatch is already cleared (second clear is CONFLICT)", async () => {
+		const { briefing } = await seedBriefing();
+		const seeker = await seedSiwsResponder();
+		const dispatch = await seedPendingDispatch({
+			briefingId: briefing._id,
+			incidentId: briefing.incidentId,
+			responderIds: [seeker.id],
+			requiredAccepts: 1,
+		});
+		const ctx = buildContext({ user: seeker.user });
+
+		await commitFor({
+			user: seeker.user,
+			dispatchId: dispatch._id,
+			decision: "accept",
+		});
+		await call(
+			dispatchRouter.commitSignedClear,
+			{ dispatchId: dispatch._id, signature: "sig-clear-once" },
+			{ context: ctx },
+		);
+		await flushMicrotasks();
+		expect(triggerX402PaymentMock).toHaveBeenCalledTimes(1);
+
+		await expect(
+			call(
+				dispatchRouter.commitSignedClear,
+				{ dispatchId: dispatch._id, signature: "sig-clear-twice" },
+				{ context: ctx },
+			),
+		).rejects.toMatchObject({ code: "CONFLICT" });
+		await flushMicrotasks();
+
+		// Still only the one call from the first clear — the second was rejected
+		// before settleDispatchPayment could fire.
+		expect(triggerX402PaymentMock).toHaveBeenCalledTimes(1);
+	});
+
+	it("returns NOT_FOUND for an unknown dispatch and does not fire x402", async () => {
+		const seeker = await seedSiwsResponder();
+
+		await expect(
+			call(
+				dispatchRouter.commitSignedClear,
+				{ dispatchId: "ghost-dispatch", signature: "sig-ghost" },
+				{ context: buildContext({ user: seeker.user }) },
+			),
+		).rejects.toMatchObject({ code: "NOT_FOUND" });
+		await flushMicrotasks();
+
+		expect(triggerX402PaymentMock).not.toHaveBeenCalled();
+	});
+
+	it("clear succeeds even if x402 settlement throws (non-blocking)", async () => {
+		triggerX402PaymentMock.mockRejectedValueOnce(new Error("rpc down"));
+
+		const { briefing } = await seedBriefing();
+		const seeker = await seedSiwsResponder();
+		const dispatch = await seedPendingDispatch({
+			briefingId: briefing._id,
+			incidentId: briefing.incidentId,
+			responderIds: [seeker.id],
+			requiredAccepts: 1,
+		});
+		const ctx = buildContext({ user: seeker.user });
+
+		await commitFor({
+			user: seeker.user,
+			dispatchId: dispatch._id,
+			decision: "accept",
+		});
+
+		const cleared = await call(
+			dispatchRouter.commitSignedClear,
+			{ dispatchId: dispatch._id, signature: "sig-clear-rpc-down" },
+			{ context: ctx },
+		);
+		await flushMicrotasks();
+
+		expect(cleared.status).toBe("cleared");
+		expect(triggerX402PaymentMock).toHaveBeenCalledTimes(1);
 	});
 });
 

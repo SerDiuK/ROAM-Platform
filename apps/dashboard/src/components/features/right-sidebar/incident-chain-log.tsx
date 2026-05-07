@@ -28,7 +28,7 @@ const KIND_LABEL: Record<IncidentEventKind, string> = {
 	cleared: "Cleared",
 };
 
-// Tone per event kind. Lime/danger/warning come from `@roam/ui` tokens; the
+// Tone per event kind. Primary/danger/warning come from `@roam/ui` tokens; the
 // muted-foreground branch is for incident-scoped events that don't carry
 // success/failure semantics on their own.
 const KIND_TONE: Record<
@@ -37,10 +37,10 @@ const KIND_TONE: Record<
 > = {
 	received: { text: "text-muted-foreground", dot: "bg-muted-foreground" },
 	dispatched: { text: "text-danger", dot: "bg-danger" },
-	accepted: { text: "text-lime", dot: "bg-lime" },
+	accepted: { text: "text-primary", dot: "bg-primary" },
 	rejected: { text: "text-danger", dot: "bg-danger" },
 	arrived: { text: "text-warning", dot: "bg-warning" },
-	cleared: { text: "text-lime", dot: "bg-lime" },
+	cleared: { text: "text-primary", dot: "bg-primary" },
 };
 
 function formatHHMMSS(date: Date | string): string {

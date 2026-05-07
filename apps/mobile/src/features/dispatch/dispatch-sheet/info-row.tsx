@@ -3,10 +3,6 @@ import * as React from "react";
 import { View } from "react-native";
 import { Text } from "@/components/ui/text";
 
-// Compact key/value row used inside the dispatch sheet's body cards.
-// Uppercase tracking-wider label, monospace value — matches the dispatch UX.
-// (Intentionally distinct from vehicle-details-sheet's DetailRow, which uses
-// sentence-case labels and a different visual weight.)
 export function InfoRow({
 	label,
 	value,

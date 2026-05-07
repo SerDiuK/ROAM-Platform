@@ -9,18 +9,18 @@ export const EVENT_KIND_LABEL: Record<IncidentEventKind, string> = {
 	cleared: "CLEARED",
 };
 
-// Lime for forward-progress events, red for declines, muted for the early
+// Primary for forward-progress events, red for declines, muted for the early
 // lifecycle steps. Keys directly into Tailwind colour-class branches in the
 // row component.
-export type EventKindTone = "lime" | "red" | "muted";
+export type EventKindTone = "primary" | "red" | "muted";
 
 export const EVENT_KIND_TONE: Record<IncidentEventKind, EventKindTone> = {
 	received: "muted",
 	dispatched: "muted",
-	accepted: "lime",
+	accepted: "primary",
 	rejected: "red",
-	arrived: "lime",
-	cleared: "lime",
+	arrived: "primary",
+	cleared: "primary",
 };
 
 export function shortSig(sig: string): string {

@@ -1,7 +1,8 @@
 import type { IncidentEvent, Responder } from "@roam/shared";
 import { cn, formatTime } from "@roam/ui";
 import * as React from "react";
-import { Linking, Pressable, View } from "react-native";
+import { Linking, View } from "react-native";
+import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
 import { solanaExplorerTxUrl } from "@/lib/solana-explorer";
 import {
@@ -64,14 +65,14 @@ function ChainTimelineRow({
 }): React.JSX.Element {
 	const tone = EVENT_KIND_TONE[event.kind];
 	const dotClass =
-		tone === "lime"
-			? "bg-lime"
+		tone === "primary"
+			? "bg-primary"
 			: tone === "red"
 				? "bg-danger"
 				: "bg-muted-foreground";
 	const labelClass =
-		tone === "lime"
-			? "text-lime"
+		tone === "primary"
+			? "text-primary"
 			: tone === "red"
 				? "text-danger"
 				: "text-muted-foreground";
@@ -113,15 +114,14 @@ function ChainTimelineRow({
 				</Text>
 				<View className="mt-1 flex-row items-center gap-2">
 					{sig ? (
-						<Pressable
+						<Button
 							onPress={() => void Linking.openURL(solanaExplorerTxUrl(sig))}
-							className="rounded border border-solana/40 bg-solana/10 px-2 py-0.5"
+							variant="solana"
+							size="pill"
 							accessibilityLabel="Open transaction in Solana explorer"
 						>
-							<Text className="font-mono text-2xs font-sans-semibold text-solana">
-								{shortSig(sig)} ↗
-							</Text>
-						</Pressable>
+							<Text>{shortSig(sig)} ↗</Text>
+						</Button>
 					) : (
 						<View className="rounded border border-sidebar-border bg-sidebar-accent/40 px-2 py-0.5">
 							<Text className="text-2xs uppercase tracking-wider text-muted-foreground">

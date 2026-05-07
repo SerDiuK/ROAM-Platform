@@ -11,7 +11,8 @@ import {
 import { IncidentDetail } from "./incident-detail";
 import { IncidentsList } from "./incidents-list";
 import { TabBar, TabButton } from "@/components/ui/tab-bar";
-import { useState } from "react";
+import { useCallback, useState } from "react";
+import { api } from "@/lib/api";
 
 type RightSidebarProps = {
 	open: boolean;
@@ -42,6 +43,41 @@ export function RightSidebar({
 		incidents.find((i) => i._id === selectedIncidentId) ?? null;
 
     const [tab, setTab] = useState("fleet")
+	const [dispatchingId, setDispatchingId] = useState<string | null>(null);
+
+	// Pull the briefing for the selected incident, then confirm it. The
+	// dispatcher's responderId is best-effort — if the seed includes a
+	// dispatcher we record them as `decidedBy`, otherwise the call still
+	// goes through as a `human` decision with no recorded operator (the
+	// schema makes decidedBy optional).
+	const handleDispatch = useCallback(
+		async (incident: Incident) => {
+			if (dispatchingId) return;
+			setDispatchingId(incident._id);
+			try {
+				const result = await api.incidents.get({ id: incident._id });
+				if (!result.briefing) {
+					console.error("[dispatch] no briefing yet for", incident._id);
+					return;
+				}
+				const dispatcher = Array.from(responderMap.values()).find(
+					(r) => r.role === "dispatcher",
+				);
+				await api.dispatch.confirm({
+					briefingId: result.briefing._id,
+					decisionMaker: "human",
+					decidedBy: dispatcher?._id,
+					requiredAccepts: 1,
+					expiresInSecs: 1800,
+				});
+			} catch (err) {
+				console.error("[dispatch] confirm failed", err);
+			} finally {
+				setDispatchingId(null);
+			}
+		},
+		[responderMap, dispatchingId],
+	);
 
 	return (
 		<SidebarProvider side="right" open={open} onOpenChange={onOpenChange}>
@@ -72,9 +108,7 @@ export function RightSidebar({
 						responderMap={responderMap}
 						open={selectedIncident !== null}
 						onClose={() => onSelectIncident(null)}
-						onDispatch={(incident) =>
-							console.log("[dispatch] todo wire AD-13", incident._id)
-						}
+						onDispatch={handleDispatch}
 					/>
 				</div>
 			</Sidebar>

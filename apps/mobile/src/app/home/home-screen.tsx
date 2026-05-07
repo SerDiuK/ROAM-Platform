@@ -1,7 +1,7 @@
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { color, STATUS_HEX } from "@roam/ui";
-import { useAtom, useAtomValue } from "jotai";
+import { useAtomValue } from "jotai";
 import { History } from "lucide-react-native";
 import * as React from "react";
 import { Pressable, View } from "react-native";
@@ -13,14 +13,10 @@ import { DispatchSheet } from "@/features/dispatch/dispatch-sheet/dispatch-sheet
 import { useDispatchInbox } from "@/features/dispatch/use-dispatch-inbox";
 import { LiveMap } from "@/features/live-map/live-map";
 import { MyEventsSheet } from "@/features/my-events-sheet";
-import { VehicleDetailsSheet } from "@/features/vehicle-details-sheet";
 import type { RootStackParamList } from "@/navigators/navigation-types";
 import { currentResponderAtom } from "@/state/responder";
 import {
 	connectedAtom,
-	selectedTelemetryAtom,
-	selectedVehicleAtom,
-	selectedVehicleIdAtom,
 	telemetryAtom,
 	vehiclesAtom,
 } from "@/state/vehicles";
@@ -30,11 +26,6 @@ export function HomeScreen(): React.JSX.Element {
 	const positions = useAtomValue(telemetryAtom);
 	const connected = useAtomValue(connectedAtom);
 	const responder = useAtomValue(currentResponderAtom);
-	const selectedVehicle = useAtomValue(selectedVehicleAtom);
-	const selectedTelemetry = useAtomValue(selectedTelemetryAtom);
-	const [selectedVehicleId, setSelectedVehicleId] = useAtom(
-		selectedVehicleIdAtom,
-	);
 	const [eventsOpen, setEventsOpen] = React.useState(false);
 	const navigation =
 		useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -45,11 +36,7 @@ export function HomeScreen(): React.JSX.Element {
 
 	return (
 		<View className="flex-1 bg-background">
-			<LiveMap
-				vehicles={vehicles}
-				positions={positions}
-				onSelectVehicle={setSelectedVehicleId}
-			/>
+			<LiveMap vehicles={vehicles} positions={positions} />
 
 			<SafeAreaView
 				edges={["top"]}
@@ -98,15 +85,6 @@ export function HomeScreen(): React.JSX.Element {
 					</View>
 				</View>
 			</SafeAreaView>
-
-			<VehicleDetailsSheet
-				vehicle={selectedVehicle}
-				telemetry={selectedTelemetry}
-				open={selectedVehicleId !== null}
-				onOpenChange={(open) => {
-					if (!open) setSelectedVehicleId(null);
-				}}
-			/>
 
 			<MyEventsSheet open={eventsOpen} onOpenChange={setEventsOpen} />
 

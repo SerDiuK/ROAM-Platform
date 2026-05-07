@@ -1,9 +1,10 @@
 import type { Telemetry, Vehicle } from "@roam/shared";
 import { haversineKm } from "@roam/shared";
-import { cn, formatDistance } from "@roam/ui";
+import { formatDistance } from "@roam/ui";
 import { useAtomValue } from "jotai";
 import * as React from "react";
-import { Image, Pressable, View } from "react-native";
+import { Image, View } from "react-native";
+import { Button } from "@/components/ui/button";
 import { SheetTitle } from "@/components/ui/sheet";
 import { Text } from "@/components/ui/text";
 import type { DispatchInboxData } from "../use-dispatch-inbox";
@@ -64,9 +65,15 @@ export function IncomingBody({
 		<View className="gap-3 pb-2">
 			<View className="flex-row items-start justify-between">
 				<SheetTitle className="tracking-widest">INCOMING DISPATCH</SheetTitle>
-				<Pressable onPress={onDismiss} hitSlop={8} accessibilityLabel="Dismiss">
+				<Button
+					onPress={onDismiss}
+					variant="ghost"
+					size="icon"
+					hitSlop={8}
+					accessibilityLabel="Dismiss"
+				>
 					<Text className="text-lg leading-none text-muted-foreground">×</Text>
-				</Pressable>
+				</Button>
 			</View>
 
 			<View className="flex-row gap-3">
@@ -97,13 +104,13 @@ export function IncomingBody({
 				<InfoRow
 					label="Unit"
 					value={vehicle?.callsign ?? "—"}
-					valueClassName="text-lime"
+					valueClassName="text-primary"
 				/>
 				<InfoRow label="Location" value={locationText} />
 				<InfoRow
 					label="Distance"
 					value={distanceKm != null ? formatDistance(distanceKm) : "—"}
-					valueClassName={distanceKm != null ? "text-lime" : undefined}
+					valueClassName={distanceKm != null ? "text-primary" : undefined}
 				/>
 				<InfoRow
 					label="Crew"
@@ -113,33 +120,27 @@ export function IncomingBody({
 
 			<ResponseTimer expiresAt={dispatch.expiresAt} onExpire={onDismiss} />
 
-			<Pressable
+			<Button
 				onPress={onAccept}
 				disabled={disabled}
-				className={cn(
-					"h-14 items-center justify-center rounded-md bg-lime",
-					disabled && "opacity-50",
-				)}
+				size="xl"
 				accessibilityLabel="Accept dispatch"
 			>
-				<Text className="text-base font-sans-bold uppercase tracking-wider text-lime-foreground">
+				<Text>
 					{submittingDecision === "accept" ? "Accepting…" : "Accept dispatch"}
 				</Text>
-			</Pressable>
+			</Button>
 
-			<Pressable
+			<Button
 				onPress={onDecline}
 				disabled={disabled}
-				className={cn(
-					"h-10 items-center justify-center rounded-md border border-border",
-					disabled && "opacity-50",
-				)}
+				variant="outline"
 				accessibilityLabel="Decline dispatch"
 			>
-				<Text className="text-sm font-sans-medium text-muted-foreground">
+				<Text className="text-muted-foreground">
 					{submittingDecision === "decline" ? "Declining…" : "Decline"}
 				</Text>
-			</Pressable>
+			</Button>
 		</View>
 	);
 }

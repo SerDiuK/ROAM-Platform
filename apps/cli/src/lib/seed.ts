@@ -21,6 +21,7 @@ export type SeedOptions = {
 	incidentType?: string;
 	totalUsdc?: number;
 	responderCount?: number;
+	responderName?: string;
 	vehicleCount?: number;
 };
 
@@ -35,16 +36,28 @@ const DEFAULT_SUMMARY =
 export async function seedBriefing(
 	options: SeedOptions = {},
 ): Promise<SeededBriefing> {
-	const responders = await ResponderModel.find({ role: "responder" })
-		.limit(options.responderCount ?? 2)
-		.lean();
+	const responders = options.responderName
+		? await ResponderModel.find({
+				role: "responder",
+				name: options.responderName,
+			}).lean()
+		: await ResponderModel.find({ role: "responder" })
+				.limit(options.responderCount ?? 2)
+				.lean();
 	const vehicles = await VehicleModel.find()
 		.limit(options.vehicleCount ?? 2)
 		.lean();
 
-	if (responders.length === 0 || vehicles.length === 0) {
+	if (responders.length === 0) {
 		throw new Error(
-			"No seeded responders or vehicles found — run `pnpm --filter @roam/backend seed` first.",
+			options.responderName
+				? `No responder with name "${options.responderName}" — run \`pnpm --filter @roam/backend seed\` or check the name.`
+				: "No seeded responders found — run `pnpm --filter @roam/backend seed` first.",
+		);
+	}
+	if (vehicles.length === 0) {
+		throw new Error(
+			"No seeded vehicles found — run `pnpm --filter @roam/backend seed` first.",
 		);
 	}
 

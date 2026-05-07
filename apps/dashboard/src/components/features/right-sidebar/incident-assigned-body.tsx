@@ -36,7 +36,7 @@ export function IncidentAssignedBody({
 				<span
 					className={cn(
 						"text-2xs font-bold uppercase tracking-widest",
-						isResolved ? "text-lime" : "text-danger",
+						isResolved ? "text-primary" : "text-danger",
 					)}
 				>
 					{isResolved ? "Cleared" : "Responding"}
@@ -53,7 +53,7 @@ export function IncidentAssignedBody({
 					<InfoRow
 						label="Cleared"
 						value={incident.clearedAt ? formatHHMM(incident.clearedAt) : "—"}
-						valueClassName="text-lime"
+						valueClassName="text-primary"
 					/>
 				)}
 			</InfoBox>

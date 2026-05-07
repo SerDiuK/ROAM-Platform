@@ -38,6 +38,10 @@ const buttonVariants = cva(
 					Platform.select({ web: "hover:bg-accent" }),
 				),
 				link: "",
+				solana: cn(
+					"border border-solana/40 bg-solana/10 active:bg-solana/20",
+					Platform.select({ web: "hover:bg-solana/20" }),
+				),
 			},
 			size: {
 				default: cn(
@@ -52,7 +56,12 @@ const buttonVariants = cva(
 					"h-11 rounded-md px-6 sm:h-10",
 					Platform.select({ web: "has-[>svg]:px-4" }),
 				),
+				xl: cn(
+					"h-14 rounded-md px-6 sm:h-12",
+					Platform.select({ web: "has-[>svg]:px-4" }),
+				),
 				icon: "h-10 w-10 sm:h-9 sm:w-9",
+				pill: "gap-1 rounded px-2 py-0.5",
 			},
 		},
 		defaultVariants: {
@@ -84,12 +93,15 @@ const buttonTextVariants = cva(
 						web: "underline-offset-4 hover:underline group-hover:underline",
 					}),
 				),
+				solana: "font-mono font-sans-semibold text-solana",
 			},
 			size: {
 				default: "",
 				sm: "",
 				lg: "",
+				xl: "text-base font-sans-bold uppercase tracking-wider",
 				icon: "",
+				pill: "text-2xs",
 			},
 		},
 		defaultVariants: {
