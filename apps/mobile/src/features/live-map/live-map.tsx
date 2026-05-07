@@ -1,8 +1,8 @@
-import type { Telemetry, Vehicle } from "@roam/shared";
-import { color, STATUS_HEX } from "@roam/ui";
+import type { Incident, IncidentUrgency, Telemetry, Vehicle } from "@roam/shared";
+import { color, STATUS_HEX, URGENCY_HEX } from "@roam/ui";
 import * as Location from "expo-location";
-import { LocateFixed } from "lucide-react-native";
-import { useRef, useState } from "react";
+import { LocateFixed, Siren } from "lucide-react-native";
+import { useEffect, useRef, useState } from "react";
 import {
 	Platform,
 	Pressable,
@@ -12,13 +12,23 @@ import {
 } from "react-native";
 import MapView, {
 	Marker,
+	Polyline,
 	PROVIDER_DEFAULT,
 	PROVIDER_GOOGLE,
 } from "react-native-maps";
+import Animated, {
+	cancelAnimation,
+	useAnimatedStyle,
+	useSharedValue,
+	withRepeat,
+	withTiming,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { DISPATCH_MAP_STYLE } from "@/lib/map-style";
 
 const LOCATE_ICON_COLOR = color("background");
+const ROUTE_STROKE = color("primary");
+const MARKER_ICON_COLOR = color("background");
 
 const INITIAL_REGION = {
 	latitude: 25.7617,
@@ -29,15 +39,21 @@ const INITIAL_REGION = {
 
 const isAndroid = Platform.OS === "android";
 
+type LatLng = { latitude: number; longitude: number };
+
 type Props = {
 	vehicles: Vehicle[];
 	positions?: Map<string, Telemetry>;
+	route?: LatLng[] | null;
+	incident?: Incident | null;
 	style?: ViewStyle;
 };
 
 export function LiveMap({
 	vehicles,
 	positions,
+	route,
+	incident,
 	style,
 }: Props): React.JSX.Element {
 	const mapRef = useRef<MapView>(null);
@@ -65,6 +81,30 @@ export function LiveMap({
 			800,
 		);
 	};
+
+	const incidentLocation = incident?.classification?.location;
+	const incidentUrgency: IncidentUrgency =
+		incident?.classification?.urgency ?? 2;
+	const incidentPulse =
+		incident?.status === "live" || incident?.status === "pending";
+
+	// Zoom to the incident the moment one appears (or the location changes).
+	// Keyed on lat/lon so re-renders that don't actually move the scene don't
+	// re-trigger the camera animation.
+	const incidentLat = incidentLocation?.lat;
+	const incidentLon = incidentLocation?.lon;
+	useEffect(() => {
+		if (incidentLat == null || incidentLon == null) return;
+		mapRef.current?.animateToRegion(
+			{
+				latitude: incidentLat,
+				longitude: incidentLon,
+				latitudeDelta: 0.02,
+				longitudeDelta: 0.02,
+			},
+			800,
+		);
+	}, [incidentLat, incidentLon]);
 
 	return (
 		<View style={[StyleSheet.absoluteFillObject, style]}>
@@ -100,6 +140,28 @@ export function LiveMap({
 						</Marker>
 					);
 				})}
+				{route && route.length > 1 ? (
+					<Polyline
+						coordinates={route}
+						strokeColor={ROUTE_STROKE}
+						strokeWidth={4}
+					/>
+				) : null}
+				{incidentLocation ? (
+					<Marker
+						identifier="incident-destination"
+						coordinate={{
+							latitude: incidentLocation.lat,
+							longitude: incidentLocation.lon,
+						}}
+						anchor={{ x: 0.5, y: 0.5 }}
+					>
+						<IncidentMarkerVisual
+							urgency={incidentUrgency}
+							pulse={incidentPulse}
+						/>
+					</Marker>
+				) : null}
 			</MapView>
 			<Pressable
 				accessibilityLabel="Center map on my location"
@@ -110,6 +172,61 @@ export function LiveMap({
 			>
 				<LocateFixed color={LOCATE_ICON_COLOR} size={20} />
 			</Pressable>
+		</View>
+	);
+}
+
+function IncidentMarkerVisual({
+	urgency,
+	pulse,
+}: {
+	urgency: IncidentUrgency;
+	pulse: boolean;
+}): React.JSX.Element {
+	const fill = URGENCY_HEX[urgency];
+	const scale = useSharedValue(1);
+	const opacity = useSharedValue(0.55);
+
+	useEffect(() => {
+		if (!pulse) {
+			scale.value = 1;
+			opacity.value = 0;
+			return;
+		}
+		scale.value = withRepeat(withTiming(2, { duration: 1500 }), -1, false);
+		opacity.value = withRepeat(withTiming(0, { duration: 1500 }), -1, false);
+		return () => {
+			cancelAnimation(scale);
+			cancelAnimation(opacity);
+		};
+	}, [pulse, scale, opacity]);
+
+	const pulseStyle = useAnimatedStyle(() => ({
+		transform: [{ scale: scale.value }],
+		opacity: opacity.value,
+	}));
+
+	return (
+		<View className="h-12 w-12 items-center justify-center">
+			{pulse ? (
+				<Animated.View
+					pointerEvents="none"
+					style={[
+						StyleSheet.absoluteFillObject,
+						{
+							borderRadius: 9999,
+							backgroundColor: `${fill}55`,
+						},
+						pulseStyle,
+					]}
+				/>
+			) : null}
+			<View
+				className="h-6 w-6 items-center justify-center rounded-full border-2 border-white shadow-md"
+				style={{ backgroundColor: fill }}
+			>
+				<Siren color={MARKER_ICON_COLOR} size={12} />
+			</View>
 		</View>
 	);
 }

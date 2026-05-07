@@ -1,5 +1,5 @@
 import * as React from "react";
-import { View } from "react-native";
+import { ScrollView, useWindowDimensions, View } from "react-native";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetTitle } from "@/components/ui/sheet";
 import { Text } from "@/components/ui/text";
@@ -68,19 +68,21 @@ function DispatchSheetBody({
 
 	if (state.kind === "error") {
 		return (
-			<View className="gap-2 pb-2">
+			<DispatchSheetLayout
+				footer={
+					<Button
+						onPress={onDismiss}
+						variant="outline"
+						size="lg"
+						accessibilityLabel="Dismiss"
+					>
+						<Text className="font-sans-semibold">Dismiss</Text>
+					</Button>
+				}
+			>
 				<SheetTitle>Couldn't load dispatch</SheetTitle>
 				<Text className="text-sm text-destructive">{state.message}</Text>
-				<Button
-					onPress={onDismiss}
-					variant="outline"
-					size="lg"
-					className="mt-2"
-					accessibilityLabel="Dismiss"
-				>
-					<Text className="font-sans-semibold">Dismiss</Text>
-				</Button>
-			</View>
+			</DispatchSheetLayout>
 		);
 	}
 
@@ -117,5 +119,26 @@ function DispatchSheetBody({
 			onDecline={onDecline}
 			onDismiss={onDismiss}
 		/>
+	);
+}
+
+// Caps the body at 60% of viewport height and scrolls the middle, keeping
+// the action footer (Accept/Decline/Clear/Dismiss) pinned so the responder
+// never has to scroll to reach the primary action.
+export function DispatchSheetLayout({
+	children,
+	footer,
+}: {
+	children: React.ReactNode;
+	footer?: React.ReactNode;
+}): React.JSX.Element {
+	const { height } = useWindowDimensions();
+	return (
+		<View style={{ maxHeight: height * 0.6 }}>
+			<ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator>
+				<View className="gap-3">{children}</View>
+			</ScrollView>
+			{footer ? <View className="gap-3 pt-3">{footer}</View> : null}
+		</View>
 	);
 }

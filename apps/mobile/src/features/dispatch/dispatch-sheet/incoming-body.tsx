@@ -9,6 +9,7 @@ import { SheetTitle } from "@/components/ui/sheet";
 import { Text } from "@/components/ui/text";
 import type { DispatchInboxData } from "../use-dispatch-inbox";
 import { telemetryAtom, vehiclesAtom } from "@/state/vehicles";
+import { DispatchSheetLayout } from "./dispatch-sheet";
 import { InfoRow } from "./info-row";
 import { PriorityBadge } from "./priority-badge";
 import { ResponseTimer } from "./response-timer";
@@ -62,7 +63,35 @@ export function IncomingBody({
 	const imageUri = vehicle?.model.imageUrl;
 
 	return (
-		<View className="gap-3 pb-2">
+		<DispatchSheetLayout
+			footer={
+				<>
+					<Button
+						onPress={onAccept}
+						disabled={disabled}
+						size="xl"
+						accessibilityLabel="Accept dispatch"
+					>
+						<Text>
+							{submittingDecision === "accept"
+								? "Accepting…"
+								: "Accept dispatch"}
+						</Text>
+					</Button>
+
+					<Button
+						onPress={onDecline}
+						disabled={disabled}
+						variant="outline"
+						accessibilityLabel="Decline dispatch"
+					>
+						<Text className="text-muted-foreground">
+							{submittingDecision === "decline" ? "Declining…" : "Decline"}
+						</Text>
+					</Button>
+				</>
+			}
+		>
 			<View className="flex-row items-start justify-between">
 				<SheetTitle className="tracking-widest">INCOMING DISPATCH</SheetTitle>
 				<Button
@@ -119,29 +148,7 @@ export function IncomingBody({
 			</View>
 
 			<ResponseTimer expiresAt={dispatch.expiresAt} onExpire={onDismiss} />
-
-			<Button
-				onPress={onAccept}
-				disabled={disabled}
-				size="xl"
-				accessibilityLabel="Accept dispatch"
-			>
-				<Text>
-					{submittingDecision === "accept" ? "Accepting…" : "Accept dispatch"}
-				</Text>
-			</Button>
-
-			<Button
-				onPress={onDecline}
-				disabled={disabled}
-				variant="outline"
-				accessibilityLabel="Decline dispatch"
-			>
-				<Text className="text-muted-foreground">
-					{submittingDecision === "decline" ? "Declining…" : "Decline"}
-				</Text>
-			</Button>
-		</View>
+		</DispatchSheetLayout>
 	);
 }
 

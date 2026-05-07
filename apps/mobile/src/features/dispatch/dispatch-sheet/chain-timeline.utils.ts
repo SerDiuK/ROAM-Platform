@@ -20,7 +20,7 @@ export const EVENT_KIND_TONE: Record<IncidentEventKind, EventKindTone> = {
 	accepted: "primary",
 	rejected: "red",
 	arrived: "primary",
-	cleared: "primary",
+	cleared: "red",
 };
 
 export function shortSig(sig: string): string {

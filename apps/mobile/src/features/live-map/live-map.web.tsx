@@ -1,9 +1,13 @@
-import type { Telemetry, Vehicle } from "@roam/shared";
+import type { Incident, Telemetry, Vehicle } from "@roam/shared";
 import { Text, View, type ViewStyle } from "react-native";
+
+type LatLng = { latitude: number; longitude: number };
 
 type Props = {
 	vehicles: Vehicle[];
 	positions?: Map<string, Telemetry>;
+	route?: LatLng[] | null;
+	incident?: Incident | null;
 	style?: ViewStyle;
 };
 

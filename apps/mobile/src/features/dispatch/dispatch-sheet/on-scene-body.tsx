@@ -9,6 +9,7 @@ import type { DispatchInboxData } from "../use-dispatch-inbox";
 import { vehiclesAtom } from "@/state/vehicles";
 import { ChainTimeline } from "./chain-timeline";
 import { useIncidentEvents } from "./chain-timeline.hooks";
+import { DispatchSheetLayout } from "./dispatch-sheet";
 import { InfoRow } from "./info-row";
 import { PriorityBadge } from "./priority-badge";
 
@@ -49,7 +50,18 @@ export function OnSceneBody({
 	const imageUri = vehicle?.model.imageUrl;
 
 	return (
-		<View className="gap-3 pb-2">
+		<DispatchSheetLayout
+			footer={
+				<Button
+					onPress={onClear}
+					disabled={clearing}
+					size="xl"
+					accessibilityLabel="Clear incident"
+				>
+					<Text>{clearing ? "Clearing…" : "Clear incident"}</Text>
+				</Button>
+			}
+		>
 			<View className="flex-row items-start justify-between">
 				<SheetTitle className="tracking-widest">ON SCENE</SheetTitle>
 				<Button
@@ -101,15 +113,6 @@ export function OnSceneBody({
 			</View>
 
 			<ChainTimeline events={events} responders={responders} />
-
-			<Button
-				onPress={onClear}
-				disabled={clearing}
-				size="xl"
-				accessibilityLabel="Clear incident"
-			>
-				<Text>{clearing ? "Clearing…" : "Clear incident"}</Text>
-			</Button>
-		</View>
+		</DispatchSheetLayout>
 	);
 }

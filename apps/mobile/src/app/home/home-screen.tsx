@@ -1,5 +1,6 @@
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import type { Coord, Incident, Vehicle } from "@roam/shared";
 import { color, STATUS_HEX } from "@roam/ui";
 import { useAtomValue } from "jotai";
 import { History } from "lucide-react-native";
@@ -12,6 +13,7 @@ import { DispatchNotifications } from "@/features/dispatch/notifications";
 import { DispatchSheet } from "@/features/dispatch/dispatch-sheet/dispatch-sheet";
 import { useDispatchInbox } from "@/features/dispatch/use-dispatch-inbox";
 import { LiveMap } from "@/features/live-map/live-map";
+import { useRouteToIncident } from "@/features/live-map/use-route-to-incident";
 import { MyEventsSheet } from "@/features/my-events-sheet";
 import type { RootStackParamList } from "@/navigators/navigation-types";
 import { currentResponderAtom } from "@/state/responder";
@@ -31,12 +33,58 @@ export function HomeScreen(): React.JSX.Element {
 		useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
 	const inbox = useDispatchInbox({ responderId: responder?._id });
+	const inboxState = inbox.state;
+
+	const isClaimed = inboxState.kind === "claimed";
+	const claimedData = isClaimed ? inboxState.data : null;
+
+	// Any inbox state with `data` carries an incident — surface it on the map
+	// (urgency-coloured marker + pulse) so the responder sees the scene from
+	// the moment the dispatch sheet opens, not just after they accept.
+	const activeIncident = React.useMemo<Incident | null>(() => {
+		if ("data" in inboxState) return inboxState.data.incident;
+		return null;
+	}, [inboxState]);
+
+	const activeIncidentLocation = React.useMemo<Coord | null>(
+		() => activeIncident?.classification?.location ?? null,
+		[activeIncident],
+	);
+
+	const activeVehicle = React.useMemo<Vehicle | null>(() => {
+		if (!claimedData) return null;
+		for (const vid of claimedData.dispatch.assignedVehicleIds) {
+			const v = vehicles.find((x) => x._id === vid);
+			if (v) return v;
+		}
+		return null;
+	}, [claimedData, vehicles]);
+
+	const activeOrigin = React.useMemo<Coord | null>(() => {
+		if (!activeVehicle) return null;
+		const live = positions.get(activeVehicle._id);
+		if (live) return { lat: live.lat, lon: live.lon };
+		const last = activeVehicle.lastTelemetry;
+		if (last) return { lat: last.lat, lon: last.lon };
+		return null;
+	}, [activeVehicle, positions]);
+
+	const route = useRouteToIncident({
+		origin: activeOrigin,
+		destination: activeIncidentLocation,
+		enabled: isClaimed,
+	});
 
 	const transmitting = positions.size;
 
 	return (
 		<View className="flex-1 bg-background">
-			<LiveMap vehicles={vehicles} positions={positions} />
+			<LiveMap
+				vehicles={vehicles}
+				positions={positions}
+				route={route.coordinates}
+				incident={activeIncident}
+			/>
 
 			<SafeAreaView
 				edges={["top"]}

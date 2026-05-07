@@ -70,6 +70,7 @@ const config: ExpoConfig = {
 		eas: {
 			projectId: "7021fefb-983f-422f-866f-2d7b4d262e77",
 		},
+		googleMapsApiKey,
 	},
 };
 
