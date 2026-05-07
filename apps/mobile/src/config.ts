@@ -34,6 +34,7 @@ function defaultWsUrl(): string {
 const ConfigSchema = z.object({
 	BACKEND_URL: z.string().url(),
 	WS_URL: z.string().url(),
+	SOLANA_RPC_URL: z.string().url(),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
@@ -42,6 +43,9 @@ function parseConfig(): Config {
 	const result = ConfigSchema.safeParse({
 		BACKEND_URL: process.env.EXPO_PUBLIC_BACKEND_URL ?? defaultBackendUrl(),
 		WS_URL: process.env.EXPO_PUBLIC_WS_URL ?? defaultWsUrl(),
+		SOLANA_RPC_URL:
+			process.env.EXPO_PUBLIC_SOLANA_RPC_URL ??
+			"https://api.devnet.solana.com",
 	});
 	if (!result.success) {
 		throw new ConfigError(

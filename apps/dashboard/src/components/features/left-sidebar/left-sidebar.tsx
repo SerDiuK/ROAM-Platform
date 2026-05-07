@@ -52,13 +52,11 @@ export function LeftSidebar({
 							<TabButton
 								active={tab === "fleet"}
 								onClick={() => setTab("fleet")}
-								icon={<Icon name="local_shipping" />}
 								label="Fleet"
 							/>
 							<TabButton
 								active={tab === "responders"}
 								onClick={() => setTab("responders")}
-								icon={<Icon name="group" />}
 								label="Responders"
 							/>
 						</TabBar>

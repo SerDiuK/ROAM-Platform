@@ -84,6 +84,9 @@ export function createExpoPushClient(
 			data: message.data,
 			sound: "default",
 			priority: "high",
+			// Routes to the "dispatch" channel registered by the mobile app
+			// (AndroidImportance.MAX + custom vibration). No-op on iOS.
+			channelId: "dispatch",
 		}));
 
 		const chunks = expo.chunkPushNotifications(messages);

@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { DEMO_FLEET } from "@roam/shared";
 import mongoose from "mongoose";
-import { hashPin } from "../src/auth/pin.js";
 import { parseConfig } from "../src/config.js";
 import { connectDb } from "../src/db/connection.js";
 import { ResponderModel } from "../src/db/models/responder.js";
@@ -13,8 +12,10 @@ import { createWalletProvider } from "../src/wallet/index.js";
 // Seeds the canonical demo simulator fleet (vehicles + their drivers) into
 // Mongo. Idempotent — safe to re-run. Run with:
 //   pnpm --filter @roam/backend fleet:seed
+//
+// Auth is Seeker-only (SIWS). Drivers' walletAddress is bound on first sign-in
+// from the device — no PIN, no pre-shared secret here.
 
-const DEFAULT_PIN = process.env.SEED_PIN ?? "0000";
 const FALLBACK_MODEL_SLUG = "ambulance-type-1";
 
 async function main(): Promise<void> {
@@ -26,7 +27,6 @@ async function main(): Promise<void> {
 	await seedVehicleSpecs(console);
 
 	const wallet = createWalletProvider(config);
-	const pinHash = await hashPin(DEFAULT_PIN);
 
 	for (const vehicle of DEMO_FLEET) {
 		const slug = vehicle.modelSlug ?? FALLBACK_MODEL_SLUG;
@@ -54,7 +54,6 @@ async function main(): Promise<void> {
 			role: "responder",
 			availability: "available",
 			capabilities: ["medic"],
-			pinHash,
 		});
 
 		const $set: Record<string, unknown> = {
@@ -91,7 +90,7 @@ async function main(): Promise<void> {
 	}
 
 	console.log(
-		`[seed-fleet] Seeded ${DEMO_FLEET.length} vehicles + drivers. PIN: ${DEFAULT_PIN}`,
+		`[seed-fleet] Seeded ${DEMO_FLEET.length} vehicles + drivers. Auth is Seeker SIWS — bind walletAddress at first sign-in.`,
 	);
 	await mongoose.disconnect();
 }

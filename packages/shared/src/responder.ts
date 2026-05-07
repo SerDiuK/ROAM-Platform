@@ -31,9 +31,9 @@ export type ResponderCapability = z.infer<typeof ResponderCapabilitySchema>;
 // number-pad-adjacent keyboard. `displayName` is the human-readable full name
 // shown in dashboards and on the responder's own mobile profile; it never
 // participates in auth lookups.
-// `walletAddress` is the responder's Solana address (Crossmint-managed embedded
-// wallet); populated on first sign-in. `pushTokens` are Expo push tokens —
-// list because a responder may have multiple devices.
+// `walletAddress` is the responder's Solana address. With Seeker auth this is
+// the Seed Vault pubkey, bound at first SIWS sign-in. `pushTokens` are Expo
+// push tokens — list because a responder may have multiple devices.
 // `currentVehicleId` is the persistent responder↔vehicle pairing — set by
 // auth.checkin, cleared by auth.checkout. Replaces the off-chain Session
 // collection (AD-22). A unique-sparse Mongo index enforces 1 responder per
@@ -71,21 +71,43 @@ export type UpsertPushTokenRequest = z.infer<
 	typeof UpsertPushTokenRequestSchema
 >;
 
-// --- Session sign-in ---
-// Responder types their name + PIN. Backend verifies pinHash, returns a
-// JWT plus the responder object. Mobile + dashboard cache the token in their
-// platform's secure storage.
-export const SignInRequestSchema = z.object({
-	name: z.string().min(1),
-	pin: z.string().min(4).max(12),
-});
-export type SignInRequest = z.infer<typeof SignInRequestSchema>;
+// --- Sign-in-with-Solana (SIWS) ---
+// Mobile auth uses the Seeker's Mobile Wallet Adapter `sign_in_payload` flow:
+// the wallet builds and displays the canonical SIWS message, the user taps
+// fingerprint, and the wallet returns the signed message + signature in the
+// same `authorize` round-trip. Backend then verifies the Ed25519 sig over the
+// returned bytes, parses the embedded `Nonce: …` line for single-use replay
+// protection, and binds (or resolves) the responder by walletAddress.
+//
+// The optional `name` on SiwsVerifyRequest is only consumed on first sign-in
+// for an unbound pubkey. Subsequent sign-ins ignore `name` and resolve the
+// responder by walletAddress.
+export const SiwsChallengeRequestSchema = z.object({});
+export type SiwsChallengeRequest = z.infer<typeof SiwsChallengeRequestSchema>;
 
-export const SignInResponseSchema = z.object({
+export const SiwsChallengeResponseSchema = z.object({
+	nonce: z.string().min(1),
+	domain: z.string().min(1),
+	statement: z.string().min(1),
+	expiresAt: z.string(),
+});
+export type SiwsChallengeResponse = z.infer<typeof SiwsChallengeResponseSchema>;
+
+// All three byte fields are base64-encoded — that's the format MWA hands back
+// in `sign_in_result`, so we ship them through as-is.
+export const SiwsVerifyRequestSchema = z.object({
+	signedMessage: z.string().min(1),
+	signature: z.string().min(1),
+	address: z.string().min(1),
+	name: z.string().min(1).optional(),
+});
+export type SiwsVerifyRequest = z.infer<typeof SiwsVerifyRequestSchema>;
+
+export const SiwsVerifyResponseSchema = z.object({
 	token: z.string(),
 	responder: ResponderSchema,
 });
-export type SignInResponse = z.infer<typeof SignInResponseSchema>;
+export type SiwsVerifyResponse = z.infer<typeof SiwsVerifyResponseSchema>;
 
 // --- Current-session check ---
 // Mobile calls this on cold boot with the cached token; if it succeeds the app

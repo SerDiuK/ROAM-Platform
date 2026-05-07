@@ -1,29 +1,29 @@
 import { DarkTheme, DefaultTheme, type Theme } from "@react-navigation/native";
-import { hsl } from "@roam/ui";
+import { color } from "@roam/ui";
 
 export const NAV_THEME: { light: Theme; dark: Theme } = {
 	light: {
 		...DefaultTheme,
 		colors: {
 			...DefaultTheme.colors,
-			background: hsl("background", "light"),
-			card: hsl("card", "light"),
-			text: hsl("foreground", "light"),
-			border: hsl("border", "light"),
-			primary: hsl("primary", "light"),
-			notification: hsl("destructive", "light"),
+			background: color("background", "light"),
+			card: color("card", "light"),
+			text: color("foreground", "light"),
+			border: color("border", "light"),
+			primary: color("primary", "light"),
+			notification: color("destructive", "light"),
 		},
 	},
 	dark: {
 		...DarkTheme,
 		colors: {
 			...DarkTheme.colors,
-			background: hsl("background", "dark"),
-			card: hsl("card", "dark"),
-			text: hsl("foreground", "dark"),
-			border: hsl("border", "dark"),
-			primary: hsl("primary", "dark"),
-			notification: hsl("destructive", "dark"),
+			background: color("background", "dark"),
+			card: color("card", "dark"),
+			text: color("foreground", "dark"),
+			border: color("border", "dark"),
+			primary: color("primary", "dark"),
+			notification: color("destructive", "dark"),
 		},
 	},
 };

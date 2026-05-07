@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
 import mongoose from "mongoose";
-import { hashPin } from "../src/auth/pin.js";
 import { parseConfig } from "../src/config.js";
 import { connectDb } from "../src/db/connection.js";
 import { ResponderModel } from "../src/db/models/responder.js";
@@ -11,16 +10,11 @@ import { createWalletProvider } from "../src/wallet/index.js";
 // Run with:
 //   pnpm --filter @roam/backend responders:seed
 //
-// Env: SEED_PIN can override the default PIN. Demo runs with `0000` so the
-// stage flow is "type four zeroes, sign in, go." Production seeding would
-// require strong PINs and per-responder distribution out-of-band.
+// Auth is Seeker-only (SIWS). `walletAddress` is bound on first sign-in
+// from the device — no PIN, no pre-shared secret here.
 //
-// `name` is the login codename — short, uppercase, easy to type on the mobile
-// keypad with autoCapitalize. `displayName` is the real name shown in the
-// dashboard and the responder's own mobile profile. Auth still matches on
-// `name`.
-
-const DEFAULT_PIN = process.env.SEED_PIN ?? "0000";
+// `name` is the login codename — short, uppercase. `displayName` is the real
+// name shown in dashboards and on the responder's own mobile profile.
 
 type Seed = {
 	name: string;
@@ -61,8 +55,6 @@ async function main(): Promise<void> {
 	await connectDb(config.MONGODB_URL, console);
 	const wallet = createWalletProvider(config);
 
-	const pinHash = await hashPin(DEFAULT_PIN);
-
 	for (const seed of SEEDS) {
 		const existing = await ResponderModel.findOne({ name: seed.name });
 		const responder =
@@ -75,7 +67,7 @@ async function main(): Promise<void> {
 				availability: seed.availability,
 			}).save());
 
-		// Always re-set the pin hash + role on re-seed so demo flips between
+		// Re-set role + availability + capabilities on every seed so flips between
 		// responder/dispatcher land cleanly. Medic capability is the only one we
 		// have today (see RESPONDER_CAPABILITIES in shared); dispatchers get it
 		// cleared so they don't accidentally show up in find_nearest_vehicles.
@@ -84,10 +76,10 @@ async function main(): Promise<void> {
 			role: seed.role,
 			availability: seed.availability,
 			capabilities: seed.role === "responder" ? ["medic"] : [],
-			pinHash,
 		});
 
-		// Provision a wallet if missing (idempotent — see embedded.ts).
+		// Provision a wallet if missing (idempotent — see embedded.ts). Slated
+		// for removal alongside AD-2 cleanup once payouts target the Seeker pubkey.
 		const { address } = await wallet.createWallet(responder._id);
 
 		console.log(
@@ -95,7 +87,9 @@ async function main(): Promise<void> {
 		);
 	}
 
-	console.log(`[seed-responders] PIN for all seeded responders: ${DEFAULT_PIN}`);
+	console.log(
+		"[seed-responders] Auth is Seeker SIWS — bind walletAddress at first sign-in.",
+	);
 	await mongoose.disconnect();
 }
 

@@ -59,10 +59,12 @@ const ConfigSchema = z.object({
 	// invalidates every issued token, which is fine — operators just sign in
 	// again with PIN.
 	AUTH_SECRET: z.string().min(32),
-	// JWT lifetime in seconds. Defaults to 30 days — operators are rarely
-	// re-signed-in mid-shift; we lean on PIN at first launch + secure-store
-	// caching the rest of the time.
-	AUTH_TOKEN_TTL_SECS: z.coerce.number().int().positive().default(60 * 60 * 24 * 30),
+	// JWT lifetime in seconds. Short by default — mobile renews via auth.refresh
+	// every ~half-TTL while the app is in the foreground. Going to background
+	// or locking the phone for >TTL drops the user back to the login screen on
+	// resume — the dispatcher use case is "phone in hand during a shift," not
+	// long-lived sessions.
+	AUTH_TOKEN_TTL_SECS: z.coerce.number().int().positive().default(60),
 	STT_PROVIDER: z.enum(["deepgram"]).default("deepgram"),
 	DEEPGRAM_API_KEY: z.string().min(1),
 	// Anthropic Messages API key for the agent runner (AD-6). Required because

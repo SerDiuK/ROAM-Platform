@@ -15,6 +15,7 @@ export type DispatchInboxState =
 			decision: "accept" | "decline";
 	  }
 	| { kind: "claimed"; data: DispatchInboxData }
+	| { kind: "clearing"; data: DispatchInboxData }
 	| { kind: "conflict"; data: DispatchInboxData; message: string }
 	| { kind: "error"; message: string };
 
@@ -31,12 +32,18 @@ export type DispatchInboxApi = {
 		id: string,
 	) => Promise<{ incident: Incident; briefing: Briefing | undefined }>;
 	listResponders: () => Promise<Responder[]>;
+	// SIWS path: backend derives responderId from the auth context. The adapter
+	// composes prepareResponseTx → MWA fingerprint → sendRawTransaction →
+	// commitSignedResponse internally; the inbox just sees a single async call.
 	respond: (req: {
 		dispatchId: string;
-		responderId: string;
 		decision: "accept" | "decline";
 		declineReason?: string;
 	}) => Promise<void>;
+	// Same SIWS ceremony for the cleared event. Adapter composes
+	// prepareClearTx → MWA fingerprint → sendRawTransaction →
+	// commitSignedClear internally.
+	clear: (req: { dispatchId: string }) => Promise<void>;
 };
 
 export type DispatchInboxDeps = {
@@ -113,8 +120,9 @@ export class DispatchInbox {
 		decision: "accept" | "decline",
 		declineReason?: string,
 	): Promise<void> => {
-		const responderId = this.deps.getResponderId();
-		if (!responderId) {
+		// `getResponderId` is the "is the user signed in" gate. The id itself
+		// isn't passed to the adapter — backend derives it from the auth context.
+		if (!this.deps.getResponderId()) {
 			this.set({ kind: "error", message: "Not signed in" });
 			return;
 		}
@@ -125,7 +133,6 @@ export class DispatchInbox {
 		try {
 			await this.deps.api.respond({
 				dispatchId: data.dispatch._id,
-				responderId,
 				decision,
 				declineReason,
 			});
@@ -136,8 +143,6 @@ export class DispatchInbox {
 			}
 		} catch (err: unknown) {
 			if (isConflictError(err)) {
-				// Another responder claimed it — keep the data so we can render a
-				// clear "already claimed" message rather than crash.
 				this.set({ kind: "conflict", data, message: err.message });
 				return;
 			}
@@ -151,4 +156,28 @@ export class DispatchInbox {
 
 	declineDispatch = (reason?: string): Promise<void> =>
 		this.respond("decline", reason);
+
+	clearDispatch = async (): Promise<void> => {
+		if (!this.deps.getResponderId()) {
+			this.set({ kind: "error", message: "Not signed in" });
+			return;
+		}
+		// Only clear from the post-accept "claimed" state — guards against
+		// double-tap or a stale UI firing after dismissal.
+		if (this.current.kind !== "claimed") return;
+		const data = this.current.data;
+		this.set({ kind: "clearing", data });
+		try {
+			await this.deps.api.clear({ dispatchId: data.dispatch._id });
+			this.dismiss();
+		} catch (err: unknown) {
+			if (isConflictError(err)) {
+				this.set({ kind: "conflict", data, message: err.message });
+				return;
+			}
+			const message =
+				err instanceof Error ? err.message : "Couldn't clear dispatch";
+			this.set({ kind: "error", message });
+		}
+	};
 }

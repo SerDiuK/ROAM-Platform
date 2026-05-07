@@ -2,17 +2,19 @@ import type { Responder } from "@roam/shared";
 import { atom } from "jotai";
 import { api, loadApiTokenFromStorage, setApiToken } from "@/lib/api";
 import { registerPushToken } from "@/lib/push";
-import {
-	clearCachedName,
-	clearToken,
-	readCachedName,
-	writeCachedName,
-	writeToken,
-} from "@/lib/secure-storage";
+import { clearToken, readCachedName } from "@/lib/secure-storage";
+
+// Sign-out + wallet lifecycle actions live in wallet-auth.ts so they can
+// touch walletPubkeyAtom in one shot. This file only owns the auth-state +
+// boot orchestration that doesn't need to know about MWA.
 
 // Boot states the UI cares about. `unknown` is the very first paint before
 // secure-store has been read; treated as an indeterminate loading state.
 // `signed-out` shows the Login screen; `signed-in` shows the map.
+//
+// `cachedName` is kept on the signed-out state for the picker UX: if the
+// device has signed in before, default the responder selection in the
+// first-time-bind picker to that name.
 export type AuthState =
 	| { kind: "unknown" }
 	| { kind: "signed-out"; cachedName: string | null; error?: string }
@@ -30,8 +32,7 @@ export const currentResponderAtom = atom<Responder | null>((get) => {
 
 // Boot orchestrator. On cold start: hydrate token from secure-store, ask the
 // backend who we are. If the token is valid, drop straight into the map and
-// register the push token (post-login per AD-12 plan note). Otherwise, show
-// Login pre-filled with the last-used name.
+// register the push token. Otherwise, show Login.
 export const bootAuthAtom = atom(null, async (_get, set) => {
 	const token = await loadApiTokenFromStorage();
 	const cachedName = await readCachedName();
@@ -53,51 +54,5 @@ export const bootAuthAtom = atom(null, async (_get, set) => {
 		await clearToken();
 		set(authStateAtom, { kind: "signed-out", cachedName });
 	}
-});
-
-// Sign-in action. Called from the Login screen with name + PIN. Persists
-// the token + name to secure-store, transitions to signed-in state, and
-// kicks off post-login push registration.
-export const signInAtom = atom(
-	null,
-	async (
-		_get,
-		set,
-		args: { name: string; pin: string },
-	): Promise<{ ok: boolean; error?: string }> => {
-		try {
-			const { token, responder } = await api.auth.signIn({
-				name: args.name,
-				pin: args.pin,
-			});
-			setApiToken(token);
-			await writeToken(token);
-			await writeCachedName(args.name);
-			set(authStateAtom, { kind: "signed-in", responder });
-			void registerPushToken(responder._id);
-			return { ok: true };
-		} catch (err) {
-			const msg = err instanceof Error ? err.message : "Sign-in failed";
-			return { ok: false, error: msg };
-		}
-	},
-);
-
-// Sign-out wipes the in-memory + secure-store token. The cached name
-// stays so the Login screen can pre-fill on the next launch (PIN-only re-flow).
-export const signOutAtom = atom(null, async (_get, set) => {
-	setApiToken(null);
-	await clearToken();
-	const cachedName = await readCachedName();
-	set(authStateAtom, { kind: "signed-out", cachedName });
-});
-
-// "Forget this device" — full reset, clears name too. Only useful if a
-// device is being reassigned to a different responder from a fresh state.
-export const forgetDeviceAtom = atom(null, async (_get, set) => {
-	setApiToken(null);
-	await clearToken();
-	await clearCachedName();
-	set(authStateAtom, { kind: "signed-out", cachedName: null });
 });
 

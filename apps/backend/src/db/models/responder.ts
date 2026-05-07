@@ -8,9 +8,10 @@ import mongoose from "mongoose";
 // `encryptedWalletSecret` holds the AES-256-GCM ciphertext of the responder's
 // embedded Solana keypair. `select: false` keeps it out of every default query
 // — it is read only inside the wallet provider when a transfer needs signing.
+// (Dead weight under Seeker auth; slated for follow-up cleanup with AD-2.)
 //
-// `pinHash` is a bcrypt hash of the responder's PIN. Same `select: false` rule
-// — only the auth.signIn procedure ever needs to read it.
+// `walletAddress` is the Seeker pubkey (Seed Vault), bound at first SIWS
+// sign-in. Indexed because siwsVerify resolves the responder by pubkey.
 //
 // `currentVehicleId` (AD-22) is the persistent responder↔vehicle pairing,
 // replacing the off-chain Session collection. The unique-sparse partial
@@ -30,7 +31,6 @@ const responderSchema = new mongoose.Schema({
 	},
 	walletAddress: { type: String, index: true },
 	encryptedWalletSecret: { type: String, select: false },
-	pinHash: { type: String, select: false },
 	pushTokens: { type: [String], default: undefined },
 	capabilities: {
 		type: [{ type: String, enum: RESPONDER_CAPABILITIES }],

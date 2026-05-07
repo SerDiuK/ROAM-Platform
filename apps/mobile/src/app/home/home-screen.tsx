@@ -117,6 +117,9 @@ export function HomeScreen(): React.JSX.Element {
 				onDecline={() => {
 					void inbox.declineDispatch();
 				}}
+				onClear={() => {
+					void inbox.clearDispatch();
+				}}
 				onDismiss={inbox.dismiss}
 			/>
 

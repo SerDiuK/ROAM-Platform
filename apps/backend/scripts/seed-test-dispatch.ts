@@ -1,7 +1,7 @@
 // One-shot seeder for manual AD-8 testing: creates an Incident + a Briefing
 // with the canonical briefingHash so dispatch.confirm passes the hash check.
 // Bypasses the agent — useful when you want to exercise dispatch.confirm /
-// dispatch.respond without depending on the LLM tool-use loop.
+// commitSignedResponse without depending on the LLM tool-use loop.
 //
 // Usage: pnpm --filter @roam/backend test-dispatch:seed
 //        # then read the printed BRIEFING_ID and use it with /api/dispatch/confirm

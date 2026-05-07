@@ -1,5 +1,15 @@
-import { type AnchorProvider, type Idl, Program } from "@coral-xyz/anchor";
-import { PublicKey, type Keypair } from "@solana/web3.js";
+import {
+	AnchorProvider,
+	type Idl,
+	Program,
+	type Wallet,
+} from "@coral-xyz/anchor";
+import {
+	type Connection,
+	type Keypair,
+	PublicKey,
+	Transaction,
+} from "@solana/web3.js";
 import BN from "bn.js";
 import idlJson from "./idl.json";
 
@@ -90,6 +100,110 @@ export function deriveEventPda(
 		PROGRAM_ID,
 	);
 	return pda;
+}
+
+// Read-only wallet shim for split-signer flows. `Program.methods.foo().instruction()`
+// only reads `publicKey` from the wallet — it never calls signTransaction. The
+// fee_payer's keypair stays out of band; we partial-sign the resulting tx with
+// `partialSignAsFeePayer` after blockhash is set.
+class ReadOnlyWallet implements Wallet {
+	// `payer` is required by the Wallet interface but unused for our flows; an
+	// ephemeral keypair is fine — Anchor never reads its secret here.
+	public readonly payer: Keypair;
+	constructor(public readonly publicKey: PublicKey, payer: Keypair) {
+		this.payer = payer;
+	}
+	async signTransaction(): Promise<never> {
+		throw new SolanaError(
+			"ReadOnlyWallet cannot sign — call partialSignAsFeePayer instead",
+			"TRANSACTION_FAILED",
+		);
+	}
+	async signAllTransactions(): Promise<never> {
+		throw new SolanaError(
+			"ReadOnlyWallet cannot sign — call partialSignAsFeePayer instead",
+			"TRANSACTION_FAILED",
+		);
+	}
+}
+
+export type BuildRecordEventTxArgs = {
+	connection: Connection;
+	incidentId: Uint8Array;
+	kind: IncidentEventKindName;
+	responderIdHash: Uint8Array;
+	payloadHash: Uint8Array;
+	occurredAt: number;
+	attestorPubkey: PublicKey;
+	feePayerPubkey: PublicKey;
+};
+
+export type BuildRecordEventTxResult = {
+	transaction: Transaction;
+	eventPda: PublicKey;
+};
+
+// Builds a `record_event` Transaction with split fee_payer/attestor accounts,
+// recent blockhash set, no signatures attached. Caller partial-signs as
+// fee_payer (backend), then mobile signs as attestor (Seeker via MWA), then
+// sends to chain. Used by `dispatch.prepareResponseTx`.
+export async function buildRecordEventTx(
+	args: BuildRecordEventTxArgs,
+	feePayerKeypair: Keypair,
+): Promise<BuildRecordEventTxResult> {
+	if (args.payloadHash.length !== 32) {
+		throw new SolanaError(
+			`payload_hash must be 32 bytes, got ${args.payloadHash.length}`,
+			"TRANSACTION_FAILED",
+		);
+	}
+	const kindIndex = INCIDENT_EVENT_KIND_INDEX[args.kind];
+	const eventPda = deriveEventPda(
+		args.incidentId,
+		kindIndex,
+		args.responderIdHash,
+	);
+
+	const provider = new AnchorProvider(
+		args.connection,
+		new ReadOnlyWallet(args.feePayerPubkey, feePayerKeypair),
+		{},
+	);
+	const program = new Program(idl, provider);
+	const ix = await program.methods
+		.recordEvent(
+			Array.from(args.incidentId),
+			kindIndex,
+			Array.from(args.responderIdHash),
+			Array.from(args.payloadHash),
+			new BN(args.occurredAt),
+		)
+		.accounts({
+			event: eventPda,
+			feePayer: args.feePayerPubkey,
+			attestor: args.attestorPubkey,
+			systemProgram: PublicKey.default,
+		})
+		.instruction();
+
+	const { blockhash } = await args.connection.getLatestBlockhash();
+	const tx = new Transaction({
+		feePayer: args.feePayerPubkey,
+		recentBlockhash: blockhash,
+	});
+	tx.add(ix);
+	return { transaction: tx, eventPda };
+}
+
+// Wraps `tx.partialSign` in a single-purpose helper so call sites read clearly.
+// Mutates `tx` in place — adds the fee_payer's signature to the tx's signature
+// slot for that pubkey. Mobile then adds its own attestor signature before
+// sending.
+export function partialSignAsFeePayer(
+	tx: Transaction,
+	feePayer: Keypair,
+): void {
+	tx.partialSign(feePayer);
 }
 
 export async function recordIncidentEventOnChain(

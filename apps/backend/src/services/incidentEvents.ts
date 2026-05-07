@@ -89,6 +89,53 @@ function eventToWire(doc: Record<string, unknown> & { _id: unknown }): IncidentE
 	};
 }
 
+type PersistArgs = {
+	incidentId: string;
+	kind: IncidentEventKind;
+	responderId: string | null;
+	occurredAt: Date;
+	payload?: IncidentEventPayload;
+	solanaTxSignature?: string;
+};
+
+type PersistResult = {
+	doc: Record<string, unknown> & { _id: unknown };
+	isNew: boolean;
+};
+
+async function persistIncidentEvent(args: PersistArgs): Promise<PersistResult> {
+	try {
+		const created = await IncidentEventModel.create({
+			incidentId: args.incidentId,
+			kind: args.kind,
+			responderId: args.responderId,
+			occurredAt: args.occurredAt,
+			payload: args.payload,
+			solanaTxSignature: args.solanaTxSignature,
+		});
+		return {
+			doc: created.toObject() as PersistResult["doc"],
+			isNew: true,
+		};
+	} catch (err: unknown) {
+		if (
+			err instanceof Error &&
+			"code" in err &&
+			(err as { code: number }).code === 11000
+		) {
+			const existing = await IncidentEventModel.findOne({
+				incidentId: args.incidentId,
+				kind: args.kind,
+				responderId: args.responderId,
+			}).lean();
+			if (existing) {
+				return { doc: existing as PersistResult["doc"], isNew: false };
+			}
+		}
+		throw err;
+	}
+}
+
 // Records an incident event: synchronous Mongo insert (canonical), async
 // Solana write (non-blocking — patches solanaTxSignature when it returns),
 // and a single `incident.event` broadcast on the incidents WS so the
@@ -113,37 +160,16 @@ export async function recordIncidentEvent(
 	const occurredAt = args.occurredAt ?? new Date();
 	const responderId = args.responderId ?? null;
 
-	let docObject: Record<string, unknown> & { _id: unknown };
-	let docId: unknown;
-	try {
-		const created = await IncidentEventModel.create({
-			incidentId: args.incidentId,
-			kind: args.kind,
-			responderId,
-			occurredAt,
-			payload: args.payload,
-		});
-		docObject = created.toObject() as typeof docObject;
-		docId = created._id;
-	} catch (err: unknown) {
-		if (
-			err instanceof Error &&
-			"code" in err &&
-			(err as { code: number }).code === 11000
-		) {
-			const existing = await IncidentEventModel.findOne({
-				incidentId: args.incidentId,
-				kind: args.kind,
-				responderId,
-			}).lean();
-			if (existing) {
-				return eventToWire(existing);
-			}
-		}
-		throw err;
-	}
+	const { doc, isNew } = await persistIncidentEvent({
+		incidentId: args.incidentId,
+		kind: args.kind,
+		responderId,
+		occurredAt,
+		payload: args.payload,
+	});
+	if (!isNew) return eventToWire(doc);
 
-	const wire = eventToWire(docObject);
+	const wire = eventToWire(doc);
 	deps.incidentBroadcaster.broadcast({ type: "incident.event", event: wire });
 
 	// Fire-and-forget chain write. Non-blocking per the codebase convention —
@@ -163,7 +189,7 @@ export async function recordIncidentEvent(
 		);
 		if (!sig) return;
 		const updated = await IncidentEventModel.findByIdAndUpdate(
-			docId,
+			doc._id,
 			{ solanaTxSignature: sig },
 			{ returnDocument: "after" },
 		).lean();
@@ -179,5 +205,51 @@ export async function recordIncidentEvent(
 		}
 	})();
 
+	return wire;
+}
+
+// Sibling of recordIncidentEvent for the SIWS dispatch flow: mobile already
+// submitted the chain tx (signing as attestor), so we persist the off-chain
+// mirror with `solanaTxSignature` populated up front and skip the async chain
+// write. Same idempotency contract as the parent — the unique-by-tuple index
+// on (incidentId, kind, responderId) makes a duplicate call a no-op.
+export async function recordIncidentEventWithSignature(
+	deps: {
+		config: Config;
+		log: FastifyBaseLogger;
+		incidentBroadcaster: IncidentBroadcaster;
+	},
+	args: {
+		incidentId: string;
+		kind: IncidentEventKind;
+		responderId?: string | null;
+		payload?: IncidentEventPayload;
+		occurredAt?: Date;
+		solanaTxSignature: string;
+	},
+): Promise<IncidentEvent> {
+	const occurredAt = args.occurredAt ?? new Date();
+	const responderId = args.responderId ?? null;
+
+	const { doc, isNew } = await persistIncidentEvent({
+		incidentId: args.incidentId,
+		kind: args.kind,
+		responderId,
+		occurredAt,
+		payload: args.payload,
+		solanaTxSignature: args.solanaTxSignature,
+	});
+	const wire = eventToWire(doc);
+	if (isNew) {
+		deps.incidentBroadcaster.broadcast({ type: "incident.event", event: wire });
+		deps.log.info(
+			{
+				sig: args.solanaTxSignature,
+				incidentId: args.incidentId,
+				kind: args.kind,
+			},
+			"Incident event recorded with mobile-submitted signature",
+		);
+	}
 	return wire;
 }

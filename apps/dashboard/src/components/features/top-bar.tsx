@@ -37,13 +37,15 @@ export function TopBar({
 			)}
 
 			<div className="flex items-center gap-2 pr-1">
-				<span className="font-bold tracking-widest text-primary leading-1">
+				<span className="font-bold text-sm tracking-widest text-primary">
 					ROAM
 				</span>
-				<span className="hidden uppercase text-sm tracking-widest text-muted-foreground leading-1 sm:inline">
+                <span className="px-1 text-muted-foreground">|</span>
+				<span className="hidden uppercase text-xs tracking-widest text-secondary-text sm:inline">
 					Command Dashboard
 				</span>
-				<span className="hidden uppercase text-sm tracking-widest text-secondary-text leading-1 sm:inline">
+                <span className="px-1 text-muted-foreground">|</span>
+				<span className="hidden uppercase text-xs tracking-widest text-muted-foreground sm:inline">
 					Miami
 				</span>
 			</div>

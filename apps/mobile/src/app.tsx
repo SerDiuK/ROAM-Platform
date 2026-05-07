@@ -21,6 +21,7 @@ import { NAV_THEME } from "@/lib/theme";
 import { AppNavigator } from "@/navigators/app-navigator";
 import { authStateAtom, bootAuthAtom } from "@/state/responder";
 import { RealtimeProvider } from "@/state/realtime-provider";
+import { useTokenRenewal } from "@/state/use-token-renewal";
 
 // Dispatch app — dark only, matching the dispatcher dashboard.
 colorScheme.set("dark");
@@ -66,6 +67,16 @@ function AuthGate(): React.JSX.Element {
 		return <LoginScreen cachedName={auth.cachedName} />;
 	}
 
+	return (
+		<SignedInShell />
+	);
+}
+
+// Mounts the sliding-window JWT renewal alongside the navigator. Pulled out
+// of AuthGate so the hook only runs in the signed-in branch — when signed-out
+// or unknown there's no token to refresh.
+function SignedInShell(): React.JSX.Element {
+	useTokenRenewal();
 	return (
 		<RealtimeProvider>
 			<NavigationContainer theme={NAV_THEME.dark}>

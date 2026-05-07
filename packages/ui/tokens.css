@@ -1,91 +1,91 @@
 /* @roam/ui design tokens — single source of truth for both apps. */
-/* HSL triples (no hsl() wrapper) so consumers can compose: hsl(var(--background)). */
+/* HEX colors. Tailwind opacity modifiers (bg-primary/15) work via color-mix(). */
 
 :root {
 	/* shadcn base — light mode */
-	--background: 0 0% 100%;
-	--foreground: 220 22% 5%;
-	--card: 0 0% 100%;
-	--card-foreground: 220 22% 5%;
-	--popover: 0 0% 100%;
-	--popover-foreground: 220 22% 5%;
-	--primary: 160 84% 39%;
-	--primary-foreground: 150 60% 5%;
-	--secondary: 220 13% 91%;
-	--secondary-foreground: 220 22% 5%;
-	--muted: 220 13% 91%;
-	--muted-foreground: 220 9% 46%;
-	--accent: 220 13% 91%;
-	--accent-foreground: 220 22% 5%;
-	--destructive: 0 84% 60%;
-	--destructive-foreground: 0 0% 98%;
-	--border: 220 13% 88%;
-	--input: 220 13% 88%;
-	--ring: 160 84% 39%;
+	--background: #ffffff;
+	--foreground: #0a0c10;
+	--card: #ffffff;
+	--card-foreground: #0a0c10;
+	--popover: #ffffff;
+	--popover-foreground: #0a0c10;
+	--primary: #38bdf8;
+	--primary-foreground: #05140d;
+	--secondary: #e5e7eb;
+	--secondary-foreground: #0a0c10;
+	--muted: #e5e7eb;
+	--muted-foreground: #6b7280;
+	--accent: #e5e7eb;
+	--accent-foreground: #0a0c10;
+	--destructive: #ef4343;
+	--destructive-foreground: #fafafa;
+	--border: #dcdfe4;
+	--input: #dcdfe4;
+	--ring: #38bdf8;
 	--radius: 0.5rem;
 
 	/* dispatch extensions */
-	--warning: 38 92% 50%;
-	--warning-foreground: 40 60% 5%;
-	--danger: 0 84% 60%;
-	--danger-foreground: 0 60% 6%;
-	--offline: 220 9% 46%;
-	--sidebar: 0 0% 100%;
-	--sidebar-foreground: 220 22% 5%;
-	--sidebar-border: 220 13% 88%;
-	--sidebar-accent: 220 13% 91%;
-	--sidebar-accent-foreground: 220 22% 5%;
-	--sidebar-ring: 160 84% 39%;
+	--warning: #f59f0a;
+	--warning-foreground: #140f05;
+	--danger: #ef4343;
+	--danger-foreground: #180606;
+	--offline: #6b7280;
+	--sidebar: #ffffff;
+	--sidebar-foreground: #0a0c10;
+	--sidebar-border: #dcdfe4;
+	--sidebar-accent: #e5e7eb;
+	--sidebar-accent-foreground: #0a0c10;
+	--sidebar-ring: #38bdf8;
 
 	/* button accents */
-	--lime: 74 75% 50%;
-	--lime-foreground: 120 50% 5%;
-	--border2: 220 13% 80%;
-	--text-dim: 220 9% 46%;
-	--solana: 266 100% 66%;
+	--lime: #b3df20;
+	--lime-foreground: #061306;
+	--border2: #c5cad3;
+	--text-dim: #6b7280;
+	--solana: #9d52ff;
 }
 
 .dark:root,
 :root.dark,
 .dark {
 	/* shadcn base — dark mode (dispatch) */
-	--background: 220 22% 5%;
-	--foreground: 220 13% 91%;
-	--card: 220 22% 7%;
-	--card-foreground: 220 13% 91%;
-	--popover: 220 22% 7%;
-	--popover-foreground: 220 13% 91%;
-	--primary: 160 84% 39%;
-	--primary-foreground: 150 60% 5%;
-	--secondary: 217 19% 16%;
-	--secondary-foreground: 220 13% 91%;
-	--muted: 217 19% 16%;
-	--muted-foreground: 220 9% 65%;
-	--accent: 217 33% 17%;
-	--accent-foreground: 210 40% 96%;
-	--destructive: 0 84% 60%;
-	--destructive-foreground: 0 0% 98%;
-	--border: 217 19% 16%;
-	--input: 217 19% 16%;
-	--ring: 160 84% 39%;
+	--background: #0a0c10;
+	--foreground: #e5e7eb;
+	--card: #0e1116;
+	--card-foreground: #e5e7eb;
+	--popover: #0e1116;
+	--popover-foreground: #e5e7eb;
+	--primary: #38bdf8;
+	--primary-foreground: #05140d;
+	--secondary: #212731;
+	--secondary-foreground: #e5e7eb;
+	--muted: #212731;
+	--muted-foreground: #9ea3ae;
+	--accent: #1d283a;
+	--accent-foreground: #f1f5f9;
+	--destructive: #ef4343;
+	--destructive-foreground: #fafafa;
+	--border: #212731;
+	--input: #212731;
+	--ring: #38bdf8;
 
 	/* dispatch extensions */
-	--warning: 38 92% 50%;
-	--warning-foreground: 40 60% 5%;
-	--danger: 0 84% 60%;
-	--danger-foreground: 0 60% 6%;
-	--offline: 220 9% 46%;
-	--sidebar: 218 17% 7%;
-	--sidebar-foreground: 220 13% 91%;
-	--sidebar-border: 217 19% 16%;
-	--sidebar-accent: 217 33% 17%;
-	--sidebar-accent-foreground: 210 40% 96%;
-	--sidebar-ring: 160 84% 39%;
+	--warning: #f59f0a;
+	--warning-foreground: #140f05;
+	--danger: #ef4343;
+	--danger-foreground: #180606;
+	--offline: #6b7280;
+	--sidebar: #0f1115;
+	--sidebar-foreground: #e5e7eb;
+	--sidebar-border: #212731;
+	--sidebar-accent: #1d283a;
+	--sidebar-accent-foreground: #f1f5f9;
+	--sidebar-ring: #38bdf8;
 
 	/* button accents */
-	--lime: 74 75% 55%;
-	--lime-foreground: 120 50% 5%;
-	--border2: 220 13% 22%;
-	--text-dim: 220 9% 65%;
-	--solana: 266 100% 66%;
+	--lime: #bae236;
+	--lime-foreground: #061306;
+	--border2: #31363f;
+	--text-dim: #9ea3ae;
+	--solana: #9d52ff;
 }

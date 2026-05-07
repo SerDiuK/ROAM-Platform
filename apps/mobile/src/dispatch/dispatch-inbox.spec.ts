@@ -84,6 +84,7 @@ function makeApi(): MockedApi {
 		getIncident: vi.fn() as MockedApi["getIncident"],
 		listResponders: vi.fn() as MockedApi["listResponders"],
 		respond: vi.fn() as MockedApi["respond"],
+		clear: vi.fn() as MockedApi["clear"],
 	};
 }
 
@@ -156,7 +157,6 @@ describe("DispatchInbox", () => {
 
 		expect(api.respond).toHaveBeenCalledWith({
 			dispatchId: "dsp-1",
-			responderId: RESPONDER_ID,
 			decision: "accept",
 			declineReason: undefined,
 		});
@@ -171,7 +171,6 @@ describe("DispatchInbox", () => {
 
 		expect(api.respond).toHaveBeenCalledWith({
 			dispatchId: "dsp-1",
-			responderId: RESPONDER_ID,
 			decision: "decline",
 			declineReason: "too far",
 		});
@@ -247,6 +246,45 @@ describe("DispatchInbox", () => {
 
 		expect(api.respond).not.toHaveBeenCalled();
 		expect(noIdInbox.getState().kind).toBe("error");
+	});
+
+	it("clearDispatch from claimed runs the chain ceremony and dismisses on success", async () => {
+		seedHappy(api);
+		api.respond.mockResolvedValue(undefined);
+		api.clear.mockResolvedValue(undefined);
+		await inbox.showFor("dsp-1");
+		await inbox.acceptDispatch();
+		expect(inbox.getState().kind).toBe("claimed");
+
+		await inbox.clearDispatch();
+
+		expect(api.clear).toHaveBeenCalledWith({ dispatchId: "dsp-1" });
+		expect(inbox.getState().kind).toBe("idle");
+	});
+
+	it("clearDispatch is a no-op outside the claimed state", async () => {
+		seedHappy(api);
+		await inbox.showFor("dsp-1");
+		expect(inbox.getState().kind).toBe("incoming");
+
+		await inbox.clearDispatch();
+		expect(api.clear).not.toHaveBeenCalled();
+		expect(inbox.getState().kind).toBe("incoming");
+	});
+
+	it("clearDispatch surfaces CONFLICT (e.g. dispatch already cleared)", async () => {
+		seedHappy(api);
+		api.respond.mockResolvedValue(undefined);
+		api.clear.mockRejectedValue({
+			code: "CONFLICT",
+			message: "dispatch_not_claimable_for_clear: status=cleared",
+		});
+		await inbox.showFor("dsp-1");
+		await inbox.acceptDispatch();
+		await inbox.clearDispatch();
+
+		const state = inbox.getState();
+		expect(state.kind).toBe("conflict");
 	});
 
 	it("dismiss() returns to idle and a new showFor restarts the flow cleanly", async () => {

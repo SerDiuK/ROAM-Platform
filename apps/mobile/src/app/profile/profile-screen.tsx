@@ -5,7 +5,8 @@ import { Pressable, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
-import { currentResponderAtom, signOutAtom } from "@/state/responder";
+import { currentResponderAtom } from "@/state/responder";
+import { signOutAtom } from "@/state/wallet-auth";
 
 type Props = {
 	onClose: () => void;

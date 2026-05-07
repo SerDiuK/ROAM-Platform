@@ -1,5 +1,5 @@
 import type { Telemetry, Vehicle } from "@roam/shared";
-import { hsl, STATUS_HEX } from "@roam/ui";
+import { color, STATUS_HEX } from "@roam/ui";
 import * as Location from "expo-location";
 import { LocateFixed } from "lucide-react-native";
 import { useRef, useState } from "react";
@@ -18,7 +18,7 @@ import MapView, {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { DISPATCH_MAP_STYLE } from "@/lib/map-style";
 
-const LOCATE_ICON_COLOR = hsl("background", "dark");
+const LOCATE_ICON_COLOR = color("background", "dark");
 
 const INITIAL_REGION = {
 	latitude: 25.7617,

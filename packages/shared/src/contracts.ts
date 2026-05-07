@@ -3,14 +3,20 @@ import { z } from "zod";
 import { BriefingSchema } from "./briefing";
 import { CoordSchema } from "./coord";
 import {
+	CommitSignedClearRequestSchema,
 	DispatchClearRequestSchema,
 	DispatchConfirmRequestSchema,
 	DispatchListRequestSchema,
 	DispatchSchema,
+	PrepareClearTxRequestSchema,
+	PrepareClearTxResponseSchema,
 } from "./dispatch";
 import {
-	DispatchRespondRequestSchema,
+	CommitSignedResponseRequestSchema,
+	CommitSignedResponseResponseSchema,
 	DispatchResponseSchema,
+	PrepareResponseTxRequestSchema,
+	PrepareResponseTxResponseSchema,
 } from "./dispatchResponse";
 import {
 	CheckinRequestSchema,
@@ -18,8 +24,10 @@ import {
 	EnrolRequestSchema,
 	MeResponseSchema,
 	ResponderSchema,
-	SignInRequestSchema,
-	SignInResponseSchema,
+	SiwsChallengeRequestSchema,
+	SiwsChallengeResponseSchema,
+	SiwsVerifyRequestSchema,
+	SiwsVerifyResponseSchema,
 	UpsertPushTokenRequestSchema,
 } from "./responder";
 import {
@@ -82,14 +90,6 @@ const IncidentWithBriefingResponseSchema = z.object({
 	briefing: BriefingSchema.optional(),
 });
 
-// Pair returned by dispatch.respond — caller wants both the just-persisted
-// response row and the (possibly newly-claimed) dispatch state in one shot so
-// the mobile UI can render the post-accept screen without a second fetch.
-const DispatchRespondResponseSchema = z.object({
-	response: DispatchResponseSchema,
-	dispatch: DispatchSchema,
-});
-
 // Returned by dispatch.get — the dispatch plus all responses recorded against
 // it (accepts and declines). DispatchTracker (AD-15) renders this as a live
 // row-per-responder list.
@@ -136,14 +136,24 @@ export const contract = {
 	},
 
 	auth: {
-		signIn: oc
+		siwsChallenge: oc
 			.route({
 				method: "POST",
-				path: "/api/auth/sign-in",
-				summary: "Sign in a responder with name + PIN",
+				path: "/api/auth/siws-challenge",
+				summary: "Issue a SIWS message + nonce for a Seeker pubkey",
 			})
-			.input(SignInRequestSchema)
-			.output(SignInResponseSchema),
+			.input(SiwsChallengeRequestSchema)
+			.output(SiwsChallengeResponseSchema),
+
+		siwsVerify: oc
+			.route({
+				method: "POST",
+				path: "/api/auth/siws-verify",
+				summary:
+					"Verify a SIWS signature, bind wallet on first sign-in, return a session JWT",
+			})
+			.input(SiwsVerifyRequestSchema)
+			.output(SiwsVerifyResponseSchema),
 
 		me: oc
 			.route({
@@ -152,6 +162,15 @@ export const contract = {
 				summary: "Resolve the responder for the current session token",
 			})
 			.output(MeResponseSchema),
+
+		refresh: oc
+			.route({
+				method: "POST",
+				path: "/api/auth/refresh",
+				summary:
+					"Exchange a still-valid session JWT for a fresh one (sliding-window auto-renew)",
+			})
+			.output(SiwsVerifyResponseSchema),
 
 		checkin: oc
 			.route({
@@ -259,14 +278,25 @@ export const contract = {
 			.input(DispatchConfirmRequestSchema)
 			.output(DispatchSchema),
 
-		respond: oc
+		prepareResponseTx: oc
 			.route({
 				method: "POST",
-				path: "/api/dispatch/respond",
-				summary: "Accept or decline a dispatch (first-to-claim)",
+				path: "/api/dispatch/prepare-response-tx",
+				summary:
+					"Build the unsigned record_event tx (fee_payer pre-signed) for a Seeker to accept or decline",
 			})
-			.input(DispatchRespondRequestSchema)
-			.output(DispatchRespondResponseSchema),
+			.input(PrepareResponseTxRequestSchema)
+			.output(PrepareResponseTxResponseSchema),
+
+		commitSignedResponse: oc
+			.route({
+				method: "POST",
+				path: "/api/dispatch/commit-signed-response",
+				summary:
+					"Persist the dispatch response after mobile submits the chain tx (first-to-claim)",
+			})
+			.input(CommitSignedResponseRequestSchema)
+			.output(CommitSignedResponseResponseSchema),
 
 		clear: oc
 			.route({
@@ -276,6 +306,26 @@ export const contract = {
 					"Mark a claimed dispatch as cleared (scene cleared) and resolve the incident",
 			})
 			.input(DispatchClearRequestSchema)
+			.output(DispatchSchema),
+
+		prepareClearTx: oc
+			.route({
+				method: "POST",
+				path: "/api/dispatch/prepare-clear-tx",
+				summary:
+					"Build the unsigned record_event tx (fee_payer pre-signed) for a Seeker to clear a dispatch on chain",
+			})
+			.input(PrepareClearTxRequestSchema)
+			.output(PrepareClearTxResponseSchema),
+
+		commitSignedClear: oc
+			.route({
+				method: "POST",
+				path: "/api/dispatch/commit-signed-clear",
+				summary:
+					"Persist the cleared status after mobile submits the chain tx (flips dispatch to cleared and resolves the incident)",
+			})
+			.input(CommitSignedClearRequestSchema)
 			.output(DispatchSchema),
 	},
 

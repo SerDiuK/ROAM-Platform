@@ -66,6 +66,36 @@ export const DispatchClearRequestSchema = z.object({
 });
 export type DispatchClearRequest = z.infer<typeof DispatchClearRequestSchema>;
 
+// --- Prepare clear tx (SIWS path) ---
+// Mobile asks the backend to build the unsigned `record_event` tx for kind=
+// cleared, partial-signed as fee_payer. Mirrors prepareResponseTx for accept/
+// decline — the signed-in responder signs as attestor via MWA, sends to chain,
+// then commits via commitSignedClear. Backend validates the dispatch is still
+// claimable-for-clear before asking mobile to fingerprint.
+export const PrepareClearTxRequestSchema = z.object({
+	dispatchId: z.string(),
+});
+export type PrepareClearTxRequest = z.infer<typeof PrepareClearTxRequestSchema>;
+
+export const PrepareClearTxResponseSchema = z.object({
+	serializedTx: z.string(),
+	recentBlockhash: z.string(),
+	expiresAt: z.string(),
+});
+export type PrepareClearTxResponse = z.infer<typeof PrepareClearTxResponseSchema>;
+
+// --- Commit signed clear ---
+// Posted after mobile has sent the cleared tx to chain. Backend flips dispatch
+// status (atomic), resolves the incident, persists the IncidentEvent with the
+// mobile-submitted signature, and broadcasts.
+export const CommitSignedClearRequestSchema = z.object({
+	dispatchId: z.string(),
+	signature: z.string().min(1),
+});
+export type CommitSignedClearRequest = z.infer<
+	typeof CommitSignedClearRequestSchema
+>;
+
 // --- Dispatch Confirm Request ---
 // Confirm a briefing → create the Dispatch + fan out push. `decidedBy` is the
 // dispatcher's responderId for human decisions (omit for ai-auto). Defaults

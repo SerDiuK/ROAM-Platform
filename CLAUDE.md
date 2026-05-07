@@ -103,9 +103,18 @@ pnpm --filter @roam/sim-fleet dev
 See ROAM-Tasks.md for the session-by-session build plan.
 Update the "Current focus" line below as you complete each session.
 
-**Active:** Incident event log on Solana — fresh program (`Ad9AUd1XbFT41b92R6XgqFZQeotynLWF5aUSMp65gKQy`) with one instruction, `record_event`, that writes a per-step PDA per `(incident, kind, responder)` tuple. Six event kinds: `received`, `dispatched`, `accepted`, `rejected`, `arrived`, `cleared`. `arrived` is reserved as event_kind 4 — nothing flips an incident to `arrived` yet; the GPS-proximity trigger ships in a follow-up plan. Off-chain mirror in `IncidentEvent` Mongo collection is canonical for queries; chain write fires async via `withSolanaProvider`. Dashboard incident detail panel renders the timeline; mobile shows a "My events" sheet filtered by the signed-in responder. Split-signer pattern preserved (fee_payer = backend, attestor = backend today, swappable to Seeker on AD-19/20). Demo at EasyA Consensus is 2026-05-07. Drop+reseed local Mongo before the demo (`mongosh ... --eval 'db.dropDatabase()' && pnpm --filter @roam/backend seed`).
+**Active:** Seeker-only Sign-in-with-Solana shipped, then slimmed to the Solana Mobile reference path (per `~/.claude/plans/do-it-in-plan-squishy-waffle.md`). PIN auth deleted entirely. SIWS now uses MWA's `sign_in_payload`: `auth.siwsChallenge` returns `{ nonce, domain, statement, expiresAt }`; mobile passes those into `wallet.authorize({ sign_in_payload })` and ships the returned `sign_in_result.{address, signed_message, signature}` (all base64) to `auth.siwsVerify`. One `transact` / one fingerprint per sign-in. The MWA `auth_token` is cached in expo-secure-store for silent warm-boot reauthorize. Dispatch accept/decline runs `prepareResponseTx` → `mwa.signAndSendTransaction` (wallet signs as attestor *and* submits to its own RPC) → `commitSignedResponse`. The fee_payer/attestor split (operator = fee_payer, Seeker = attestor on `record_event`) and first-to-claim atomicity are unchanged. DispatchResponse model still carries `solanaTxSignature` + `attestorPubkey`.
 
-Earlier shipped: AD-22 off-chain session removal (Responder.currentVehicleId is the canonical pairing). Responder-only auth shipped 2026-05-04 (see `plans/32-post-ad-1-operator-auth.md`); AD-2 + AD-3 + AD-12 shipped earlier the same day; terminology rename (operator→responder, commander→dispatcher, callsign→name on people) also 2026-05-04.
+**Open before demo:**
+- Cut a new dev-client build via `eas build --profile development --platform android`; `adb install` on each Seeker.
+- Run `pnpm --filter @roam/backend exec tsx scripts/seeker-smoke.ts` against devnet to confirm the SIWS+chain ceremony before stage time. Requires `SOLANA_OPERATOR_KEYPAIR` funded.
+- Demo at EasyA Consensus is 2026-05-07. Drop+reseed local Mongo (`mongosh ... --eval 'db.dropDatabase()' && pnpm --filter @roam/backend seed`).
+
+**Follow-ups (out of scope):**
+- AD-2 custodial wallet (Responder.encryptedWalletSecret) is dead weight under Seeker auth — drop alongside AD-11 payouts redirecting to the Seeker pubkey.
+- Dashboard dispatcher SIWS auth.
+
+Earlier shipped: incident event log on Solana — fresh program (`Ad9AUd1XbFT41b92R6XgqFZQeotynLWF5aUSMp65gKQy`) with one instruction, `record_event`, that writes a per-step PDA per `(incident, kind, responder)` tuple. Six event kinds: `received`, `dispatched`, `accepted`, `rejected`, `arrived`, `cleared`. `arrived` is reserved as event_kind 4 — nothing flips an incident to `arrived` yet; GPS-proximity trigger ships in a follow-up plan. AD-22 off-chain session removal (Responder.currentVehicleId is the canonical pairing). AD-2 + AD-3 + AD-12 shipped 2026-05-04; terminology rename (operator→responder, commander→dispatcher, callsign→name on people) also 2026-05-04.
 
 **Seeker setup:**
 - Seed Vault initialized with at least one Solana account; cluster passed at MWA `authorize` time as `solana:devnet`.
