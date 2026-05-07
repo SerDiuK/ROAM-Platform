@@ -129,6 +129,10 @@ Required for full local dev:
 - **Pi 4 (`roam-2`)** — secondary node.
 - **Solana Mobile Seeker** — responder device; runs the Expo dev-client build (`eas build --profile development --platform android`, `adb install`).
 
+## Prior work
+
+The IoT bridge (Pi GPS → MQTT, plus the simulator path), an early Expo mobile shell wiring up Solana Mobile Wallet Adapter, the pnpm/Turborepo monorepo scaffolding with shared Zod schemas and oRPC plumbing, and exploratory Anchor/Solana program experiments were in place before the hackathon. The dispatch lifecycle on top — LLM-driven incident ingestion, the dispatch engine, the `record_event` instruction with per-step PDAs, SIWS auth, x402 settlement, and the dispatcher dashboard — is the hackathon build.
+
 ## License
 
 Hackathon project — license TBD post-event.
