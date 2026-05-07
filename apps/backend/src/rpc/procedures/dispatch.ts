@@ -19,6 +19,7 @@ import {
 	responderIdHash as hashResponderId,
 } from "../../services/incidentEvents.js";
 import { getSolanaContext } from "../../services/solana.js";
+import { triggerX402Payment } from "../../x402/client.js";
 import { authed, os } from "../builder.js";
 
 const ACTIVE_STATUSES = ["pending", "claimed"] as const;
@@ -474,6 +475,19 @@ export const dispatchRouter = {
 				occurredAt: now,
 			},
 		);
+
+		// Fire-and-forget x402 payment — non-blocking, same pattern as Solana
+		// chain writes. The clear succeeds regardless of payment outcome.
+		void triggerX402Payment(
+			context.config,
+			context.log,
+			input.dispatchId,
+		).catch((err: unknown) => {
+			context.log.error(
+				{ err, dispatchId: input.dispatchId },
+				"x402 payment failed (non-blocking)",
+			);
+		});
 
 		return dispatch;
 	}),
