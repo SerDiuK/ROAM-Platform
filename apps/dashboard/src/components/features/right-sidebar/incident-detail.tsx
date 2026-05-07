@@ -10,8 +10,8 @@ import {
 	SidebarHeader,
 } from "../../ui/sidebar-primitives";
 import { IncidentAssignedBody } from "./incident-assigned-body";
+import { IncidentChainLog } from "./incident-chain-log";
 import { IncidentPendingBody } from "./incident-pending-body";
-import { IncidentTimeline } from "./incident-timeline";
 
 type IncidentDetailProps = {
 	incident: Incident | null;
@@ -93,8 +93,9 @@ export function IncidentDetail({
 					/>
 				)}
 				{display && (
-					<IncidentTimeline
+					<IncidentChainLog
 						incidentId={display._id}
+						vehicles={vehicles}
 						responderMap={responderMap}
 					/>
 				)}

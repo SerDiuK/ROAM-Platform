@@ -21,6 +21,7 @@ import {
 import { getSolanaContext } from "../../services/solana.js";
 import { triggerX402Payment } from "../../x402/client.js";
 import { authed, os } from "../builder.js";
+import type { RpcContext } from "../context.js";
 
 const ACTIVE_STATUSES = ["pending", "claimed"] as const;
 const ALL_STATUSES = [
@@ -114,6 +115,50 @@ function dispatchClearPayloadHash(args: { dispatchId: string }): Uint8Array {
 // the tx (chain-of-custody), but the row is keyed to the incident.
 const ZERO_RESPONDER_HASH = new Uint8Array(32);
 
+// Fans dispatch.created push notifications out to the recommended responders
+// without blocking the API response. Errors are logged here so the call site
+// stays a single line.
+function notifyDispatchedResponders(
+	context: RpcContext,
+	args: {
+		dispatchId: string;
+		responderIds: string[];
+		title: string;
+		body: string;
+		payoutUsdc: number;
+	},
+): void {
+	void context.pushClient
+		.sendPushToResponders(args.responderIds, {
+			title: args.title,
+			body: args.body,
+			data: {
+				type: "dispatch.created",
+				dispatchId: args.dispatchId,
+				payoutUsdc: args.payoutUsdc,
+			},
+		})
+		.catch((err: unknown) => {
+			context.log.error(
+				{ err, dispatchId: args.dispatchId },
+				"notifyDispatchedResponders failed",
+			);
+		});
+}
+
+// Triggers x402 settlement after a dispatch is cleared. Non-blocking by
+// design — the clear must succeed regardless of payment outcome.
+function settleDispatchPayment(context: RpcContext, dispatchId: string): void {
+	void triggerX402Payment(context.config, context.log, dispatchId).catch(
+		(err: unknown) => {
+			context.log.error(
+				{ err, dispatchId },
+				"settleDispatchPayment failed (non-blocking)",
+			);
+		},
+	);
+}
+
 export const dispatchRouter = {
 	list: os.dispatch.list.handler(async ({ input }) => {
 		const includeCleared = input?.includeCleared ?? false;
@@ -204,22 +249,13 @@ export const dispatchRouter = {
 		}
 		const dispatch = serialize(persistedDispatch) as Dispatch;
 
-		void context.pushClient
-			.sendPushToResponders(briefing.recommendedResponderIds, {
-				title: incident.classification?.incidentType ?? "Dispatch",
-				body: briefing.summary,
-				data: {
-					type: "dispatch.created",
-					dispatchId,
-					payoutUsdc: briefing.payout.totalUsdc,
-				},
-			})
-			.catch((err: unknown) => {
-				context.log.error(
-					{ err, dispatchId },
-					"sendPushToResponders failed during dispatch.confirm",
-				);
-			});
+		notifyDispatchedResponders(context, {
+			dispatchId,
+			responderIds: briefing.recommendedResponderIds,
+			title: incident.classification?.incidentType ?? "Dispatch",
+			body: briefing.summary,
+			payoutUsdc: briefing.payout.totalUsdc,
+		});
 
 		context.dispatchBroadcaster.broadcast({
 			type: "dispatch.created",
@@ -476,18 +512,7 @@ export const dispatchRouter = {
 			},
 		);
 
-		// Fire-and-forget x402 payment — non-blocking, same pattern as Solana
-		// chain writes. The clear succeeds regardless of payment outcome.
-		void triggerX402Payment(
-			context.config,
-			context.log,
-			input.dispatchId,
-		).catch((err: unknown) => {
-			context.log.error(
-				{ err, dispatchId: input.dispatchId },
-				"x402 payment failed (non-blocking)",
-			);
-		});
+		settleDispatchPayment(context, input.dispatchId);
 
 		return dispatch;
 	}),

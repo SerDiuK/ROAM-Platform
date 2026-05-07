@@ -15,7 +15,7 @@ const config: ExpoConfig = {
 	orientation: "portrait",
 	scheme: "roam-mobile",
 	icon: "./assets/icon.png",
-	userInterfaceStyle: "automatic",
+	userInterfaceStyle: "dark",
 	newArchEnabled: true,
 	plugins: [
 		[

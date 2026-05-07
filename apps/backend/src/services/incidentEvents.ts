@@ -172,40 +172,82 @@ export async function recordIncidentEvent(
 	const wire = eventToWire(doc);
 	deps.incidentBroadcaster.broadcast({ type: "incident.event", event: wire });
 
-	// Fire-and-forget chain write. Non-blocking per the codebase convention —
-	// the API response returns immediately on the Mongo insert.
+	recordChainSignatureFollowUp(deps, {
+		incidentId: args.incidentId,
+		kind: args.kind,
+		responderId,
+		payload: args.payload,
+		occurredAt,
+		docId: doc._id,
+	});
+
+	return wire;
+}
+
+type ChainFollowUpDeps = {
+	config: Config;
+	log: FastifyBaseLogger;
+	incidentBroadcaster: IncidentBroadcaster;
+};
+
+type ChainFollowUpArgs = {
+	incidentId: string;
+	kind: IncidentEventKind;
+	responderId: string | null;
+	payload?: IncidentEventPayload;
+	occurredAt: Date;
+	docId: unknown;
+};
+
+// Fire-and-forget chain write + signature patch. The Solana call itself is
+// non-blocking by codebase convention (CLAUDE.md "Solana writes are
+// non-blocking"). The outer try/catch is the load-bearing part: without it,
+// a throw from the post-chain Mongo update or broadcast becomes an unhandled
+// rejection that can take the worker down on `unhandledRejection`.
+function recordChainSignatureFollowUp(
+	deps: ChainFollowUpDeps,
+	args: ChainFollowUpArgs,
+): void {
 	const hmacKey = deps.config.CHAIN_HMAC_KEY;
-	void (async () => {
-		const sig = await withSolanaProvider(deps.config, deps.log, (provider) =>
-			recordIncidentEventOnChain(provider, {
-				incidentId: incidentIdToBytes(args.incidentId, hmacKey),
-				kind: args.kind,
-				responderIdHash: responderId
-					? responderIdHash(responderId, hmacKey)
-					: null,
-				payloadHash: payloadToHash(args.payload),
-				occurredAt: Math.floor(occurredAt.getTime() / 1000),
-			}),
-		);
-		if (!sig) return;
-		const updated = await IncidentEventModel.findByIdAndUpdate(
-			doc._id,
-			{ solanaTxSignature: sig },
-			{ returnDocument: "after" },
-		).lean();
-		if (updated) {
-			deps.incidentBroadcaster.broadcast({
-				type: "incident.event.chain",
-				event: eventToWire(updated),
-			});
-			deps.log.info(
-				{ sig, incidentId: args.incidentId, kind: args.kind },
-				"Incident event recorded on chain",
+	void (async (): Promise<void> => {
+		try {
+			const sig = await withSolanaProvider(
+				deps.config,
+				deps.log,
+				(provider) =>
+					recordIncidentEventOnChain(provider, {
+						incidentId: incidentIdToBytes(args.incidentId, hmacKey),
+						kind: args.kind,
+						responderIdHash: args.responderId
+							? responderIdHash(args.responderId, hmacKey)
+							: null,
+						payloadHash: payloadToHash(args.payload),
+						occurredAt: Math.floor(args.occurredAt.getTime() / 1000),
+					}),
+			);
+			if (!sig) return;
+			const updated = await IncidentEventModel.findByIdAndUpdate(
+				args.docId,
+				{ solanaTxSignature: sig },
+				{ returnDocument: "after" },
+			).lean();
+			if (updated) {
+				deps.incidentBroadcaster.broadcast({
+					type: "incident.event.chain",
+					event: eventToWire(updated),
+				});
+				deps.log.info(
+					{ sig, incidentId: args.incidentId, kind: args.kind },
+					"Incident event recorded on chain",
+				);
+			}
+		} catch (err: unknown) {
+			deps.log.error(
+				{ err, incidentId: args.incidentId, kind: args.kind },
+				"recordChainSignatureFollowUp failed (non-blocking)",
 			);
 		}
 	})();
-
-	return wire;
 }
 
 // Sibling of recordIncidentEvent for the SIWS dispatch flow: mobile already

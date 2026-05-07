@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 
 function RootLayout({ children }: { children: ReactNode }) {
 	return (
-		<html lang="en" className={`dark ${inter.variable}`}>
+		<html lang="en" className={inter.variable}>
 			<body>{children}</body>
 		</html>
 	);

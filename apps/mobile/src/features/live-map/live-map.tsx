@@ -18,7 +18,7 @@ import MapView, {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { DISPATCH_MAP_STYLE } from "@/lib/map-style";
 
-const LOCATE_ICON_COLOR = color("background", "dark");
+const LOCATE_ICON_COLOR = color("background");
 
 const INITIAL_REGION = {
 	latitude: 25.7617,

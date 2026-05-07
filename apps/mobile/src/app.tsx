@@ -10,7 +10,6 @@ import { NavigationContainer } from "@react-navigation/native";
 import { PortalHost } from "@rn-primitives/portal";
 import { StatusBar } from "expo-status-bar";
 import { useAtomValue, useSetAtom } from "jotai";
-import { colorScheme } from "nativewind";
 import * as React from "react";
 import { View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -22,9 +21,6 @@ import { AppNavigator } from "@/navigators/app-navigator";
 import { authStateAtom, bootAuthAtom } from "@/state/responder";
 import { RealtimeProvider } from "@/state/realtime-provider";
 import { useTokenRenewal } from "@/state/use-token-renewal";
-
-// Dispatch app — dark only, matching the dispatcher dashboard.
-colorScheme.set("dark");
 
 export function App(): React.JSX.Element | null {
 	const [fontsLoaded] = useFonts({
@@ -79,7 +75,7 @@ function SignedInShell(): React.JSX.Element {
 	useTokenRenewal();
 	return (
 		<RealtimeProvider>
-			<NavigationContainer theme={NAV_THEME.dark}>
+			<NavigationContainer theme={NAV_THEME}>
 				<AppNavigator />
 			</NavigationContainer>
 		</RealtimeProvider>

@@ -2,53 +2,7 @@
 /* HEX colors. Tailwind opacity modifiers (bg-primary/15) work via color-mix(). */
 
 :root {
-	/* shadcn base — light mode */
-	--background: #ffffff;
-	--foreground: #0a0c10;
-	--card: #ffffff;
-	--card-foreground: #0a0c10;
-	--popover: #ffffff;
-	--popover-foreground: #0a0c10;
-	--primary: #38bdf8;
-	--primary-foreground: #05140d;
-	--secondary: #e5e7eb;
-	--secondary-foreground: #0a0c10;
-	--muted: #e5e7eb;
-	--muted-foreground: #6b7280;
-	--accent: #e5e7eb;
-	--accent-foreground: #0a0c10;
-	--destructive: #ef4343;
-	--destructive-foreground: #fafafa;
-	--border: #dcdfe4;
-	--input: #dcdfe4;
-	--ring: #38bdf8;
-	--radius: 0.5rem;
-
-	/* dispatch extensions */
-	--warning: #f59f0a;
-	--warning-foreground: #140f05;
-	--danger: #ef4343;
-	--danger-foreground: #180606;
-	--offline: #6b7280;
-	--sidebar: #ffffff;
-	--sidebar-foreground: #0a0c10;
-	--sidebar-border: #dcdfe4;
-	--sidebar-accent: #e5e7eb;
-	--sidebar-accent-foreground: #0a0c10;
-	--sidebar-ring: #38bdf8;
-
-	/* button accents */
-	--lime: #b3df20;
-	--lime-foreground: #061306;
-	--border2: #c5cad3;
-	--text-dim: #6b7280;
-	--solana: #9d52ff;
-}
-
-.dark:root,
-:root.dark,
-.dark {
-	/* shadcn base — dark mode (dispatch) */
+	/* shadcn base */
 	--background: #0a0c10;
 	--foreground: #e5e7eb;
 	--card: #0e1116;
@@ -68,6 +22,7 @@
 	--border: #212731;
 	--input: #212731;
 	--ring: #38bdf8;
+	--radius: 0.5rem;
 
 	/* dispatch extensions */
 	--warning: #f59f0a;

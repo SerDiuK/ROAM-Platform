@@ -102,43 +102,44 @@ export const incidentsRouter = {
 			},
 		);
 
-		// Fire-and-forget the briefing agent. The dispatcher subscribes to
-		// /ws/incidents and renders the briefing when `briefing.ready` arrives,
-		// so the response can return immediately. Errors must not crash the
-		// process — log + broadcast a failure event so the UI can surface it.
-		// effort: "low" matches the smoke-script choice — Sonnet 4.6 defaults to
-		// "high" which makes the dispatch loop ~3x slower than necessary for
-		// routine tool routing (see runner.ts BriefContext docstring).
-		void brief(incidentId, {
-			client: context.anthropic,
-			model: context.config.ANTHROPIC_MODEL,
-			maxTokens: AGENT_MAX_TOKENS,
-			maxTurns: context.config.AGENT_MAX_TURNS,
-			log: context.log,
-			effort: "low",
-		})
-			.then((briefing) => {
-				context.incidentBroadcaster.broadcast({
-					type: "briefing.ready",
-					incidentId,
-					briefing: JSON.parse(JSON.stringify(briefing)) as Briefing,
-				});
-			})
-			.catch((err: unknown) => {
-				context.log.error(
-					{ err, incidentId },
-					"brief() failed during incidents.ingest",
-				);
-				context.incidentBroadcaster.broadcast({
-					type: "briefing.failed",
-					incidentId,
-					error: err instanceof Error ? err.message : String(err),
-				});
-			});
+		runBriefingAgent(context, incidentId);
 
 		return incident;
 	}),
 };
+
+// Kicks off the AI briefing agent without blocking the ingest response. The
+// dispatcher subscribes to /ws/incidents and renders the briefing when
+// `briefing.ready` arrives. On failure we log and broadcast a `briefing.failed`
+// event so the UI can surface it instead of spinning forever.
+function runBriefingAgent(context: RpcContext, incidentId: string): void {
+	// effort: "low" matches the smoke-script choice — Sonnet 4.6 defaults to
+	// "high" which makes the dispatch loop ~3x slower than necessary for
+	// routine tool routing (see runner.ts BriefContext docstring).
+	void brief(incidentId, {
+		client: context.anthropic,
+		model: context.config.ANTHROPIC_MODEL,
+		maxTokens: AGENT_MAX_TOKENS,
+		maxTurns: context.config.AGENT_MAX_TURNS,
+		log: context.log,
+		effort: "low",
+	})
+		.then((briefing) => {
+			context.incidentBroadcaster.broadcast({
+				type: "briefing.ready",
+				incidentId,
+				briefing: JSON.parse(JSON.stringify(briefing)) as Briefing,
+			});
+		})
+		.catch((err: unknown) => {
+			context.log.error({ err, incidentId }, "runBriefingAgent failed");
+			context.incidentBroadcaster.broadcast({
+				type: "briefing.failed",
+				incidentId,
+				error: err instanceof Error ? err.message : String(err),
+			});
+		});
+}
 
 // Either decode + transcribe an audio buffer, or pass the supplied transcript
 // straight through. Validation that exactly one is provided lives on the Zod

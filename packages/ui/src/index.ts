@@ -14,5 +14,5 @@ export {
 	STATUS_TONE,
 	type StatusTone,
 } from "./status";
-export { color, type ThemeMode, TOKENS, type Token } from "./tokens";
+export { color, type Token } from "./tokens";
 export { URGENCY_HEX, URGENCY_LABEL, URGENCY_TONE } from "./urgency";
