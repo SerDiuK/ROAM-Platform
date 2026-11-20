@@ -52,10 +52,8 @@ export type RegisterPushTokenResult =
 export async function registerPushToken(
 	responderId: string,
 ): Promise<RegisterPushTokenResult> {
-	// TEMP(emulator-push-test): bypassed Device.isDevice so the Android emulator
-	// (with Google Play Services) can register a push token for smoke testing.
 	if (!Device.isDevice) {
-		console.warn("[push] Device.isDevice=false (emulator); attempting registration anyway");
+		return { ok: false, reason: "Push notifications need a physical device" };
 	}
 
 	await ensureAndroidChannel();

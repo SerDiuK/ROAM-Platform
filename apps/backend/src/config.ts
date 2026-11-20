@@ -34,7 +34,7 @@ const ConfigSchema = z.object({
 		),
 	// Wallet provider. `embedded-solana` runs custodial wallets on whichever
 	// cluster SOLANA_CLUSTER points at — only option that supports devnet today
-	// (see ROAM-Tasks.md AD-2 for the Crossmint pivot rationale). `crossmint`
+	// (see docs/ROAM-Tasks.md AD-2 for the Crossmint pivot rationale). `crossmint`
 	// is kept as a future option for mainnet operator UX with passkey signers;
 	// the implementation lives in src/wallet/crossmint.ts but is not wired in.
 	WALLET_PROVIDER: z.enum(["embedded-solana"]).default("embedded-solana"),

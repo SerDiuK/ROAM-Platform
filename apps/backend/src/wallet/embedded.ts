@@ -32,7 +32,7 @@ export interface EmbeddedSolanaConfig {
 // Custodial Solana wallet provider. The backend generates and holds an
 // AES-256-GCM-encrypted secret key for each responder, and signs USDC SPL
 // transfers from a single agent wallet. Used while Crossmint cannot host
-// Solana devnet wallets — see ROAM-Tasks.md AD-2 for the rationale.
+// Solana devnet wallets — see docs/ROAM-Tasks.md AD-2 for the rationale.
 export class EmbeddedSolanaProvider implements WalletProvider {
 	private readonly connection: Connection;
 	private readonly agentKeypair: Keypair;
