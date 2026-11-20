@@ -9,6 +9,8 @@ next-env.d.ts
 .env.development
 *.tsbuildinfo
 
+apps/cli/build
+
 # Anchor / Rust
 target
 .anchor

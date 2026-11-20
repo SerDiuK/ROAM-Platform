@@ -12,7 +12,7 @@ export { CrossmintProvider } from "./crossmint.js";
 
 // Builds the active wallet provider from config. Embedded-Solana is the only
 // option in use today (Crossmint cannot host Solana devnet wallets — see
-// ROAM-Tasks.md AD-2). The CrossmintProvider implementation is kept in the
+// docs/ROAM-Tasks.md AD-2). The CrossmintProvider implementation is kept in the
 // repo as a future option for mainnet operator UX.
 export function createWalletProvider(config: Config): WalletProvider {
 	switch (config.WALLET_PROVIDER) {

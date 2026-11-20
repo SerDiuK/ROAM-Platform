@@ -43,11 +43,11 @@ const config: ExpoConfig = {
 	],
 	ios: {
 		supportsTablet: false,
-		bundleIdentifier: "com.cardnexus.roam.mobile",
+		bundleIdentifier: "dev.tgmgoethals.roam.mobile",
 		icon: "./assets/icon.png",
 	},
 	android: {
-		package: "com.cardnexus.roam.mobile",
+		package: "dev.tgmgoethals.roam.mobile",
 		googleServicesFile: "./google-services.json",
 		config: {
 			googleMaps: { apiKey: googleMapsApiKey },

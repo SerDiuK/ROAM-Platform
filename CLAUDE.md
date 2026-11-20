@@ -100,7 +100,7 @@ pnpm --filter @roam/sim-fleet dev
 
 ## Current focus
 
-See ROAM-Tasks.md for the session-by-session build plan.
+See docs/ROAM-Tasks.md for the session-by-session build plan.
 Update the "Current focus" line below as you complete each session.
 
 **Active:** Seeker-only Sign-in-with-Solana shipped, then slimmed to the Solana Mobile reference path (per `~/.claude/plans/do-it-in-plan-squishy-waffle.md`). PIN auth deleted entirely. SIWS now uses MWA's `sign_in_payload`: `auth.siwsChallenge` returns `{ nonce, domain, statement, expiresAt }`; mobile passes those into `wallet.authorize({ sign_in_payload })` and ships the returned `sign_in_result.{address, signed_message, signature}` (all base64) to `auth.siwsVerify`. One `transact` / one fingerprint per sign-in. The MWA `auth_token` is cached in expo-secure-store for silent warm-boot reauthorize. Dispatch accept/decline runs `prepareResponseTx` → `mwa.signAndSendTransaction` (wallet signs as attestor *and* submits to its own RPC) → `commitSignedResponse`. The fee_payer/attestor split (operator = fee_payer, Seeker = attestor on `record_event`) and first-to-claim atomicity are unchanged. DispatchResponse model still carries `solanaTxSignature` + `attestorPubkey`.

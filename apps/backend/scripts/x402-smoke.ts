@@ -39,20 +39,18 @@ async function main(): Promise<void> {
 	console.log(`  Network: ${config.X402_NETWORK}\n`);
 	console.log("Triggering x402 payment...\n");
 
-	const sig = await triggerX402Payment(
-		config,
-		// Simple logger shim
-		{
-			info: (obj: unknown, msg?: string) => console.log("[info]", msg ?? obj, typeof obj === "object" ? obj : ""),
-			error: (obj: unknown, msg?: string) => console.error("[error]", msg ?? obj, typeof obj === "object" ? obj : ""),
-			warn: (obj: unknown, msg?: string) => console.warn("[warn]", msg ?? obj, typeof obj === "object" ? obj : ""),
-			debug: () => {},
-			trace: () => {},
-			fatal: () => {},
-			child: () => ({ info: () => {}, error: () => {}, warn: () => {}, debug: () => {}, trace: () => {}, fatal: () => {}, child: () => ({}) }),
-		} as Parameters<typeof triggerX402Payment>[1],
-		dispatchId,
-	);
+	const log: Parameters<typeof triggerX402Payment>[1] = {
+		level: "info",
+		info: (obj: unknown, msg?: string) => console.log("[info]", msg ?? obj, typeof obj === "object" ? obj : ""),
+		error: (obj: unknown, msg?: string) => console.error("[error]", msg ?? obj, typeof obj === "object" ? obj : ""),
+		warn: (obj: unknown, msg?: string) => console.warn("[warn]", msg ?? obj, typeof obj === "object" ? obj : ""),
+		debug: () => {},
+		trace: () => {},
+		fatal: () => {},
+		silent: () => {},
+		child: () => log,
+	};
+	const sig = await triggerX402Payment(config, log, dispatchId);
 
 	console.log(`\n✓ Payment settled on-chain`);
 	console.log(`  Solana tx: ${sig}`);

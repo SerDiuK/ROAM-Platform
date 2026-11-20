@@ -1,3 +1,5 @@
+> The session-by-session build plan this project was built from with Claude Code, kept as a record. Some sessions changed or were dropped along the way; the code and the README are the current truth.
+
 # ROAM — Claude Code Session Tasks
 
 Each section below is one Claude Code session. Copy-paste the prompt into Claude Code.

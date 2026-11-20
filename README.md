@@ -1,5 +1,7 @@
 # ROAM Platform
 
+[![CI](https://github.com/SerDiuK/ROAM-Platform/actions/workflows/ci.yml/badge.svg)](https://github.com/SerDiuK/ROAM-Platform/actions/workflows/ci.yml)
+
 AI-powered emergency dispatch and fleet accountability on Solana, built for the EasyA Consensus Hackathon in Miami, 5–7 May 2026.
 
 When a 911 call comes in, an AI agent listens in real time, transcribes and classifies the incident, checks which units are free and nearby, and proposes a dispatch within seconds. The dispatcher approves it in one tap, and the crews get it on their phones.
@@ -7,6 +9,17 @@ When a 911 call comes in, an AI agent listens in real time, transcribes and clas
 Every step after that — dispatched, accepted, on scene, cleared — is a Solana transaction signed by the responder's own Solana Mobile Seeker. Response times can't be changed afterwards, and the chain of custody can't be disputed. The same on-chain record settles the job: completion pays out over the x402 protocol, with no invoice and no accounts payable.
 
 The demo scenario is a multi-vehicle crash at Biscayne Blvd & NE 36th St, Miami. Two ambulances are dispatched at once, one vehicle's live GPS feed runs next to the dashboard, and four Solana transactions land in real time as each ambulance is dispatched and arrives on scene.
+
+## Highlights
+
+- **The responder's phone signs the record.** Each dispatch step is a `record_event` instruction signed by the responder's Seeker as the attestor, while the operator key pays the fee.
+- **Exactly the right number of crews.** Accepting a dispatch is one atomic MongoDB update that only succeeds while claims are below `requiredAccepts`, so simultaneous taps can't over-assign a call.
+- **Dispatch never waits on the chain.** Solana writes are non-blocking: operations go through even when Solana is slow or unreachable.
+- **Passwordless sign-in.** Sign-in-with-Solana through the Mobile Wallet Adapter takes one fingerprint, and the wallet session is cached for silent re-authorisation.
+- **Payment over HTTP 402.** Completing a dispatch runs the x402 protocol: the server answers 402 with a settlement spec, and the client retries with a signed Solana payment. Built by Arjen van Gaal.
+- **Real hardware, or none.** A Raspberry Pi 5 reads GPS over serial and publishes telemetry over MQTT, and the fleet simulator replays routes for any number of vehicles, so the whole system runs on a laptop.
+- **One schema everywhere.** Zod schemas in `packages/shared` type the API, the live telemetry, the dashboard and the app end to end over oRPC.
+- **Built with Claude Code**, session by session, from the plan in [`docs/ROAM-Tasks.md`](docs/ROAM-Tasks.md).
 
 ## Demo
 
@@ -127,7 +140,7 @@ Required for full local dev:
 - `SIMULATE=true` in iot-bridge env to generate fake GPS without a Raspberry Pi
 - Solana local validator (`solana-test-validator`) or devnet airdrop
 - Rust + Anchor CLI + Solana CLI for smart-contract development
-- For mobile: a Solana Mobile Seeker (or compatible MWA wallet) with a funded devnet account, plus your own Google Maps key in `apps/mobile/app.json` and Firebase `apps/mobile/google-services.json`: the ones in the repo are revoked
+- For mobile: a Solana Mobile Seeker (or compatible MWA wallet) with a funded devnet account, plus your own Google Maps key as `GOOGLE_MAPS_API_KEY` in `apps/mobile/.env.local` and your own Firebase `apps/mobile/google-services.json`, since the one in the repo is revoked
 
 ## Hardware
 

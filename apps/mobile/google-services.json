@@ -9,7 +9,7 @@
       "client_info": {
         "mobilesdk_app_id": "1:545009555368:android:5d555379bf0c9ba16baf9d",
         "android_client_info": {
-          "package_name": "com.cardnexus.roam.mobile"
+          "package_name": "dev.tgmgoethals.roam.mobile"
         }
       },
       "oauth_client": [],
