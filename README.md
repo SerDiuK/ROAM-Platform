@@ -1,6 +1,12 @@
 # ROAM Platform
 
-AI-powered emergency dispatch and fleet accountability platform built on Solana. Every dispatch event — received, dispatched, accepted, on-scene, cleared — is an immutable on-chain transaction signed by the responder's Solana Mobile Seeker.
+AI-powered emergency dispatch and fleet accountability on Solana, built for the EasyA Consensus Hackathon in Miami, 5–7 May 2026.
+
+When a 911 call comes in, an AI agent listens in real time, transcribes and classifies the incident, checks which units are free and nearby, and proposes a dispatch within seconds. The dispatcher approves it in one tap, and the crews get it on their phones.
+
+Every step after that — dispatched, accepted, on scene, cleared — is a Solana transaction signed by the responder's own Solana Mobile Seeker. Response times can't be changed afterwards, and the chain of custody can't be disputed. The same on-chain record settles the job: completion pays out over the x402 protocol, with no invoice and no accounts payable.
+
+The demo scenario is a multi-vehicle crash at Biscayne Blvd & NE 36th St, Miami. Two ambulances are dispatched at once, one vehicle's live GPS feed runs next to the dashboard, and four Solana transactions land in real time as each ambulance is dispatched and arrives on scene.
 
 ## Demo
 
@@ -121,7 +127,7 @@ Required for full local dev:
 - `SIMULATE=true` in iot-bridge env to generate fake GPS without a Raspberry Pi
 - Solana local validator (`solana-test-validator`) or devnet airdrop
 - Rust + Anchor CLI + Solana CLI for smart-contract development
-- For mobile: a Solana Mobile Seeker (or compatible MWA wallet) with a funded devnet account
+- For mobile: a Solana Mobile Seeker (or compatible MWA wallet) with a funded devnet account, plus your own Google Maps key in `apps/mobile/app.json` and Firebase `apps/mobile/google-services.json`: the ones in the repo are revoked
 
 ## Hardware
 
@@ -133,6 +139,10 @@ Required for full local dev:
 
 The IoT bridge (Pi GPS → MQTT, plus the simulator path), an early Expo mobile shell wiring up Solana Mobile Wallet Adapter, the pnpm/Turborepo monorepo scaffolding with shared Zod schemas and oRPC plumbing, and exploratory Anchor/Solana program experiments were in place before the hackathon. The dispatch lifecycle on top — LLM-driven incident ingestion, the dispatch engine, the `record_event` instruction with per-step PDAs, SIWS auth, x402 settlement, and the dispatcher dashboard — is the hackathon build.
 
+## Status and credits
+
+A hackathon prototype on Solana devnet, not a production system. Built by Thomas Goethals, with the x402 settlement flow by Arjen van Gaal.
+
 ## License
 
-Hackathon project — license TBD post-event.
+No licence: the code is public to read, not licensed for reuse.
