@@ -10,7 +10,7 @@ ROOTFS=${ROOTFS:-/media/thomas/rootfs}
 USERNAME=duff
 HOSTNAME=roam-2
 WIFI_SSID=DUFF2GO
-WIFI_PSK=7544440222
+WIFI_PSK=${WIFI_PSK:?set WIFI_PSK to the Wi-Fi passphrase}
 PUBKEY=/home/thomas/.ssh/id_ed25519.pub
 
 if [[ $EUID -ne 0 ]]; then

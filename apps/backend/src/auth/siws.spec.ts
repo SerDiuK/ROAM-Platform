@@ -1,6 +1,6 @@
 import { Keypair } from "@solana/web3.js";
 import nacl from "tweetnacl";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	__resetNonceStoreForTests,
 	consumeNonce,
@@ -11,15 +11,16 @@ import {
 
 afterEach(() => {
 	__resetNonceStoreForTests();
+	vi.useRealTimers();
 });
 
 function siwsBody(args: { pubkey: string; nonce: string }): string {
 	return [
-		`roam.dispatch wants you to sign in with your Solana account:`,
+		"roam.dispatch wants you to sign in with your Solana account:",
 		args.pubkey,
-		``,
-		`Sign in to ROAM Dispatch.`,
-		``,
+		"",
+		"Sign in to ROAM Dispatch.",
+		"",
 		`Nonce: ${args.nonce}`,
 	].join("\n");
 }
@@ -56,7 +57,9 @@ describe("verifySiwsSignature", () => {
 		const bytes = new TextEncoder().encode(message);
 		const sig = nacl.sign.detached(bytes, kp.secretKey);
 		sig[0] = (sig[0] + 1) & 0xff;
-		expect(verifySiwsSignature(bytes, sig, kp.publicKey.toBase58())).toBe(false);
+		expect(verifySiwsSignature(bytes, sig, kp.publicKey.toBase58())).toBe(
+			false,
+		);
 	});
 
 	it("returns false for a malformed pubkey instead of throwing", () => {
@@ -81,9 +84,9 @@ describe("parseSiwsNonce", () => {
 
 	it("matches the exact `Nonce: ` prefix and ignores statement-text false-positives", () => {
 		const message = [
-			`Nonsense: not a nonce`,
-			`(Nonce inside parens)`,
-			`Nonce: real-nonce`,
+			"Nonsense: not a nonce",
+			"(Nonce inside parens)",
+			"Nonce: real-nonce",
 		].join("\n");
 		expect(parseSiwsNonce(new TextEncoder().encode(message))).toBe(
 			"real-nonce",
@@ -102,12 +105,10 @@ describe("issueNonce / consumeNonce", () => {
 		expect(consumeNonce("ghost")).toBe(false);
 	});
 
-	it("rejects an expired nonce and removes it", () => {
-		const { nonce } = issueNonce();
-		// Replay-as-expired: rewind by mocking past TTL would require freezing
-		// time; simpler is just to assert the consume removes the entry even on
-		// a forged-signature-style probe (covered by single-use above). Skip a
-		// real TTL test — the implementation is one Date.now() compare.
-		expect(consumeNonce(nonce)).toBe(true);
+	it("rejects an expired nonce", () => {
+		vi.useFakeTimers();
+		const { nonce, expiresAt } = issueNonce();
+		vi.setSystemTime(expiresAt.getTime() + 1);
+		expect(consumeNonce(nonce)).toBe(false);
 	});
 });

@@ -63,8 +63,6 @@ describe("responders.enrol", () => {
 		const wallet = makeFakeWalletProvider();
 		const stableAddress = `WALLET-${randomUUID().slice(0, 8)}`;
 		wallet.createWallet.mockImplementation(async (responderId: string) => {
-			// Mirror the real provider: persist walletAddress on the responder doc so
-			// the post-enrol re-fetch can return it.
 			await ResponderModel.findByIdAndUpdate(responderId, {
 				walletAddress: stableAddress,
 			});
@@ -74,7 +72,11 @@ describe("responders.enrol", () => {
 		const result = await call(
 			respondersRouter.enrol,
 			{ name: "ALPHA-1", role: "responder", availability: "available" },
-			{ context: buildContext(wallet as unknown as RpcContext["walletProvider"]) },
+			{
+				context: buildContext(
+					wallet as unknown as RpcContext["walletProvider"],
+				),
+			},
 		);
 
 		expect(wallet.createWallet).toHaveBeenCalledTimes(1);
@@ -87,9 +89,8 @@ describe("responders.enrol", () => {
 		const wallet = makeFakeWalletProvider();
 		const stableAddress = `WALLET-${randomUUID().slice(0, 8)}`;
 		wallet.createWallet.mockImplementation(async (responderId: string) => {
-			const existing = await ResponderModel.findById(responderId).select(
-				"walletAddress",
-			);
+			const existing =
+				await ResponderModel.findById(responderId).select("walletAddress");
 			if (existing?.walletAddress) return { address: existing.walletAddress };
 			await ResponderModel.findByIdAndUpdate(responderId, {
 				walletAddress: stableAddress,
@@ -100,12 +101,20 @@ describe("responders.enrol", () => {
 		const first = await call(
 			respondersRouter.enrol,
 			{ name: "ALPHA-2", role: "responder", availability: "available" },
-			{ context: buildContext(wallet as unknown as RpcContext["walletProvider"]) },
+			{
+				context: buildContext(
+					wallet as unknown as RpcContext["walletProvider"],
+				),
+			},
 		);
 		const second = await call(
 			respondersRouter.enrol,
 			{ name: "ALPHA-2", role: "responder", availability: "occupied" },
-			{ context: buildContext(wallet as unknown as RpcContext["walletProvider"]) },
+			{
+				context: buildContext(
+					wallet as unknown as RpcContext["walletProvider"],
+				),
+			},
 		);
 
 		expect(first.responder._id).toBe(second.responder._id);

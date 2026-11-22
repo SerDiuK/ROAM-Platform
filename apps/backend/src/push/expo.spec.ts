@@ -2,11 +2,6 @@ import { randomUUID } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ResponderModel } from "../db/models/responder.js";
 
-// Mock expo-server-sdk so tests don't hit the network and we can introspect
-// chunking + token-validation calls. The Expo class has both instance methods
-// (used inside sendPushToResponders) and a static `isExpoPushToken` (used to
-// filter the responder's saved tokens), so the mock has to provide both.
-
 const sendPushNotificationsAsync = vi.fn(async (msgs: unknown[]) =>
 	msgs.map((_, i) => ({ status: "ok" as const, id: `ticket-${i}` })),
 );
@@ -24,7 +19,6 @@ const isExpoPushToken = vi.fn(
 
 vi.mock("expo-server-sdk", () => {
 	class Expo {
-		constructor(_opts?: { accessToken?: string }) {}
 		sendPushNotificationsAsync = sendPushNotificationsAsync;
 		chunkPushNotifications = chunkPushNotifications;
 		static isExpoPushToken = isExpoPushToken;
@@ -35,7 +29,9 @@ vi.mock("expo-server-sdk", () => {
 // Import after vi.mock so the SUT picks up the mocked module.
 const { createExpoPushClient } = await import("./expo.js");
 
-async function makeResponderWithTokens(tokens: string[]): Promise<{ _id: string }> {
+async function makeResponderWithTokens(
+	tokens: string[],
+): Promise<{ _id: string }> {
 	const doc = await new ResponderModel({
 		_id: randomUUID(),
 		name: `RSP-${randomUUID().slice(0, 6)}`,
@@ -81,7 +77,8 @@ describe("createExpoPushClient.sendPushToResponders", () => {
 		expect(result.skipped).toBe(1);
 		expect(result.delivered).toBe(2);
 		expect(sendPushNotificationsAsync).toHaveBeenCalledTimes(1);
-		const sentMessages = sendPushNotificationsAsync.mock.calls[0]?.[0] as Array<{
+		const sentMessages = sendPushNotificationsAsync.mock
+			.calls[0]?.[0] as Array<{
 			to: string;
 		}>;
 		expect(sentMessages.map((m) => m.to)).toEqual([

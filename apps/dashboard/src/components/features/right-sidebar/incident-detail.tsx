@@ -5,10 +5,7 @@ import { cn } from "@roam/ui";
 import { useEffect, useRef } from "react";
 import { Button } from "../../ui/button";
 import { Icon } from "../../ui/icon";
-import {
-	SidebarContent,
-	SidebarHeader,
-} from "../../ui/sidebar-primitives";
+import { SidebarContent, SidebarHeader } from "../../ui/sidebar-primitives";
 import { IncidentAssignedBody } from "./incident-assigned-body";
 import { IncidentChainLog } from "./incident-chain-log";
 import { IncidentPendingBody } from "./incident-pending-body";
@@ -31,14 +28,6 @@ type IncidentDetailProps = {
 	onDispatch?: (incident: Incident) => void;
 };
 
-// Slide-in detail panel. Picks between two bodies based on whether the
-// incident already has units committed (`responding` / `resolved` → assigned
-// view) or not (`live` / `pending` / `cancelled` → pending view).
-//
-// We keep a ref to the last-shown incident so the body content stays visible
-// during the slide-out animation after the user clears the selection. The
-// `open` flag is also forwarded to the transcript card so its typing
-// animation can restart on each open.
 export function IncidentDetail({
 	incident,
 	vehicles,

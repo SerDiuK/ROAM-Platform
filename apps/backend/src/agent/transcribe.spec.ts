@@ -1,7 +1,7 @@
 import { Readable } from "node:stream";
 import { DeepgramError } from "@deepgram/sdk";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { TranscribeError, createTranscriber } from "./transcribe.js";
+import { createTranscriber, TranscribeError } from "./transcribe.js";
 
 const fakeTranscribeFile = vi.hoisted(() => vi.fn());
 

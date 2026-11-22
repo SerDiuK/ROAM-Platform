@@ -9,19 +9,15 @@ import { Pressable, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
-import { DispatchNotifications } from "@/features/dispatch/notifications";
 import { DispatchSheet } from "@/features/dispatch/dispatch-sheet/dispatch-sheet";
+import { DispatchNotifications } from "@/features/dispatch/notifications";
 import { useDispatchInbox } from "@/features/dispatch/use-dispatch-inbox";
 import { LiveMap } from "@/features/live-map/live-map";
 import { useRouteToIncident } from "@/features/live-map/use-route-to-incident";
 import { MyEventsSheet } from "@/features/my-events-sheet";
 import type { RootStackParamList } from "@/navigators/navigation-types";
 import { currentResponderAtom } from "@/state/responder";
-import {
-	connectedAtom,
-	telemetryAtom,
-	vehiclesAtom,
-} from "@/state/vehicles";
+import { connectedAtom, telemetryAtom, vehiclesAtom } from "@/state/vehicles";
 
 export function HomeScreen(): React.JSX.Element {
 	const vehicles = useAtomValue(vehiclesAtom);
@@ -38,9 +34,6 @@ export function HomeScreen(): React.JSX.Element {
 	const isClaimed = inboxState.kind === "claimed";
 	const claimedData = isClaimed ? inboxState.data : null;
 
-	// Any inbox state with `data` carries an incident — surface it on the map
-	// (urgency-coloured marker + pulse) so the responder sees the scene from
-	// the moment the dispatch sheet opens, not just after they accept.
 	const activeIncident = React.useMemo<Incident | null>(() => {
 		if ("data" in inboxState) return inboxState.data.incident;
 		return null;

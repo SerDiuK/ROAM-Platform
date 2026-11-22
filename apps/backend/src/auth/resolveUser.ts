@@ -3,11 +3,7 @@ import type { Config } from "../config.js";
 import type { AuthedUser } from "../rpc/context.js";
 import { verifySessionToken } from "./jwt.js";
 
-// Pulls a bearer token out of either an Authorization header (RPC) or a
-// `?token=...` query string (WebSocket — browsers can't set headers on WS
-// upgrade). Returns the resolved user or null; never throws — middleware
-// converts null → UNAUTHORIZED at the RPC layer, and the WS handler closes
-// the socket on null.
+// The query-string token is for WebSockets: browsers can't set headers on the upgrade request.
 
 export type TokenSource = {
 	authorization?: string | undefined;

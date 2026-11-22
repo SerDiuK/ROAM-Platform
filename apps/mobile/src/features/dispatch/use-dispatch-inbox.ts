@@ -5,16 +5,13 @@ import * as React from "react";
 import { api } from "@/lib/api";
 import { mwa, SeekerProtocolError } from "@/lib/mwa";
 import { readAuthToken } from "@/lib/secure-storage";
+import { forgetDeviceAtom } from "@/state/wallet-auth";
 import {
 	DispatchInbox,
 	type DispatchInboxApi,
 	type DispatchInboxState,
 } from "./dispatch-inbox";
-import { forgetDeviceAtom } from "@/state/wallet-auth";
 
-// Bridges the pure DispatchInbox state machine into React. One inbox per
-// hook instance; the responderId is read live via a ref so the inbox doesn't
-// need re-creating when the signed-in responder finishes loading.
 type Options = {
 	responderId: string | undefined;
 };
@@ -35,23 +32,9 @@ const apiAdapter: DispatchInboxApi = {
 		return { incident, briefing };
 	},
 	listResponders: () => api.responders.list(),
-	// Seeker SIWS flow:
-	//   1. backend builds the unsigned record_event tx, partial-signed as
-	//      fee_payer (no fingerprint yet)
-	//   2. mwa.signAndSendTransaction → MWA fingerprint prompt; wallet adds
-	//      the attestor signature and submits to its own RPC, returning the
-	//      base58 tx signature
-	//   3. backend persists the DispatchResponse + broadcasts to the dashboard
-	//
-	// Errors (CONFLICT, MWA cancel, RPC failure) propagate as-is — the inbox
-	// state machine maps CONFLICT to its `conflict` state and everything else
-	// to `error`.
 	respond: async (req) => {
 		const authToken = await readAuthToken();
 		if (!authToken) {
-			// JWT and auth_token can drift — the JWT might still be valid even
-			// after the user nuked their wallet session. Force a clean re-bind
-			// so the next sign-in lands in a known-good state.
 			void getDefaultStore().set(forgetDeviceAtom);
 			throw new Error("Sign-in required before responding");
 		}
@@ -71,19 +54,12 @@ const apiAdapter: DispatchInboxApi = {
 				signature,
 			});
 		} catch (err) {
-			// mwa.signAndSendTransaction's internal self-heal already retries a
-			// fresh authorize when the cached auth_token is stale. If we still
-			// got SeekerProtocolError, the wallet truly can't auth this device
-			// — wipe local state and route to Login so the user can re-bind
-			// instead of looping in "Authorization request failed".
 			if (err instanceof SeekerProtocolError) {
 				void getDefaultStore().set(forgetDeviceAtom);
 			}
 			throw err;
 		}
 	},
-	// Clear ceremony mirrors `respond` — the cleared event is incident-scoped
-	// on chain (zero responder hash) but the responder still signs as attestor.
 	clear: async (req) => {
 		const authToken = await readAuthToken();
 		if (!authToken) {
@@ -132,12 +108,6 @@ export function useDispatchInbox({ responderId }: Options): UseDispatchInbox {
 	const getSnapshot = React.useCallback(() => inbox.getState(), [inbox]);
 	const state = React.useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 
-	// Safety net for missed pushes: once the responder is known, sweep the
-	// active dispatch list for any assigned-to-me + pending + unclaimed + not-
-	// expired entry and open the most recent one. Covers the cases where the
-	// JS push listener didn't catch the notification (app reload, came back
-	// from Login screen, OS suppressed the foreground listener, etc.). The
-	// `shown` ref dedupes so we don't re-open the same dispatch after dismiss.
 	const shown = React.useRef(new Set<string>());
 	React.useEffect(() => {
 		if (!responderId) return;
@@ -158,8 +128,7 @@ export function useDispatchInbox({ responderId }: Options): UseDispatchInbox {
 					)
 					.sort(
 						(a, b) =>
-							new Date(b.decidedAt).getTime() -
-							new Date(a.decidedAt).getTime(),
+							new Date(b.decidedAt).getTime() - new Date(a.decidedAt).getTime(),
 					)[0];
 				if (!candidate) return;
 				shown.current.add(candidate._id);

@@ -1,9 +1,6 @@
 import type { Briefing, Dispatch, Incident, Responder } from "@roam/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-	DispatchInbox,
-	type DispatchInboxApi,
-} from "./dispatch-inbox.js";
+import { DispatchInbox, type DispatchInboxApi } from "./dispatch-inbox.js";
 
 const RESPONDER_ID = "rsp-1";
 
@@ -130,7 +127,6 @@ describe("DispatchInbox", () => {
 		if (state.kind !== "incoming") return;
 		expect(state.data.dispatch._id).toBe("dsp-1");
 		expect(state.data.briefing?.summary).toContain("CPR");
-		// Filtered to assigned responders only — `rsp-other` must be dropped.
 		expect(state.data.responders.map((r) => r._id)).toEqual([
 			RESPONDER_ID,
 			"rsp-2",
@@ -144,8 +140,6 @@ describe("DispatchInbox", () => {
 
 		await inbox.showFor("dsp-1");
 
-		// At minimum: loading → incoming. The exact count is impl-detail-ish but
-		// must be >= 2 to prove transitions are emitted.
 		expect(listener.mock.calls.length).toBeGreaterThanOrEqual(2);
 	});
 
@@ -197,9 +191,6 @@ describe("DispatchInbox", () => {
 		const slowDispatch = makeDispatch({ _id: "dsp-old" });
 		const fastDispatch = makeDispatch({ _id: "dsp-new" });
 
-		// Held by reference so the test body can resolve the slow first fetch
-		// after the second one has won. Wrapping in a tuple bypasses TS's
-		// control-flow narrowing of `let` assigned only inside a callback.
 		const firstResolver: { fn: ((value: Dispatch) => void) | null } = {
 			fn: null,
 		};
@@ -226,7 +217,6 @@ describe("DispatchInbox", () => {
 		if (after.kind !== "incoming") return;
 		expect(after.data.dispatch._id).toBe("dsp-new");
 
-		// Now the slow first fetch resolves — must not overwrite the new state.
 		firstResolver.fn?.(slowDispatch);
 		await Promise.resolve();
 		await Promise.resolve();

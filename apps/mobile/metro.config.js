@@ -15,10 +15,7 @@ config.resolver.nodeModulesPaths = [
 config.resolver.unstable_enableSymlinks = true;
 config.resolver.unstable_enablePackageExports = true;
 
-// Force singletons for React + RN runtime. Without this, pnpm's per-package
-// symlinks (e.g. packages/api/node_modules/react) can be registered by Metro
-// as separate module instances, producing two ReactCurrentDispatcher refs and
-// "Invalid hook call" at runtime.
+// One React/RN instance: pnpm symlinks can otherwise load duplicates ("Invalid hook call").
 const SINGLETONS = new Set([
 	"react",
 	"react-dom",

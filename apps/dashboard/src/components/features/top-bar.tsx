@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, IconButton } from "../ui/button";
+import { IconButton } from "../ui/button";
 import { Divider } from "../ui/divider";
 import { Icon } from "../ui/icon";
 import { StatusDot } from "../ui/status-pill";
@@ -13,8 +13,6 @@ type TopBarProps = {
 	telemetryConnected: boolean;
 	transmittingCount: number;
 	totalCount: number;
-	onReportsClick?: () => void;
-	onMissionBriefClick?: () => void;
 };
 
 export function TopBar({
@@ -25,8 +23,6 @@ export function TopBar({
 	telemetryConnected,
 	transmittingCount,
 	totalCount,
-	onReportsClick,
-	onMissionBriefClick,
 }: TopBarProps) {
 	return (
 		<header className="relative z-30 flex h-12 shrink-0 items-center gap-3 border-b border-border bg-background/95 px-3 backdrop-blur">
@@ -40,11 +36,11 @@ export function TopBar({
 				<span className="font-bold text-sm tracking-widest text-primary">
 					ROAM
 				</span>
-                <span className="px-1 text-muted-foreground">|</span>
+				<span className="px-1 text-muted-foreground">|</span>
 				<span className="hidden uppercase text-xs tracking-widest text-secondary-text sm:inline">
 					Command Dashboard
 				</span>
-                <span className="px-1 text-muted-foreground">|</span>
+				<span className="px-1 text-muted-foreground">|</span>
 				<span className="hidden uppercase text-xs tracking-widest text-muted-foreground sm:inline">
 					Miami
 				</span>

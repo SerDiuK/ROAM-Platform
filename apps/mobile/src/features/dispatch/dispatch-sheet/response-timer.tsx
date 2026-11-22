@@ -8,10 +8,6 @@ import {
 import { AnimatedProgress } from "@/components/ui/progress";
 import { Text } from "@/components/ui/text";
 
-// Counts down from now → expiresAt. The track fill animates the remaining
-// fraction; the seconds label is a 1Hz `useState` tick (cheap, and only this
-// component re-renders). Calls `onExpire` exactly once when the deadline passes
-// so the parent can dismiss the sheet.
 export function ResponseTimer({
 	expiresAt,
 	onExpire,

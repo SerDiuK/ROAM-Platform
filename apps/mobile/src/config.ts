@@ -9,11 +9,6 @@ export class ConfigError extends Error {
 	}
 }
 
-// Metro serves the bundle from the host machine's LAN address — and passes it
-// through as `hostUri` (modern SDK) or `debuggerHost` (legacy). Reusing it for
-// the backend works on emulator, simulator, and physical devices on the same
-// Wi-Fi without per-developer config. Production builds (no Metro link) hit
-// the fallback, which is moot because they'll override via EXPO_PUBLIC_*.
 function defaultHost(): string {
 	const hostUri =
 		Constants.expoConfig?.hostUri ?? Constants.expoGoConfig?.debuggerHost;
@@ -44,8 +39,7 @@ function parseConfig(): Config {
 		BACKEND_URL: process.env.EXPO_PUBLIC_BACKEND_URL ?? defaultBackendUrl(),
 		WS_URL: process.env.EXPO_PUBLIC_WS_URL ?? defaultWsUrl(),
 		SOLANA_RPC_URL:
-			process.env.EXPO_PUBLIC_SOLANA_RPC_URL ??
-			"https://api.devnet.solana.com",
+			process.env.EXPO_PUBLIC_SOLANA_RPC_URL ?? "https://api.devnet.solana.com",
 	});
 	if (!result.success) {
 		throw new ConfigError(

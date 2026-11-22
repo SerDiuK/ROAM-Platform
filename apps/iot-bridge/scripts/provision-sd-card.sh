@@ -6,7 +6,7 @@
 #   /media/thomas/bootfs   (sda1, FAT32)
 #   /media/thomas/rootfs1  (sda2, ext4)
 #
-# Usage: sudo ./provision-sd-card.sh
+# Usage: WIFI_PSK=<passphrase> ./provision-sd-card.sh
 set -euo pipefail
 
 BOOTFS=/media/thomas/bootfs
@@ -15,7 +15,7 @@ ROOTFS=/media/thomas/rootfs1
 USERNAME=duff
 HOSTNAME=roam-2
 WIFI_SSID=DUFF2GO
-WIFI_PSK=7544440222
+WIFI_PSK=${WIFI_PSK:?set WIFI_PSK to the Wi-Fi passphrase}
 PUBKEY=/home/thomas/.ssh/id_ed25519.pub
 
 if [[ $EUID -ne 0 ]]; then

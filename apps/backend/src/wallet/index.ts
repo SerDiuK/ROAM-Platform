@@ -1,19 +1,15 @@
-import { Connection, Keypair, PublicKey, clusterApiUrl } from "@solana/web3.js";
+import { getCluster } from "@roam/solana-client";
+import { Connection, clusterApiUrl, Keypair, PublicKey } from "@solana/web3.js";
 import bs58 from "bs58";
 import type { Config } from "../config.js";
-import { getCluster } from "@roam/solana-client";
 import { EmbeddedSolanaProvider } from "./embedded.js";
 import type { WalletProvider } from "./provider.js";
 
-export { WalletError } from "./provider.js";
-export type { WalletProvider } from "./provider.js";
-export { EmbeddedSolanaProvider } from "./embedded.js";
 export { CrossmintProvider } from "./crossmint.js";
+export { EmbeddedSolanaProvider } from "./embedded.js";
+export type { WalletProvider } from "./provider.js";
+export { WalletError } from "./provider.js";
 
-// Builds the active wallet provider from config. Embedded-Solana is the only
-// option in use today (Crossmint cannot host Solana devnet wallets — see
-// docs/ROAM-Tasks.md AD-2). The CrossmintProvider implementation is kept in the
-// repo as a future option for mainnet operator UX.
 export function createWalletProvider(config: Config): WalletProvider {
 	switch (config.WALLET_PROVIDER) {
 		case "embedded-solana": {
@@ -24,7 +20,9 @@ export function createWalletProvider(config: Config): WalletProvider {
 			}
 			const cluster = getCluster(config.SOLANA_CLUSTER);
 			const connection = new Connection(
-				cluster === "localnet" ? "http://localhost:8899" : clusterApiUrl(cluster),
+				cluster === "localnet"
+					? "http://localhost:8899"
+					: clusterApiUrl(cluster),
 				"confirmed",
 			);
 			const agentKeypair = Keypair.fromSecretKey(

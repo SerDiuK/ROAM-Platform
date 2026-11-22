@@ -59,9 +59,6 @@ function Page() {
 	const toggleLeft = useCallback(() => setLeftOpen((open) => !open), []);
 	const toggleRight = useCallback(() => setRightOpen((open) => !open), []);
 
-	// Map clicks select + force-open the relevant sidebar so the detail panel
-	// is visible. Sidebar-internal selection (FleetStatus row click etc.) goes
-	// through `setSelectedVehicleId` directly without touching open state.
 	const selectVehicleFromMap = useCallback((id: string) => {
 		setSelectedVehicleId(id);
 		setLeftOpen(true);

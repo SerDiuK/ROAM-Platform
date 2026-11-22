@@ -11,9 +11,6 @@ const payoutBreakdownSchema = new mongoose.Schema(
 	{ _id: false },
 );
 
-// `_id` is a string set explicitly at create time. `briefingHash` is the sha256
-// of the canonicalized payload (summary + recommendations + payout) — what the
-// dispatcher confirms against to guarantee on-chain ↔ briefing parity.
 const briefingSchema = new mongoose.Schema({
 	_id: { type: String, required: true },
 	incidentId: { type: String, ref: "Incident", required: true },

@@ -1,9 +1,6 @@
 import { DISPATCH_DECISION_MAKERS, DISPATCH_STATUSES } from "@roam/shared";
 import mongoose from "mongoose";
 
-// `_id` is a string set explicitly at create time. `decidedBy` is the
-// dispatcher's responderId for human decisions; absent for ai-auto. `expiresAt`
-// drives the dispatch reaper that flips status `pending` → `expired`.
 const dispatchSchema = new mongoose.Schema({
 	_id: { type: String, required: true },
 	incidentId: { type: String, ref: "Incident", required: true },

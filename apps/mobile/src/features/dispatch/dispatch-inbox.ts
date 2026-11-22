@@ -1,10 +1,5 @@
 import type { Briefing, Dispatch, Incident, Responder } from "@roam/shared";
 
-// Pure (no React) state machine for the incoming-dispatch sheet. The React
-// hook in `use-dispatch-inbox.ts` wraps this with useSyncExternalStore. Keeping
-// the state transitions in plain TS lets us unit-test the flow without a DOM
-// environment or @testing-library/react.
-
 export type DispatchInboxState =
 	| { kind: "idle" }
 	| { kind: "loading"; dispatchId: string }
@@ -32,17 +27,11 @@ export type DispatchInboxApi = {
 		id: string,
 	) => Promise<{ incident: Incident; briefing: Briefing | undefined }>;
 	listResponders: () => Promise<Responder[]>;
-	// SIWS path: backend derives responderId from the auth context. The adapter
-	// composes prepareResponseTx → MWA fingerprint → sendRawTransaction →
-	// commitSignedResponse internally; the inbox just sees a single async call.
 	respond: (req: {
 		dispatchId: string;
 		decision: "accept" | "decline";
 		declineReason?: string;
 	}) => Promise<void>;
-	// Same SIWS ceremony for the cleared event. Adapter composes
-	// prepareClearTx → MWA fingerprint → sendRawTransaction →
-	// commitSignedClear internally.
 	clear: (req: { dispatchId: string }) => Promise<void>;
 };
 
@@ -52,7 +41,9 @@ export type DispatchInboxDeps = {
 };
 
 // CONFLICT comes back as an oRPC error code — typed as { code, message }.
-function isConflictError(err: unknown): err is { code: string; message: string } {
+function isConflictError(
+	err: unknown,
+): err is { code: string; message: string } {
 	return (
 		typeof err === "object" &&
 		err !== null &&
@@ -64,8 +55,6 @@ function isConflictError(err: unknown): err is { code: string; message: string }
 export class DispatchInbox {
 	private current: DispatchInboxState = { kind: "idle" };
 	private listeners = new Set<() => void>();
-	// Latest-wins guard: a second `showFor` call supersedes any in-flight
-	// fetch from the previous one. Stale resolves get dropped.
 	private activeDispatchId: string | null = null;
 
 	constructor(private deps: DispatchInboxDeps) {}
@@ -120,8 +109,6 @@ export class DispatchInbox {
 		decision: "accept" | "decline",
 		declineReason?: string,
 	): Promise<void> => {
-		// `getResponderId` is the "is the user signed in" gate. The id itself
-		// isn't passed to the adapter — backend derives it from the auth context.
 		if (!this.deps.getResponderId()) {
 			this.set({ kind: "error", message: "Not signed in" });
 			return;
@@ -162,8 +149,6 @@ export class DispatchInbox {
 			this.set({ kind: "error", message: "Not signed in" });
 			return;
 		}
-		// Only clear from the post-accept "claimed" state — guards against
-		// double-tap or a stale UI firing after dismissal.
 		if (this.current.kind !== "claimed") return;
 		const data = this.current.data;
 		this.set({ kind: "clearing", data });

@@ -36,6 +36,9 @@ export function useCallDuration(callStartedAt: Date, live: boolean): string {
 		return () => clearInterval(interval);
 	}, [live]);
 
-	const elapsed = Math.max(0, Math.floor((now - callStartedAt.getTime()) / 1000));
+	const elapsed = Math.max(
+		0,
+		Math.floor((now - callStartedAt.getTime()) / 1000),
+	);
 	return `${Math.floor(elapsed / 60)}:${(elapsed % 60).toString().padStart(2, "0")}`;
 }

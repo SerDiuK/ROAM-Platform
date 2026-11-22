@@ -42,7 +42,7 @@ describe("signSessionToken / verifySessionToken", () => {
 		const token = await signSessionToken(
 			{ sub: "rsp-1", name: "ALPHA-1", role: "responder" },
 			SECRET,
-			-10, // already expired
+			-10,
 		);
 		await expect(verifySessionToken(token, SECRET)).rejects.toThrow();
 	});

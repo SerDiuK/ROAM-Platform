@@ -1,10 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { ORPCError } from "@orpc/server";
 import type { Dispatch, DispatchResponse } from "@roam/shared";
-import {
-	buildRecordEventTx,
-	partialSignAsFeePayer,
-} from "@roam/solana-client";
+import { buildRecordEventTx, partialSignAsFeePayer } from "@roam/solana-client";
 import { PublicKey } from "@solana/web3.js";
 import { computeBriefingHash } from "../../agent/runner.js";
 import { BriefingModel } from "../../db/models/briefing.js";
@@ -13,10 +10,10 @@ import { DispatchResponseModel } from "../../db/models/dispatchResponse.js";
 import { IncidentModel } from "../../db/models/incident.js";
 import { ResponderModel } from "../../db/models/responder.js";
 import {
+	responderIdHash as hashResponderId,
 	incidentIdToBytes,
 	recordIncidentEvent,
 	recordIncidentEventWithSignature,
-	responderIdHash as hashResponderId,
 } from "../../services/incidentEvents.js";
 import { getSolanaContext } from "../../services/solana.js";
 import { triggerX402Payment } from "../../x402/client.js";
@@ -45,8 +42,7 @@ function isDuplicateKeyError(err: unknown): boolean {
 	);
 }
 
-// Atomic claim with first-to-claim race semantics. Returns the post-update
-// dispatch on success, or null if the dispatch is no longer claimable.
+// One atomic update, so concurrent accepts can't over-claim.
 async function claimDispatch(
 	dispatchId: string,
 	responderId: string,
@@ -74,10 +70,7 @@ async function claimDispatch(
 					status: {
 						$cond: [
 							{
-								$gte: [
-									{ $size: "$claimedByResponderIds" },
-									"$requiredAccepts",
-								],
+								$gte: [{ $size: "$claimedByResponderIds" }, "$requiredAccepts"],
 							},
 							"claimed",
 							"pending",
@@ -109,15 +102,9 @@ function dispatchClearPayloadHash(args: { dispatchId: string }): Uint8Array {
 	return Uint8Array.from(createHash("sha256").update(canonical).digest());
 }
 
-// `cleared` is an incident-scoped event — the on-chain PDA uses a zero
-// responder hash so there's exactly one cleared row per incident regardless
-// of which responder triggered it. The responder still signs as attestor on
-// the tx (chain-of-custody), but the row is keyed to the incident.
+// `cleared` is incident-scoped: a zero responder hash gives one cleared PDA per incident.
 const ZERO_RESPONDER_HASH = new Uint8Array(32);
 
-// Fans dispatch.created push notifications out to the recommended responders
-// without blocking the API response. Errors are logged here so the call site
-// stays a single line.
 function notifyDispatchedResponders(
 	context: RpcContext,
 	args: {
@@ -146,8 +133,7 @@ function notifyDispatchedResponders(
 		});
 }
 
-// Triggers x402 settlement after a dispatch is cleared. Non-blocking by
-// design — the clear must succeed regardless of payment outcome.
+// Non-blocking: the clear must succeed regardless of the payment outcome.
 function settleDispatchPayment(context: RpcContext, dispatchId: string): void {
 	void triggerX402Payment(context.config, context.log, dispatchId).catch(
 		(err: unknown) => {
@@ -294,9 +280,8 @@ export const dispatchRouter = {
 					message: `Dispatch not found: ${input.dispatchId}`,
 				});
 			}
-			// On accept, fail loudly *before* asking mobile to fingerprint when the
-			// dispatch is no longer claimable. Decline still proceeds — declining
-			// an expired/claimed dispatch is fine for the audit trail.
+			// Reject an unclaimable accept before mobile asks for a fingerprint.
+			// Declines of expired or claimed dispatches still go on the audit trail.
 			if (input.decision === "accept") {
 				if (dispatch.status !== "pending") {
 					throw new ORPCError("CONFLICT", {
@@ -359,8 +344,7 @@ export const dispatchRouter = {
 				.serialize({ requireAllSignatures: false, verifySignatures: false })
 				.toString("base64");
 
-			// Devnet blockhash lifetime is ~150 blocks ≈ 90s; report a slightly
-			// conservative 60s so mobile re-prepares cleanly if the user lingers.
+			// A blockhash is valid for 150 blocks, roughly 60–90 s.
 			const expiresAt = new Date(Date.now() + 60_000).toISOString();
 			return {
 				serializedTx: serialized,
@@ -426,9 +410,8 @@ export const dispatchRouter = {
 				throw err;
 			}
 
-			const persistedResponse = await DispatchResponseModel.findById(
-				responseId,
-			).lean();
+			const persistedResponse =
+				await DispatchResponseModel.findById(responseId).lean();
 			if (!persistedResponse) {
 				throw new ORPCError("INTERNAL_SERVER_ERROR", {
 					message: "DispatchResponse vanished after create",
@@ -443,8 +426,6 @@ export const dispatchRouter = {
 				dispatch: dispatchAfter,
 			});
 
-			// Mirror the on-chain event off-chain. The signature came from mobile —
-			// no async chain write here.
 			await recordIncidentEventWithSignature(
 				{
 					config: context.config,
@@ -521,10 +502,6 @@ export const dispatchRouter = {
 		return dispatch;
 	}),
 
-	// SIWS clear ceremony: same prepare/commit split as accept/decline. Mobile
-	// asks for an unsigned record_event tx (kind=cleared, fee_payer pre-signed),
-	// signs as attestor via MWA, sends to chain itself, then calls
-	// commitSignedClear with the resulting signature.
 	prepareClearTx: authed.dispatch.prepareClearTx.handler(
 		async ({ input, context }) => {
 			const dispatch = await DispatchModel.findById(input.dispatchId).lean();
@@ -538,8 +515,6 @@ export const dispatchRouter = {
 					message: `dispatch_not_claimable_for_clear: status=${dispatch.status}`,
 				});
 			}
-			// Only a responder who claimed this dispatch can clear it. Keeps a
-			// random signed-in responder from clearing somebody else's scene.
 			if (!dispatch.claimedByResponderIds.includes(context.user.id)) {
 				throw new ORPCError("FORBIDDEN", {
 					message: "not_claimer_of_dispatch",
@@ -633,9 +608,6 @@ export const dispatchRouter = {
 				clearedBy: context.user.id,
 			});
 
-			// `cleared` is incident-scoped (responderId=null) — the chain row
-			// uses zero responder hash. The mobile-submitted signature still
-			// proves which responder signed off, via the on-chain attestor key.
 			await recordIncidentEventWithSignature(
 				{
 					config: context.config,
@@ -657,4 +629,3 @@ export const dispatchRouter = {
 		},
 	),
 };
-

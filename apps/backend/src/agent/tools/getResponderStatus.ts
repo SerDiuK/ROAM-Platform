@@ -8,17 +8,6 @@ import { z } from "zod";
 import { ResponderModel } from "../../db/models/responder.js";
 import type { AgentTool } from "./types.js";
 
-// Status lookup for a list of responder IDs. The agent uses this after
-// findNearestVehicles to decide which crew is actually dispatchable —
-// availability ('available' vs 'occupied' vs 'off_duty') is the gate, and
-// `walletAddress: bool` is the precondition for the AD-11 USDC payout (no
-// wallet means we can't route a payout, so the agent should pick someone
-// else).
-//
-// Unknown IDs are dropped, not thrown. The agent's tool input is generated
-// from prior tool results, but those may have been from a stale read; failing
-// the whole call because one responder was deleted is the wrong default.
-
 const InputSchema = z.object({
 	responderIds: z.array(z.string().min(1)).min(1),
 });
@@ -33,7 +22,6 @@ const OutputItemSchema = z.object({
 });
 type OutputItem = z.infer<typeof OutputItemSchema>;
 
-// Lean shape — responder _id is a String (UUID) per schema override.
 interface ResponderLeanDoc {
 	_id: string;
 	name: string;
@@ -48,10 +36,7 @@ export const getResponderStatusTool: AgentTool<Input, OutputItem[]> = {
 		"Look up availability, capabilities, and wallet-provisioning status for a list of responder IDs. Returns one entry per known responder (unknown IDs are silently dropped). walletAddress is a boolean: true means the responder can receive USDC payouts.",
 	inputSchema: InputSchema,
 	handler: async ({ responderIds }) => {
-		// Mongoose's lean() return type has _id: ObjectId by default, but the
-		// Responder schema overrides _id to String (see db/models/responder.ts).
-		// Cast to the local lean shape so the agent-tool output transform sees
-		// the correct runtime types.
+		// lean() types _id as ObjectId, but the Responder schema overrides it to a string.
 		const docs = (await ResponderModel.find({ _id: { $in: responderIds } })
 			.select({
 				_id: 1,
@@ -67,7 +52,8 @@ export const getResponderStatusTool: AgentTool<Input, OutputItem[]> = {
 			name: d.name,
 			availability: d.availability,
 			capabilities: d.capabilities ?? [],
-			walletAddress: typeof d.walletAddress === "string" && d.walletAddress.length > 0,
+			walletAddress:
+				typeof d.walletAddress === "string" && d.walletAddress.length > 0,
 		}));
 	},
 };

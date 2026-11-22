@@ -39,9 +39,6 @@ function StatusMarker({ color }: { color: string }): React.ReactElement {
 	);
 }
 
-// DivIcon instances are pure functions of their inputs and Leaflet allows the
-// same instance across many markers, so we cache them at module scope to skip
-// `renderToStaticMarkup` on every map render.
 const STATUS_ICON_CACHE = new Map<VehicleStatus, DivIcon>();
 
 function getStatusIcon(status: VehicleStatus): DivIcon {

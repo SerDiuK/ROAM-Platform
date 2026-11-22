@@ -37,8 +37,6 @@ function delay(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/** Send a signal to the entire process group of a child (POSIX).
- *  Falls back to child.kill() if pid is unavailable. */
 function killProcessGroup(
 	child: ChildProcess,
 	signal: NodeJS.Signals,
@@ -109,7 +107,6 @@ async function main(): Promise<void> {
 	const checkedInVehicleIds = new Set<string>();
 
 	for (const vehicle of fleet) {
-		// Skip spawning an iot-bridge for vehicles seeded as static markers only
 		if (vehicle.seedTelemetry) {
 			logger.info(`Skipping bridge for static vehicle ${vehicle.callsign}`);
 			continue;
@@ -149,7 +146,6 @@ async function main(): Promise<void> {
 		logger.info(`Spawned ${vehicle.callsign} → ${vehicle.routeFile}`);
 	}
 
-	// Auto-checkin after 3-second delay
 	for (const vehicle of fleet) {
 		if (!vehicle.autoCheckin) continue;
 		const vehicleId = callsignToVehicleId.get(vehicle.callsign);
@@ -172,7 +168,6 @@ async function main(): Promise<void> {
 
 	logger.info(`Fleet started: ${children.size} vehicles`);
 
-	// Graceful shutdown
 	async function checkoutAll(): Promise<void> {
 		const ids = [...checkedInVehicleIds];
 		if (ids.length === 0) return;
@@ -217,7 +212,6 @@ async function main(): Promise<void> {
 			}, 5000);
 			killTimer.unref();
 
-			// Exit once all children have exited
 			const checkInterval = setInterval(() => {
 				if (children.size === 0) {
 					clearInterval(checkInterval);

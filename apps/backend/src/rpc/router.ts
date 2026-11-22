@@ -8,9 +8,6 @@ import { respondersRouter } from "./procedures/responders.js";
 import { sessionAuthRouter } from "./procedures/sessionAuth.js";
 import { vehiclesRouter } from "./procedures/vehicles.js";
 
-// Both the per-procedure middleware (authed / dispatcherOnly) and the contract
-// shape combine here. signIn is public; me + checkin + checkout require auth;
-// they all live under the `auth` namespace per the contract.
 export const rpcRouter = os.router({
 	health: healthRouter,
 	responders: respondersRouter,

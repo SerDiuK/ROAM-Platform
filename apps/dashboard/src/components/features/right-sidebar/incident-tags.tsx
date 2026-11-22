@@ -7,8 +7,6 @@ const URGENCY_TINT: Record<IncidentUrgency, string> = {
 	3: "bg-muted-foreground/15 text-muted-foreground",
 };
 
-// Long-form urgency tag — e.g. "P1 · Lights & sirens". Used in the incident
-// detail body. The compact P1/P2/P3 chip is `UrgencyBadge` (sibling file).
 export function UrgencyTag({ urgency }: { urgency: IncidentUrgency }) {
 	return (
 		<span

@@ -10,9 +10,7 @@ export type RouteState = {
 
 const EMPTY: RouteState = { coordinates: null, error: null };
 
-// Snap origin/destination to ~3 decimals (≈110m) so a noisy GPS tick doesn't
-// trigger a refetch on every telemetry frame. The polyline is the *planned*
-// route — we don't redraw it as the vehicle progresses along it.
+// ~110 m grid (3 decimals) so GPS jitter doesn't refetch the route on every telemetry frame.
 function snapKey(c: Coord | null): string {
 	if (!c) return "_";
 	return `${c.lat.toFixed(3)},${c.lon.toFixed(3)}`;

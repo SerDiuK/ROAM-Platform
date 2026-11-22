@@ -34,16 +34,19 @@ export class SolanaError extends Error {
 }
 
 export function getCluster(
-	cluster?: string,
+	cluster: string,
 ): "devnet" | "mainnet-beta" | "localnet" {
-	const value = cluster ?? process.env.SOLANA_CLUSTER ?? "devnet";
-	if (value === "devnet" || value === "mainnet-beta" || value === "localnet") {
-		return value;
+	if (
+		cluster === "devnet" ||
+		cluster === "mainnet-beta" ||
+		cluster === "localnet"
+	) {
+		return cluster;
 	}
 	return "devnet";
 }
 
-// Mirrors the Rust enum order in programs/roam/src/lib.rs. Don't reorder.
+// On-chain event_kind bytes (PDA seed and stored field): never renumber.
 export const INCIDENT_EVENT_KIND_INDEX = {
 	received: 0,
 	dispatched: 1,
@@ -57,19 +60,12 @@ export type IncidentEventKindName = keyof typeof INCIDENT_EVENT_KIND_INDEX;
 const ZERO_RESPONDER_HASH = new Uint8Array(32);
 
 export type RecordIncidentEventArgs = {
-	// 16-byte incident identifier (off-chain convention — typically MongoDB
-	// ObjectId(12) padded to 16 or a UUID).
 	incidentId: Uint8Array;
 	kind: IncidentEventKindName;
-	// sha256(responder UUID), 32 bytes. Pass `null` for incident-scoped events
-	// (`received`, `cleared`) — the helper substitutes zeros.
 	responderIdHash: Uint8Array | null;
-	// Event-specific 32-byte hash. Pass zeros if unused.
 	payloadHash: Uint8Array;
 	// Unix seconds.
 	occurredAt: number;
-	// Optional second signer. If omitted, the provider wallet signs both fee_payer
-	// and attestor (the demo's backend-only path).
 	attestor?: Keypair;
 };
 
@@ -102,15 +98,12 @@ export function deriveEventPda(
 	return pda;
 }
 
-// Read-only wallet shim for split-signer flows. `Program.methods.foo().instruction()`
-// only reads `publicKey` from the wallet — it never calls signTransaction. The
-// fee_payer's keypair stays out of band; we partial-sign the resulting tx with
-// `partialSignAsFeePayer` after blockhash is set.
 class ReadOnlyWallet implements Wallet {
-	// `payer` is required by the Wallet interface but unused for our flows; an
-	// ephemeral keypair is fine — Anchor never reads its secret here.
 	public readonly payer: Keypair;
-	constructor(public readonly publicKey: PublicKey, payer: Keypair) {
+	constructor(
+		public readonly publicKey: PublicKey,
+		payer: Keypair,
+	) {
 		this.payer = payer;
 	}
 	async signTransaction(): Promise<never> {
@@ -143,10 +136,6 @@ export type BuildRecordEventTxResult = {
 	eventPda: PublicKey;
 };
 
-// Builds a `record_event` Transaction with split fee_payer/attestor accounts,
-// recent blockhash set, no signatures attached. Caller partial-signs as
-// fee_payer (backend), then mobile signs as attestor (Seeker via MWA), then
-// sends to chain. Used by `dispatch.prepareResponseTx`.
 export async function buildRecordEventTx(
 	args: BuildRecordEventTxArgs,
 	feePayerKeypair: Keypair,
@@ -195,10 +184,6 @@ export async function buildRecordEventTx(
 	return { transaction: tx, eventPda };
 }
 
-// Wraps `tx.partialSign` in a single-purpose helper so call sites read clearly.
-// Mutates `tx` in place — adds the fee_payer's signature to the tx's signature
-// slot for that pubkey. Mobile then adds its own attestor signature before
-// sending.
 export function partialSignAsFeePayer(
 	tx: Transaction,
 	feePayer: Keypair,

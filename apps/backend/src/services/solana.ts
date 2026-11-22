@@ -10,9 +10,6 @@ export type SolanaContext = {
 	operator: Keypair;
 };
 
-// Builds the connection + operator keypair from config. Throws if
-// SOLANA_OPERATOR_KEYPAIR is missing — used by request-path procedures
-// (`dispatch.prepareResponseTx`) where there's no graceful degradation.
 export function getSolanaContext(config: Config): SolanaContext {
 	if (!config.SOLANA_OPERATOR_KEYPAIR) {
 		throw new Error("SOLANA_OPERATOR_KEYPAIR not set");
@@ -26,11 +23,6 @@ export function getSolanaContext(config: Config): SolanaContext {
 	return { connection, operator };
 }
 
-// Builds an AnchorProvider from SOLANA_OPERATOR_KEYPAIR + SOLANA_CLUSTER and
-// runs `fn` against it. Returns null without throwing when the keypair is
-// missing or anything fails — chain writes must never block the API request
-// path (see CLAUDE.md "Solana writes are non-blocking"). Use `getSolanaContext`
-// directly when the call site *does* need to fail loudly.
 export async function withSolanaProvider<T>(
 	config: Config,
 	log: FastifyBaseLogger,

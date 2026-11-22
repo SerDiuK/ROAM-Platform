@@ -4,15 +4,9 @@ import { Pressable, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
-import {
-	mwaAvailableAtom,
-	signInWithSeekerAtom,
-} from "@/state/wallet-auth";
+import { mwaAvailableAtom, signInWithSeekerAtom } from "@/state/wallet-auth";
 
-// Seeded responder names — also surfaced on the dispatcher dashboard.
-// Mobile shows the picker when the backend reports WALLET_UNBOUND on first
-// sign-in; subsequent sign-ins on the same Seeker silent-resolve via the
-// already-bound walletAddress.
+// Must match the responder names the backend seeds; unknown names are rejected.
 const RESPONDER_NAMES = ["THOMAS-1", "RSP-1", "RSP-2", "DSP-1"];
 
 type Props = {
@@ -54,8 +48,8 @@ export function LoginScreen({ cachedName }: Props): React.JSX.Element {
 				<View className="flex-1 justify-center px-6 gap-3">
 					<Text variant="h2">ROAM</Text>
 					<Text variant="muted">
-						ROAM mobile requires a Solana Seeker phone. Open the app on a
-						Seeker (Android) device — sign-in is fingerprint-only.
+						ROAM mobile requires a Solana Seeker phone. Open the app on a Seeker
+						(Android) device — sign-in is fingerprint-only.
 					</Text>
 				</View>
 			</SafeAreaView>
@@ -72,7 +66,10 @@ export function LoginScreen({ cachedName }: Props): React.JSX.Element {
 							This Seeker isn't bound to a responder yet. Pick the name you'll
 							sign in as — it will be tied to your Seeker pubkey.
 						</Text>
-						<Text className="font-mono text-xs text-muted-foreground" selectable>
+						<Text
+							className="font-mono text-xs text-muted-foreground"
+							selectable
+						>
 							{pendingPubkey}
 						</Text>
 					</View>
@@ -119,7 +116,9 @@ export function LoginScreen({ cachedName }: Props): React.JSX.Element {
 					}}
 					disabled={pending}
 				>
-					<Text>{pending ? "Waiting on fingerprint…" : "Sign in with Seeker"}</Text>
+					<Text>
+						{pending ? "Waiting on fingerprint…" : "Sign in with Seeker"}
+					</Text>
 				</Button>
 
 				{error ? <Text className="text-destructive">{error}</Text> : null}

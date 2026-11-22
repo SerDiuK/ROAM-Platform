@@ -1,144 +1,108 @@
 {
-  "address": "Ad9AUd1XbFT41b92R6XgqFZQeotynLWF5aUSMp65gKQy",
-  "metadata": {
-    "name": "roam",
-    "version": "0.1.0",
-    "spec": "0.1.0",
-    "description": "ROAM incident event log on Solana"
-  },
-  "instructions": [
-    {
-      "name": "record_event",
-      "discriminator": [
-        32,
-        2,
-        109,
-        205,
-        6,
-        116,
-        72,
-        229
-      ],
-      "accounts": [
-        {
-          "name": "event",
-          "writable": true
-        },
-        {
-          "name": "fee_payer",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "attestor",
-          "signer": true
-        },
-        {
-          "name": "system_program",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": [
-        {
-          "name": "incident_id",
-          "type": {
-            "array": [
-              "u8",
-              16
-            ]
-          }
-        },
-        {
-          "name": "event_kind",
-          "type": "u8"
-        },
-        {
-          "name": "responder_id_hash",
-          "type": {
-            "array": [
-              "u8",
-              32
-            ]
-          }
-        },
-        {
-          "name": "payload_hash",
-          "type": {
-            "array": [
-              "u8",
-              32
-            ]
-          }
-        },
-        {
-          "name": "occurred_at",
-          "type": "i64"
-        }
-      ]
-    }
-  ],
-  "accounts": [
-    {
-      "name": "IncidentEvent",
-      "discriminator": [
-        80,
-        69,
-        142,
-        197,
-        182,
-        126,
-        13,
-        86
-      ]
-    }
-  ],
-  "types": [
-    {
-      "name": "IncidentEvent",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "incident_id",
-            "type": {
-              "array": [
-                "u8",
-                16
-              ]
-            }
-          },
-          {
-            "name": "event_kind",
-            "type": "u8"
-          },
-          {
-            "name": "responder_id_hash",
-            "type": {
-              "array": [
-                "u8",
-                32
-              ]
-            }
-          },
-          {
-            "name": "attestor_pubkey",
-            "type": "pubkey"
-          },
-          {
-            "name": "payload_hash",
-            "type": {
-              "array": [
-                "u8",
-                32
-              ]
-            }
-          },
-          {
-            "name": "occurred_at",
-            "type": "i64"
-          }
-        ]
-      }
-    }
-  ]
+	"address": "Ad9AUd1XbFT41b92R6XgqFZQeotynLWF5aUSMp65gKQy",
+	"metadata": {
+		"name": "roam",
+		"version": "0.1.0",
+		"spec": "0.1.0",
+		"description": "ROAM incident event log on Solana"
+	},
+	"instructions": [
+		{
+			"name": "record_event",
+			"discriminator": [32, 2, 109, 205, 6, 116, 72, 229],
+			"accounts": [
+				{
+					"name": "event",
+					"writable": true
+				},
+				{
+					"name": "fee_payer",
+					"writable": true,
+					"signer": true
+				},
+				{
+					"name": "attestor",
+					"signer": true
+				},
+				{
+					"name": "system_program",
+					"address": "11111111111111111111111111111111"
+				}
+			],
+			"args": [
+				{
+					"name": "incident_id",
+					"type": {
+						"array": ["u8", 16]
+					}
+				},
+				{
+					"name": "event_kind",
+					"type": "u8"
+				},
+				{
+					"name": "responder_id_hash",
+					"type": {
+						"array": ["u8", 32]
+					}
+				},
+				{
+					"name": "payload_hash",
+					"type": {
+						"array": ["u8", 32]
+					}
+				},
+				{
+					"name": "occurred_at",
+					"type": "i64"
+				}
+			]
+		}
+	],
+	"accounts": [
+		{
+			"name": "IncidentEvent",
+			"discriminator": [80, 69, 142, 197, 182, 126, 13, 86]
+		}
+	],
+	"types": [
+		{
+			"name": "IncidentEvent",
+			"type": {
+				"kind": "struct",
+				"fields": [
+					{
+						"name": "incident_id",
+						"type": {
+							"array": ["u8", 16]
+						}
+					},
+					{
+						"name": "event_kind",
+						"type": "u8"
+					},
+					{
+						"name": "responder_id_hash",
+						"type": {
+							"array": ["u8", 32]
+						}
+					},
+					{
+						"name": "attestor_pubkey",
+						"type": "pubkey"
+					},
+					{
+						"name": "payload_hash",
+						"type": {
+							"array": ["u8", 32]
+						}
+					},
+					{
+						"name": "occurred_at",
+						"type": "i64"
+					}
+				]
+			}
+		}
+	]
 }

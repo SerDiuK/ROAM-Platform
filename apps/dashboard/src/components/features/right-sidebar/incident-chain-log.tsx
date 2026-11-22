@@ -28,13 +28,7 @@ const KIND_LABEL: Record<IncidentEventKind, string> = {
 	cleared: "Cleared",
 };
 
-// Tone per event kind. Primary/danger/warning come from `@roam/ui` tokens; the
-// muted-foreground branch is for incident-scoped events that don't carry
-// success/failure semantics on their own.
-const KIND_TONE: Record<
-	IncidentEventKind,
-	{ text: string; dot: string }
-> = {
+const KIND_TONE: Record<IncidentEventKind, { text: string; dot: string }> = {
 	received: { text: "text-muted-foreground", dot: "bg-muted-foreground" },
 	dispatched: { text: "text-danger", dot: "bg-danger" },
 	accepted: { text: "text-primary", dot: "bg-primary" },
@@ -68,8 +62,7 @@ export function IncidentChainLog({
 				const next = await api.events.listByIncident({ incidentId });
 				if (!cancelled) setEvents(next);
 			} catch {
-				// Soft-fail — keep the last good snapshot through transient blips;
-				// the next tick retries.
+				// Keep the last good events; the next tick retries.
 			} finally {
 				if (!cancelled) setLoading(false);
 			}
@@ -86,8 +79,7 @@ export function IncidentChainLog({
 		() =>
 			[...events].sort(
 				(a, b) =>
-					new Date(b.occurredAt).getTime() -
-					new Date(a.occurredAt).getTime(),
+					new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime(),
 			),
 		[events],
 	);
@@ -111,9 +103,7 @@ export function IncidentChainLog({
 			</div>
 
 			{loading && ordered.length === 0 ? (
-				<div className="text-2xs text-muted-foreground">
-					Loading chain log…
-				</div>
+				<div className="text-2xs text-muted-foreground">Loading chain log…</div>
 			) : ordered.length === 0 ? (
 				<div className="text-2xs text-muted-foreground">No events yet</div>
 			) : (
@@ -163,14 +153,9 @@ function ChainLogRow({
 		<li className="flex gap-2.5">
 			<div className="flex flex-shrink-0 flex-col items-center pt-0.5">
 				<span
-					className={cn(
-						"h-1.5 w-1.5 flex-shrink-0 rounded-full",
-						tone.dot,
-					)}
+					className={cn("h-1.5 w-1.5 flex-shrink-0 rounded-full", tone.dot)}
 				/>
-				{!isLast && (
-					<span className="my-1 w-px flex-1 bg-sidebar-border" />
-				)}
+				{!isLast && <span className="my-1 w-px flex-1 bg-sidebar-border" />}
 			</div>
 			<div className={cn("flex-1", !isLast && "pb-2.5")}>
 				<div className="mb-0.5 flex items-baseline justify-between gap-1.5">

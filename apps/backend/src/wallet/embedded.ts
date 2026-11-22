@@ -9,13 +9,13 @@ import {
 	type Connection,
 	Keypair,
 	PublicKey,
-	Transaction,
 	sendAndConfirmTransaction,
+	Transaction,
 } from "@solana/web3.js";
 import bs58 from "bs58";
 import { ResponderModel } from "../db/models/responder.js";
-import { WalletError } from "./provider.js";
 import type { WalletProvider } from "./provider.js";
+import { WalletError } from "./provider.js";
 
 const USDC_DECIMALS = 6;
 const ENCRYPTION_ALGO = "aes-256-gcm";
@@ -29,10 +29,6 @@ export interface EmbeddedSolanaConfig {
 	encryptionKey: Buffer;
 }
 
-// Custodial Solana wallet provider. The backend generates and holds an
-// AES-256-GCM-encrypted secret key for each responder, and signs USDC SPL
-// transfers from a single agent wallet. Used while Crossmint cannot host
-// Solana devnet wallets — see docs/ROAM-Tasks.md AD-2 for the rationale.
 export class EmbeddedSolanaProvider implements WalletProvider {
 	private readonly connection: Connection;
 	private readonly agentKeypair: Keypair;
@@ -56,12 +52,8 @@ export class EmbeddedSolanaProvider implements WalletProvider {
 	}
 
 	async createWallet(responderId: string): Promise<{ address: string }> {
-		// Idempotent: if a responder already has a wallet, return it. The
-		// existing encrypted secret is left untouched; rotating would need a
-		// dedicated procedure that re-signs any pending payouts.
-		const existing = await ResponderModel.findById(responderId).select(
-			"walletAddress",
-		);
+		const existing =
+			await ResponderModel.findById(responderId).select("walletAddress");
 		if (!existing) {
 			throw new WalletError({
 				message: `responder_not_found: ${responderId}`,
@@ -85,9 +77,8 @@ export class EmbeddedSolanaProvider implements WalletProvider {
 	}
 
 	async getAddress(responderId: string): Promise<string | null> {
-		const responder = await ResponderModel.findById(responderId).select(
-			"walletAddress",
-		);
+		const responder =
+			await ResponderModel.findById(responderId).select("walletAddress");
 		return responder?.walletAddress ?? null;
 	}
 
@@ -106,9 +97,7 @@ export class EmbeddedSolanaProvider implements WalletProvider {
 		memo?: string;
 	}): Promise<{ txSignature: string }> {
 		if (args.memo !== undefined) {
-			// Memo-program instructions are skipped here for the AD-2 milestone —
-			// AD-11 will wire in a SPL memo instruction so payout receipts carry
-			// the dispatch ID. Accepting `memo` keeps the interface stable.
+			// Memo is ignored: no SPL memo instruction is attached.
 		}
 
 		const recipient = new PublicKey(args.toAddress);
@@ -138,9 +127,7 @@ export class EmbeddedSolanaProvider implements WalletProvider {
 			);
 		}
 
-		const rawAmount = BigInt(
-			Math.round(args.amountUsdc * 10 ** USDC_DECIMALS),
-		);
+		const rawAmount = BigInt(Math.round(args.amountUsdc * 10 ** USDC_DECIMALS));
 		tx.add(
 			createTransferCheckedInstruction(
 				sourceAta.address,
@@ -169,10 +156,6 @@ export class EmbeddedSolanaProvider implements WalletProvider {
 		return `${iv.toString("hex")}.${authTag.toString("hex")}.${ciphertext.toString("hex")}`;
 	}
 
-	// Reserved for AD-11 (payouts); exported via WalletProvider.signAndSendUsdc
-	// only when we sign with a responder's key. Currently the agent signs all
-	// transfers, so this isn't called yet — kept here so the encryption format
-	// has a documented reverse.
 	decryptResponderSecret(encrypted: string): Uint8Array {
 		const parts = encrypted.split(".");
 		if (parts.length !== 3) {

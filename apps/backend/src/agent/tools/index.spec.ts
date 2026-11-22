@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
-	ToolInputValidationError,
-	UnknownToolError,
 	agentTools,
 	dispatchToolCall,
+	ToolInputValidationError,
+	UnknownToolError,
 } from "./index.js";
 import type { AgentToolContext } from "./types.js";
 
@@ -17,7 +17,7 @@ describe("agentTools registry", () => {
 		"get_active_incidents",
 	];
 
-	it("exposes the four AD-5 tools", () => {
+	it("exposes the four agent tools", () => {
 		expect(agentTools.map((t) => t.name).sort()).toEqual(
 			[...expectedNames].sort(),
 		);

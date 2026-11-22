@@ -18,11 +18,7 @@ function hmacKeyBuf(hmacKeyHex: string): Buffer {
 	return Buffer.from(hmacKeyHex, "hex");
 }
 
-// On-chain `incident_id` is HMAC-SHA256(off-chain incidentId) truncated to 16
-// bytes — keyed so that an attacker who learns the off-chain UUID can't
-// confirm the on-chain PDA without the secret. The off-chain layer is
-// canonical; lookups always go Mongo → derive bytes → query chain (never the
-// other direction), so truncation is safe.
+// Keyed so a leaked incident UUID can't confirm its PDA; truncation is safe as lookups only go Mongo → chain.
 export function incidentIdToBytes(
 	incidentId: string,
 	hmacKeyHex: string,
@@ -33,9 +29,6 @@ export function incidentIdToBytes(
 	return Uint8Array.from(digest.subarray(0, 16));
 }
 
-// HMAC-SHA256 of the responder UUID. Same threat model as incident_id —
-// defeats confirmation attacks ("is this on-chain hash for responder X?")
-// from anyone who doesn't hold the key.
 export function responderIdHash(
 	responderId: string,
 	hmacKeyHex: string,
@@ -57,9 +50,7 @@ function payloadToHash(payload: IncidentEventPayload | undefined): Uint8Array {
 	return Uint8Array.from(createHash("sha256").update(canonical).digest());
 }
 
-// Input is intentionally loose — Mongoose lean docs allow null on every
-// optional field (and on nested payload subfields). Normalize null → undefined
-// so the wire shape conforms to IncidentEventSchema.
+// Mongoose lean docs can hold null on optional fields; IncidentEventSchema only accepts undefined.
 function stripNulls<T extends object>(obj: T): T {
 	const out: Record<string, unknown> = {};
 	for (const [k, v] of Object.entries(obj)) {
@@ -68,15 +59,18 @@ function stripNulls<T extends object>(obj: T): T {
 	return out as T;
 }
 
-function eventToWire(doc: Record<string, unknown> & { _id: unknown }): IncidentEvent {
+function eventToWire(
+	doc: Record<string, unknown> & { _id: unknown },
+): IncidentEvent {
 	const rawId = doc._id;
 	const id =
-		rawId instanceof Types.ObjectId
-			? rawId.toHexString()
-			: String(rawId);
-	const payload = doc.payload && typeof doc.payload === "object"
-		? (stripNulls(doc.payload as Record<string, unknown>) as IncidentEventPayload)
-		: undefined;
+		rawId instanceof Types.ObjectId ? rawId.toHexString() : String(rawId);
+	const payload =
+		doc.payload && typeof doc.payload === "object"
+			? (stripNulls(
+					doc.payload as Record<string, unknown>,
+				) as IncidentEventPayload)
+			: undefined;
 	return {
 		_id: id,
 		incidentId: doc.incidentId as string,
@@ -136,13 +130,6 @@ async function persistIncidentEvent(args: PersistArgs): Promise<PersistResult> {
 	}
 }
 
-// Records an incident event: synchronous Mongo insert (canonical), async
-// Solana write (non-blocking — patches solanaTxSignature when it returns),
-// and a single `incident.event` broadcast on the incidents WS so the
-// dashboard refreshes without polling.
-//
-// Idempotent: if the event already exists (E11000 from the unique index), the
-// existing row is returned untouched. Used by retry / replay paths.
 export async function recordIncidentEvent(
 	deps: {
 		config: Config;
@@ -199,11 +186,6 @@ type ChainFollowUpArgs = {
 	docId: unknown;
 };
 
-// Fire-and-forget chain write + signature patch. The Solana call itself is
-// non-blocking by codebase convention (CLAUDE.md "Solana writes are
-// non-blocking"). The outer try/catch is the load-bearing part: without it,
-// a throw from the post-chain Mongo update or broadcast becomes an unhandled
-// rejection that can take the worker down on `unhandledRejection`.
 function recordChainSignatureFollowUp(
 	deps: ChainFollowUpDeps,
 	args: ChainFollowUpArgs,
@@ -211,19 +193,16 @@ function recordChainSignatureFollowUp(
 	const hmacKey = deps.config.CHAIN_HMAC_KEY;
 	void (async (): Promise<void> => {
 		try {
-			const sig = await withSolanaProvider(
-				deps.config,
-				deps.log,
-				(provider) =>
-					recordIncidentEventOnChain(provider, {
-						incidentId: incidentIdToBytes(args.incidentId, hmacKey),
-						kind: args.kind,
-						responderIdHash: args.responderId
-							? responderIdHash(args.responderId, hmacKey)
-							: null,
-						payloadHash: payloadToHash(args.payload),
-						occurredAt: Math.floor(args.occurredAt.getTime() / 1000),
-					}),
+			const sig = await withSolanaProvider(deps.config, deps.log, (provider) =>
+				recordIncidentEventOnChain(provider, {
+					incidentId: incidentIdToBytes(args.incidentId, hmacKey),
+					kind: args.kind,
+					responderIdHash: args.responderId
+						? responderIdHash(args.responderId, hmacKey)
+						: null,
+					payloadHash: payloadToHash(args.payload),
+					occurredAt: Math.floor(args.occurredAt.getTime() / 1000),
+				}),
 			);
 			if (!sig) return;
 			const updated = await IncidentEventModel.findByIdAndUpdate(
@@ -250,11 +229,6 @@ function recordChainSignatureFollowUp(
 	})();
 }
 
-// Sibling of recordIncidentEvent for the SIWS dispatch flow: mobile already
-// submitted the chain tx (signing as attestor), so we persist the off-chain
-// mirror with `solanaTxSignature` populated up front and skip the async chain
-// write. Same idempotency contract as the parent — the unique-by-tuple index
-// on (incidentId, kind, responderId) makes a duplicate call a no-op.
 export async function recordIncidentEventWithSignature(
 	deps: {
 		config: Config;

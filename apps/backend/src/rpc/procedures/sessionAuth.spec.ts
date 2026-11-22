@@ -46,9 +46,6 @@ async function challenge(): Promise<{
 	return call(sessionAuthRouter.siwsChallenge, {}, { context: buildContext() });
 }
 
-// Helper that builds the canonical SIWS body the wallet would produce from a
-// `sign_in_payload`, signs it, and returns the base64-encoded triple ready to
-// post to siwsVerify.
 function signSiws(args: {
 	kp: Keypair;
 	nonce: string;
@@ -65,9 +62,9 @@ function signSiws(args: {
 	const rawMessage = [
 		`${args.domain} wants you to sign in with your Solana account:`,
 		pubkey,
-		``,
+		"",
 		args.statement,
-		``,
+		"",
 		`Nonce: ${args.nonce}`,
 	].join("\n");
 	const messageBytes = new TextEncoder().encode(rawMessage);
@@ -248,8 +245,6 @@ describe("auth.siwsVerify", () => {
 		const claimed = Keypair.generate();
 		const actual = Keypair.generate();
 		const c = await challenge();
-		// Sign with `actual` but post `claimed`'s address — verify reads address
-		// from the request, so the signature won't match.
 		const signed = signSiws({
 			kp: actual,
 			nonce: c.nonce,

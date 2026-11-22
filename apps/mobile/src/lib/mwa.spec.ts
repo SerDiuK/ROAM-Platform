@@ -2,8 +2,6 @@ import { Keypair, Transaction } from "@solana/web3.js";
 import nacl from "tweetnacl";
 import { describe, expect, it, vi } from "vitest";
 
-// Stub react-native — vitest can't parse the flow-typed RN entry. Same
-// pattern as src/lib/push.spec.ts.
 vi.mock("react-native", () => ({
 	Platform: { OS: "ios" },
 }));
@@ -20,13 +18,13 @@ type FakeWallet = {
 function makeFakeWallet(kp: Keypair): FakeWallet {
 	const addressB64 = Buffer.from(kp.publicKey.toBytes()).toString("base64");
 	return {
-		// Mirrors the MWA contract: when `sign_in_payload` is supplied, the
-		// wallet builds a SIWS message, signs it, and returns the result inside
-		// `sign_in_result`. We construct + sign a payload here so the test can
-		// verify the bytes the wrapper hands back are independently verifiable.
 		authorize: vi.fn(
 			async (params: {
-				sign_in_payload?: { domain: string; nonce?: string; statement?: string };
+				sign_in_payload?: {
+					domain: string;
+					nonce?: string;
+					statement?: string;
+				};
 			}) => {
 				const result: {
 					accounts: { address: string }[];
@@ -44,9 +42,9 @@ function makeFakeWallet(kp: Keypair): FakeWallet {
 					const body = [
 						`${params.sign_in_payload.domain} wants you to sign in with your Solana account:`,
 						kp.publicKey.toBase58(),
-						``,
+						"",
 						params.sign_in_payload.statement ?? "",
-						``,
+						"",
 						`Nonce: ${params.sign_in_payload.nonce ?? ""}`,
 					].join("\n");
 					const bytes = new TextEncoder().encode(body);
@@ -70,7 +68,7 @@ describe("mwa.signIn", () => {
 	it("returns the sign_in_result triple decoded + the auth_token", async () => {
 		const kp = Keypair.generate();
 		const wallet = makeFakeWallet(kp);
-		const transact = async <T,>(cb: TransactCb<T>): Promise<T> => cb(wallet);
+		const transact = async <T>(cb: TransactCb<T>): Promise<T> => cb(wallet);
 
 		const mwa = createMwa(transact as never);
 		const result = await mwa.signIn({
@@ -82,23 +80,17 @@ describe("mwa.signIn", () => {
 		expect(result.address).toBe(kp.publicKey.toBase58());
 		expect(result.authToken).toBe("auth-token-1");
 
-		// The signed_message + signature are valid Ed25519 over the bytes the
-		// wallet built — verify directly.
 		const messageBytes = Buffer.from(result.signedMessage, "base64");
 		const sigBytes = Buffer.from(result.signature, "base64");
 		expect(
-			nacl.sign.detached.verify(
-				messageBytes,
-				sigBytes,
-				kp.publicKey.toBytes(),
-			),
+			nacl.sign.detached.verify(messageBytes, sigBytes, kp.publicKey.toBytes()),
 		).toBe(true);
 	});
 
 	it("passes the cached authToken to authorize when supplied", async () => {
 		const kp = Keypair.generate();
 		const wallet = makeFakeWallet(kp);
-		const transact = async <T,>(cb: TransactCb<T>): Promise<T> => cb(wallet);
+		const transact = async <T>(cb: TransactCb<T>): Promise<T> => cb(wallet);
 
 		const mwa = createMwa(transact as never);
 		await mwa.signIn(
@@ -112,9 +104,7 @@ describe("mwa.signIn", () => {
 	});
 
 	it("throws SeekerProtocolError when the wallet returns no sign_in_result", async () => {
-		const transact = async <T,>(
-			cb: TransactCb<T>,
-		): Promise<T> =>
+		const transact = async <T>(cb: TransactCb<T>): Promise<T> =>
 			cb({
 				authorize: vi.fn(async () => ({
 					accounts: [{ address: "AAAAAA" }],
@@ -153,7 +143,7 @@ describe("mwa.signAndSendTransaction", () => {
 	it("authorizes silently with the supplied authToken and returns the base58 sig", async () => {
 		const kp = Keypair.generate();
 		const wallet = makeFakeWallet(kp);
-		const transact = async <T,>(cb: TransactCb<T>): Promise<T> => cb(wallet);
+		const transact = async <T>(cb: TransactCb<T>): Promise<T> => cb(wallet);
 
 		const mwa = createMwa(transact as never);
 		const tx = new Transaction({
@@ -175,7 +165,7 @@ describe("mwa.signAndSendTransaction", () => {
 
 	it("throws SeekerProtocolError when the wallet returns no signature", async () => {
 		const kp = Keypair.generate();
-		const transact = async <T,>(cb: TransactCb<T>): Promise<T> =>
+		const transact = async <T>(cb: TransactCb<T>): Promise<T> =>
 			cb({
 				authorize: vi.fn(async () => ({
 					accounts: [{ address: "x" }],

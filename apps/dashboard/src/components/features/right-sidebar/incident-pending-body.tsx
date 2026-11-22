@@ -22,10 +22,6 @@ type IncidentPendingBodyProps = {
 	onDispatch?: (incident: Incident) => void;
 };
 
-// Body for incidents that have NOT been dispatched yet (status=live, pending,
-// cancelled). Shows the live transcript + classification + agent
-// recommendation. The responding/resolved-with-units path lives in
-// `incident-assigned-body.tsx`.
 export function IncidentPendingBody({
 	incident,
 	vehicles,

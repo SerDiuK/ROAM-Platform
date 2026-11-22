@@ -16,9 +16,6 @@ type Props = {
 	onDismiss: () => void;
 };
 
-// Drawer that opens on incoming-dispatch push. Mirrors the vehicle-details
-// sheet pattern (Sheet + Body) — stateless w.r.t. dispatch fetching, all data
-// flows in via `state` from useDispatchInbox.
 export function DispatchSheet({
 	state,
 	onAccept,
@@ -122,9 +119,6 @@ function DispatchSheetBody({
 	);
 }
 
-// Caps the body at 60% of viewport height and scrolls the middle, keeping
-// the action footer (Accept/Decline/Clear/Dismiss) pinned so the responder
-// never has to scroll to reach the primary action.
 export function DispatchSheetLayout({
 	children,
 	footer,

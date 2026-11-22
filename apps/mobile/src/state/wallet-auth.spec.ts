@@ -134,7 +134,6 @@ describe("signInWithSeekerAtom", () => {
 
 		expect(result).toEqual({ kind: "wallet-unbound", pubkey: SEEKER_PUBKEY });
 		expect(setApiTokenSpy).not.toHaveBeenCalled();
-		// authToken still cached so the picker re-run is silent.
 		expect(writeAuthTokenSpy).toHaveBeenCalledWith("fresh-auth-token");
 		expect(store.get(authStateAtom).kind).toBe("unknown");
 	});
@@ -185,7 +184,7 @@ describe("signInWithSeekerAtom", () => {
 		mwaSpy.mwaAvailable = false;
 		const store = createStore();
 		const result = await store.set(signInWithSeekerAtom, {});
-		mwaSpy.mwaAvailable = true; // restore for sibling tests
+		mwaSpy.mwaAvailable = true;
 
 		expect(result.kind).toBe("error");
 		expect(apiSpy.auth.siwsChallenge).not.toHaveBeenCalled();

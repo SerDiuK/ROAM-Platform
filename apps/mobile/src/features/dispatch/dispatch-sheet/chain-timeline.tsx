@@ -11,9 +11,6 @@ import {
 	shortSig,
 } from "./chain-timeline.utils";
 
-// Vertical Solana event timeline rendered inside the ON SCENE panel. Newest
-// at the top to match the dispatcher's mental model — the responder sees the
-// latest chain confirmation land first.
 export function ChainTimeline({
 	events,
 	responders,
@@ -25,8 +22,7 @@ export function ChainTimeline({
 		() =>
 			[...events].sort(
 				(a, b) =>
-					new Date(b.occurredAt).getTime() -
-					new Date(a.occurredAt).getTime(),
+					new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime(),
 			),
 		[events],
 	);

@@ -24,7 +24,6 @@ src/
 │   │   ├── left-sidebar/  Fleet panel + vehicle detail
 │   │   ├── right-sidebar/ Incidents panel + incident detail
 │   │   ├── map/           Live map + dynamic-loaded inner
-│   │   ├── sessions/      On-chain session feed
 │   │   └── top-bar.tsx    Header strip
 │   └── ui/                App-local primitives (sidebar shell, buttons, icon,
 │                          status pill, etc). Cross-app primitives live in
@@ -50,8 +49,8 @@ encapsulates the data + the setter.
   loading/connected/data triple. Wrap per-resource hooks on top
   (`useFleetData`, `useIncidentsData`).
 - **Streaming data**: use the WS hooks from `@roam/api`
-  (`useTelemetrySocket`, `useSessionSocket`). They reconnect automatically and
-  return `{ data, connected }`.
+  (`useTelemetrySocket`, built on `useReconnectingSocket`). They reconnect
+  automatically and report `connected`.
 - **UI state** (selection, sidebar open/close): keep in `page.tsx` as the
   single owner. Pass setters down — React guarantees setter identity, so
   passing `setSelectedX` directly is fine and doesn't need `useCallback`.

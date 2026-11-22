@@ -19,8 +19,7 @@ export function useReconnectingSocket<T>({
 	const wsRef = useRef<WebSocket | null>(null);
 	const backoffRef = useRef(MIN_BACKOFF);
 	const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-	// Pin onMessage in a ref so the connect callback doesn't re-fire when callers
-	// pass an inline handler (which would otherwise tear down + reopen the socket).
+	// A ref, so an inline onMessage doesn't reopen the socket on every render.
 	const onMessageRef = useRef(onMessage);
 	onMessageRef.current = onMessage;
 

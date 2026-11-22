@@ -3,23 +3,12 @@ import mongoose from "mongoose";
 import { parseConfig } from "../src/config.js";
 import { connectDb } from "../src/db/connection.js";
 import { ResponderModel } from "../src/db/models/responder.js";
-import { EmbeddedSolanaProvider, createWalletProvider } from "../src/wallet/index.js";
+import {
+	createWalletProvider,
+	EmbeddedSolanaProvider,
+} from "../src/wallet/index.js";
 
-// Smoke test for the embedded Solana wallet provider. Verifies:
-// 1. createWallet generates and persists a per-responder keypair
-// 2. getAddress reads it back
-// 3. getBalanceUsdc returns the agent's funded USDC balance
-//
-// Does NOT transfer USDC — that is exercised in AD-11.
-//
-// Run with:
-//   pnpm --filter @roam/backend wallet:smoke
-//
-// Requires the agent USDC ATA to be funded. From the agent keypair pubkey:
-//   spl-token create-account <USDC_MINT_ADDRESS> --owner <agent_pubkey> --url devnet
-//   spl-token transfer <USDC_MINT_ADDRESS> 100 <agent_pubkey> \
-//     --fund-recipient --url devnet --from <faucet-keypair>
-// or fund via https://faucet.circle.com/ → agent pubkey.
+// Requires the agent's USDC token account funded, e.g. via https://faucet.circle.com/.
 
 async function main(): Promise<void> {
 	const config = parseConfig();

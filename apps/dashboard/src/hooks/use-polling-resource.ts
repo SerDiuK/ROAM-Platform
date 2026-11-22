@@ -8,10 +8,7 @@ export type PollingResource<T> = {
 	connected: boolean;
 };
 
-// Generic loader-poller. The loader is captured in a ref so that callers
-// don't have to memoize it — only `intervalMs` resets the schedule. A failed
-// fetch flips `connected` to false but leaves the last good `data` intact, so
-// the dashboard keeps showing the previous snapshot through transient blips.
+// loaderRef spares callers from memoizing loader; only intervalMs restarts polling.
 export function usePollingResource<T>(
 	loader: () => Promise<T>,
 	initial: T,

@@ -13,8 +13,6 @@ export const URGENCY_LABEL: Record<IncidentUrgency, string> = {
 	3: "P3 · Non-urgent",
 };
 
-// Resolved hex for non-Tailwind consumers (Leaflet DivIcon). Mirrors the
-// danger/warning/muted-foreground tokens used by `URGENCY_TONE`.
 export const URGENCY_HEX: Record<IncidentUrgency, string> = {
 	1: "#ef4444",
 	2: "#f59e0b",

@@ -145,7 +145,7 @@ Create `/home/thomas/iot-bridge/.env.local` on the Pi:
 ```bash
 ssh thomas@roam-1.local 'cat > /home/thomas/iot-bridge/.env.local' <<EOF
 MQTT_URL=mqtt://<your-broker-host>:1883
-VEHICLE_ID=hd4-002
+VEHICLE_CALLSIGN=MEDIC-1
 LOCATION_SOURCE=gps
 SERIAL_PORT=/dev/ttyAMA0
 BAUD_RATE=115200
@@ -165,7 +165,7 @@ Pick `LOCATION_SOURCE` based on environment:
 | `wifi`     | Indoors with mapped WiFi APs nearby         | `GOOGLE_GEOLOCATION_API_KEY` (Google Cloud → enable Geolocation API → create key) |
 | `simulate` | Demo/dev with no real hardware              | nothing extra — generates Miami random walk |
 
-Set `VEHICLE_ID` to something unique per Pi.
+Set `VEHICLE_CALLSIGN` to the callsign of the vehicle the Pi rides in; it is the `{vehicleId}` segment of the MQTT telemetry topic.
 
 ## 8. Start it
 

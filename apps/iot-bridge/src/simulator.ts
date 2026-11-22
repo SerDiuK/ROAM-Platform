@@ -22,7 +22,6 @@ function toDeg(rad: number): number {
 	return (rad * 180) / Math.PI;
 }
 
-/** Haversine distance in metres between two coordinates. */
 function haversineDistance(
 	lat1: number,
 	lon1: number,
@@ -37,7 +36,6 @@ function haversineDistance(
 	return EARTH_RADIUS_M * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-/** Initial bearing in degrees (0-360) from point 1 to point 2. */
 function bearing(
 	lat1: number,
 	lon1: number,
@@ -71,7 +69,7 @@ function startRouteMode(
 	let lastLat = waypoints[0].lat;
 	let lastLon = waypoints[0].lon;
 
-	// Target traversal speed ~30 km/h = 8.33 m/s
+	// Metres per second (~30 km/h), not milliseconds.
 	const TARGET_SPEED_MS = 8.33;
 	const TICK_MS = 1000;
 
@@ -104,7 +102,6 @@ function startRouteMode(
 		progress += progressStep;
 
 		if (progress >= 1) {
-			// Arrived at next waypoint
 			lastLat = to.lat;
 			lastLon = to.lon;
 			dwellRemaining = to.holdMs;
@@ -129,7 +126,6 @@ function startRouteMode(
 			return;
 		}
 
-		// Interpolate position
 		const lat = from.lat + progress * (to.lat - from.lat);
 		const lon = from.lon + progress * (to.lon - from.lon);
 
@@ -152,7 +148,6 @@ function startRouteMode(
 		logFix(callsign, fix);
 	}, TICK_MS);
 
-	// Allow clean shutdown
 	process.on("SIGINT", () => clearInterval(interval));
 	process.on("SIGTERM", () => clearInterval(interval));
 }

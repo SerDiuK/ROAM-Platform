@@ -20,10 +20,6 @@ import type { ExpoPushClient } from "../../push/expo.js";
 import type { AuthedUser, RpcContext } from "../context.js";
 import { dispatchRouter } from "./dispatch.js";
 
-// Mock the chain helpers so prepareResponseTx tests don't need a live RPC.
-// The real `recordIncidentEventOnChain` is left untouched — backend-only event
-// writes still pass through it (and the async fire-and-forget swallows
-// failures), so dispatch.confirm + dispatch.clear specs don't need to mock it.
 vi.mock("@roam/solana-client", async () => {
 	const actual = await vi.importActual<typeof import("@roam/solana-client")>(
 		"@roam/solana-client",
@@ -35,8 +31,6 @@ vi.mock("@roam/solana-client", async () => {
 	};
 });
 
-// Mock the x402 client so clear-flow tests can verify the settlement was
-// triggered without dialing the real /api/dispatch/complete endpoint.
 vi.mock("../../x402/client.js", () => ({
 	triggerX402Payment: vi.fn(async () => "fake-x402-sig"),
 	SETTLEMENT_SOL: 0.001,
@@ -120,10 +114,14 @@ async function seedBriefing(
 	const incidentId = randomUUID();
 	const briefingId = randomUUID();
 	const summary = overrides.summary ?? "two-car crash, injuries reported";
-	const recommendedVehicleIds =
-		overrides.recommendedVehicleIds ?? ["vehicle-1", "vehicle-2"];
-	const recommendedResponderIds =
-		overrides.recommendedResponderIds ?? ["responder-1", "responder-2"];
+	const recommendedVehicleIds = overrides.recommendedVehicleIds ?? [
+		"vehicle-1",
+		"vehicle-2",
+	];
+	const recommendedResponderIds = overrides.recommendedResponderIds ?? [
+		"responder-1",
+		"responder-2",
+	];
 	const totalUsdc = overrides.totalUsdc ?? 25;
 	const payout = {
 		baseUsdc: 10,
@@ -185,9 +183,7 @@ async function seedPendingDispatch(args: {
 }): Promise<Dispatch> {
 	const dispatchId = randomUUID();
 	const now = new Date();
-	const expiresAt = new Date(
-		now.getTime() + (args.expiresInSecs ?? 60) * 1000,
-	);
+	const expiresAt = new Date(now.getTime() + (args.expiresInSecs ?? 60) * 1000);
 	await DispatchModel.create({
 		_id: dispatchId,
 		incidentId: args.incidentId,
@@ -207,9 +203,6 @@ async function seedPendingDispatch(args: {
 	) as Dispatch;
 }
 
-// Seeds a SIWS-bound responder + returns a context.user fixed to its _id, so
-// `authed` procedures resolve `ctx.user.id`. The walletAddress is a real
-// Keypair pubkey (44 base58 chars) so PublicKey() validation succeeds.
 async function seedSiwsResponder(idOverride?: string): Promise<{
 	id: string;
 	pubkey: string;
@@ -227,9 +220,6 @@ async function seedSiwsResponder(idOverride?: string): Promise<{
 	};
 }
 
-// Calls the real bound versions of the legacy `respond` race semantics now
-// living in `commitSignedResponse`. Used to seed responses in the
-// list/get/clear specs without re-binding fake Solana state every test.
 async function commitFor(args: {
 	user: AuthedUser;
 	dispatchId: string;
@@ -253,7 +243,6 @@ beforeEach(() => {
 	buildRecordEventTxMock.mockReset();
 	partialSignAsFeePayerMock.mockReset();
 	triggerX402PaymentMock.mockReset();
-	// Default: a tx with a recent blockhash that the procedure will serialize.
 	buildRecordEventTxMock.mockImplementation(async (args) => {
 		const tx = new Transaction({
 			feePayer: args.feePayerPubkey,
@@ -265,8 +254,6 @@ beforeEach(() => {
 	triggerX402PaymentMock.mockResolvedValue("fake-x402-sig");
 });
 
-// commitSignedClear/clear fire x402 settlement non-blocking via void Promise.
-// Tests need to flush the microtask queue so the mock-call assertion sees it.
 async function flushMicrotasks(): Promise<void> {
 	await new Promise((resolve) => setImmediate(resolve));
 }
@@ -1131,8 +1118,6 @@ describe("dispatch.commitSignedClear", () => {
 		).rejects.toMatchObject({ code: "CONFLICT" });
 		await flushMicrotasks();
 
-		// Still only the one call from the first clear — the second was rejected
-		// before settleDispatchPayment could fire.
 		expect(triggerX402PaymentMock).toHaveBeenCalledTimes(1);
 	});
 
@@ -1215,7 +1200,6 @@ describe("dispatch lifecycle smoke", () => {
 		expect(accepted.dispatch.claimedByResponderIds).toEqual([seekerA.id]);
 
 		expect(ctx.pushClient.sendPushToResponders).toHaveBeenCalledTimes(1);
-		// Two broadcasts: dispatch.created + dispatch.responded.signed.
 		expect(ctx.dispatchBroadcaster.broadcast).toHaveBeenCalledTimes(2);
 	});
 });

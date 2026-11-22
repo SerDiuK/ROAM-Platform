@@ -8,9 +8,6 @@ import type { AgentToolContext } from "./types.js";
 
 const ctx = { log: {} as AgentToolContext["log"] } satisfies AgentToolContext;
 
-// ORIGIN is roughly downtown Miami; the seeded vehicles fan out NW/N.
-// Spacing is wide enough that no two come within 100 m of each other so
-// distance ordering is unambiguous regardless of the geodesic precision.
 const ORIGIN = { lat: 25.7617, lon: -80.1918 };
 
 interface SeedSpec {
@@ -80,7 +77,6 @@ describe("findNearestVehiclesTool", () => {
 		expect(result).toHaveLength(3);
 		expect(result.map((r) => r.id)).toEqual([nearId, midId, farId]);
 		expect(result[0].callsign).toBe("V-NEAR");
-		// strictly increasing
 		for (let i = 1; i < result.length; i++) {
 			expect(result[i].distanceMeters).toBeGreaterThan(
 				result[i - 1].distanceMeters,
@@ -155,7 +151,7 @@ describe("findNearestVehiclesTool", () => {
 	it("returns an empty array when the radius excludes every vehicle", async () => {
 		await seedVehicleWithResponder({
 			callsign: "V-FAR",
-			lat: 26.5, // ~80km north
+			lat: 26.5,
 			lon: -80.0,
 			capabilities: ["medic"],
 		});

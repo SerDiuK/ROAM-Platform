@@ -21,7 +21,10 @@ const KIND_LABEL: Record<IncidentEventKind, string> = {
 	cleared: "Cleared",
 };
 
-export function MyEventsSheet({ open, onOpenChange }: Props): React.JSX.Element {
+export function MyEventsSheet({
+	open,
+	onOpenChange,
+}: Props): React.JSX.Element {
 	return (
 		<Sheet open={open} onOpenChange={onOpenChange}>
 			{open ? <Body /> : null}
@@ -139,7 +142,6 @@ function groupByIncident(
 	}
 	return [...map.entries()].map(([incidentId, items]) => ({
 		incidentId,
-		// Oldest first within an incident so the timeline reads top-down.
 		items: items.sort(
 			(a, b) =>
 				new Date(a.occurredAt).getTime() - new Date(b.occurredAt).getTime(),

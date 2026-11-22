@@ -1,9 +1,5 @@
 import type { IncidentClassification } from "@roam/shared";
 
-// System prompt for the dispatch agent. The terminology mirrors the post-
-// 2026-05-04 rename: dispatcher (not commander), responder (not operator),
-// emergency dispatch (not tactical mission). Tool names match the AD-5
-// registry exactly so the model can call them without guessing.
 export function buildSystemPrompt(): string {
 	return [
 		"You draft emergency dispatch briefings for a dispatcher to review. You only recommend; the dispatcher confirms.",
@@ -22,9 +18,7 @@ export function buildSystemPrompt(): string {
 	].join("\n");
 }
 
-// Wraps the transcript in a delimited block so the model treats it as data
-// rather than instructions, and (when present) injects a pre-computed
-// classification so the agent can skip the classify_incident round-trip.
+// The <transcript> tags make the model treat the caller's words as data, not instructions.
 export function buildIncidentBriefingPrompt(args: {
 	transcript: string;
 	classification?: IncidentClassification;

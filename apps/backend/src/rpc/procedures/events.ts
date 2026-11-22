@@ -14,14 +14,17 @@ function stripNulls<T extends object>(obj: T): T {
 	return out as T;
 }
 
-function toWire(doc: Record<string, unknown> & { _id: unknown }): IncidentEvent {
+function toWire(
+	doc: Record<string, unknown> & { _id: unknown },
+): IncidentEvent {
 	const id =
-		doc._id instanceof Types.ObjectId
-			? doc._id.toHexString()
-			: String(doc._id);
-	const payload = doc.payload && typeof doc.payload === "object"
-		? (stripNulls(doc.payload as Record<string, unknown>) as IncidentEvent["payload"])
-		: undefined;
+		doc._id instanceof Types.ObjectId ? doc._id.toHexString() : String(doc._id);
+	const payload =
+		doc.payload && typeof doc.payload === "object"
+			? (stripNulls(
+					doc.payload as Record<string, unknown>,
+				) as IncidentEvent["payload"])
+			: undefined;
 	return {
 		_id: id,
 		incidentId: doc.incidentId as string,
@@ -35,8 +38,6 @@ function toWire(doc: Record<string, unknown> & { _id: unknown }): IncidentEvent 
 }
 
 export const eventsRouter = {
-	// Dispatcher view — full timeline for one incident, oldest first so the UI
-	// can render top-to-bottom chronologically without re-sorting.
 	listByIncident: os.events.listByIncident.handler(async ({ input }) => {
 		const docs = await IncidentEventModel.find({ incidentId: input.incidentId })
 			.sort({ occurredAt: 1 })
@@ -44,10 +45,6 @@ export const eventsRouter = {
 		return docs.map(toWire);
 	}),
 
-	// Mobile responder view — events tied to the signed-in responder, plus the
-	// incident-scoped events (received / cleared) for incidents this responder
-	// has any other event on. Two-step query: pick the responder's events,
-	// derive the incident set, fetch incident-scoped events for that set.
 	listForResponder: authed.events.listForResponder.handler(
 		async ({ context }) => {
 			if (!context.user) {

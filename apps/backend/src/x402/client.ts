@@ -1,20 +1,19 @@
+import { getCluster } from "@roam/solana-client";
 import {
 	Connection,
+	clusterApiUrl,
 	Keypair,
 	PublicKey,
 	SystemProgram,
 	Transaction,
-	clusterApiUrl,
 } from "@solana/web3.js";
 import bs58 from "bs58";
 import type { FastifyBaseLogger } from "fastify";
-import { getCluster } from "@roam/solana-client";
 import type { Config } from "../config.js";
 
 const LAMPORTS_PER_SOL = 1_000_000_000n;
 const X402_VERSION = 1;
 
-// SOL amount per dispatch settlement. 0.001 SOL — visible on-chain, negligible cost.
 export const SETTLEMENT_SOL = 0.001;
 
 interface PaymentRequirements {
@@ -42,7 +41,6 @@ function buildConnection(config: Config): Connection {
 	return new Connection(url, "confirmed");
 }
 
-// Constructs, signs, and base64-encodes a native SOL transfer transaction.
 async function buildSignedSolTransferTx(
 	connection: Connection,
 	operatorKeypair: Keypair,
@@ -82,7 +80,8 @@ function selectSvmRequirement(
 ): PaymentRequirements {
 	const match =
 		accepts.find((r) => r.network === preferredNetwork) ?? accepts[0];
-	if (!match) throw new Error("x402: no acceptable payment requirement in 402 body");
+	if (!match)
+		throw new Error("x402: no acceptable payment requirement in 402 body");
 	return match;
 }
 
@@ -104,7 +103,6 @@ export async function triggerX402Payment(
 	const body = JSON.stringify({ dispatchId });
 	const headers = { "content-type": "application/json" };
 
-	// Step 1: probe — expect 402
 	const probe = await fetch(endpoint, { method: "POST", headers, body });
 
 	if (probe.status !== 402) {
@@ -115,7 +113,10 @@ export async function triggerX402Payment(
 	}
 
 	const challenge = (await probe.json()) as X402ChallengeBody;
-	const requirement = selectSvmRequirement(challenge.accepts, config.X402_NETWORK);
+	const requirement = selectSvmRequirement(
+		challenge.accepts,
+		config.X402_NETWORK,
+	);
 
 	log.info(
 		{
@@ -126,7 +127,6 @@ export async function triggerX402Payment(
 		"x402: 402 received — building SOL payment",
 	);
 
-	// Step 2: build signed SOL transfer
 	const lamports = BigInt(requirement.maxAmountRequired);
 	const signedTx = await buildSignedSolTransferTx(
 		connection,
@@ -142,7 +142,6 @@ export async function triggerX402Payment(
 		payload: { transaction: signedTx },
 	});
 
-	// Step 3: retry with payment
 	const settled = await fetch(endpoint, {
 		method: "POST",
 		headers: { ...headers, "x-payment": paymentHeader },
@@ -170,7 +169,7 @@ export async function triggerX402Payment(
 				return decoded.txSignature;
 			}
 		} catch {
-			// non-fatal
+			// Unparseable header: fall back to the response body below.
 		}
 	}
 

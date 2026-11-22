@@ -7,18 +7,13 @@ import { Image, View } from "react-native";
 import { Button } from "@/components/ui/button";
 import { SheetTitle } from "@/components/ui/sheet";
 import { Text } from "@/components/ui/text";
-import type { DispatchInboxData } from "../use-dispatch-inbox";
 import { telemetryAtom, vehiclesAtom } from "@/state/vehicles";
+import type { DispatchInboxData } from "../use-dispatch-inbox";
 import { DispatchSheetLayout } from "./dispatch-sheet";
 import { InfoRow } from "./info-row";
 import { PriorityBadge } from "./priority-badge";
 import { ResponseTimer } from "./response-timer";
 
-// First view a responder sees when a dispatch lands: incident header (priority
-// + type + summary), unit/location/distance/crew strip, countdown, and the
-// accept/decline pair. Distance is best-effort — recomputed from the live
-// telemetry atom and falls back to the vehicle's last-known position when the
-// stream hasn't ticked yet.
 export function IncomingBody({
 	data,
 	submittingDecision,

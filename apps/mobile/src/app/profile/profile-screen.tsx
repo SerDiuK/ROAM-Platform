@@ -28,9 +28,6 @@ export function ProfileScreen({ onClose }: Props): React.JSX.Element {
 
 	const handleSignOut = async (): Promise<void> => {
 		await signOut();
-		// AuthGate re-renders into Login on its own once authState flips. The
-		// Profile modal sits inside the signed-in branch, so it'll unmount as
-		// the branch tears down — no need to call onClose explicitly.
 	};
 
 	return (

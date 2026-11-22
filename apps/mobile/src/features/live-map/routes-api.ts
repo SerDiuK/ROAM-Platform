@@ -92,7 +92,6 @@ function parseFirstRoute(json: unknown): RouteResult | null {
 	return { encodedPolyline, distanceMeters, durationSeconds };
 }
 
-// Routes API serializes durations as protobuf-style "165s" strings.
 function parseDurationSeconds(value: unknown): number {
 	if (typeof value !== "string") return 0;
 	const match = value.match(/^(\d+)s$/);

@@ -56,11 +56,6 @@ export function createTranscriber(config: TranscriberConfig): Transcriber {
 					model: STT_MODEL,
 					smart_format: true,
 					punctuate: true,
-					// multichannel transcribes each audio channel independently — the
-					// production path for CAD systems where dispatcher mic and caller
-					// line land on separate channels. utterances groups consecutive
-					// words into segments. diarize stays on as a fallback for mono
-					// sources where channel == 0 for everything.
 					multichannel: true,
 					diarize: true,
 					utterances: true,
@@ -70,9 +65,6 @@ export function createTranscriber(config: TranscriberConfig): Transcriber {
 			throw toTranscribeError(err, "transcribeAudioFile");
 		}
 
-		// MediaTranscribeResponse = ListenV1Response | ListenV1AcceptedResponse.
-		// We never set a callback URL, so an accepted-only (async) response means
-		// something upstream changed — fail loudly rather than return empty.
 		if (!("results" in response)) {
 			throw new TranscribeError(
 				`transcribeAudioFile got an async response (request_id=${response.request_id}); expected inline results`,
@@ -91,9 +83,6 @@ export function createTranscriber(config: TranscriberConfig): Transcriber {
 				? confidences.reduce((sum, c) => sum + c, 0) / confidences.length
 				: 0;
 
-		// Speaker derivation: when multichannel, one channel == one speaker (the
-		// CAD-system convention), so speaker = channel index. When mono, fall
-		// back to the diarizer's speaker label.
 		const utterances: TranscribeUtterance[] = (
 			response.results.utterances ?? []
 		)
@@ -109,11 +98,6 @@ export function createTranscriber(config: TranscriberConfig): Transcriber {
 			}))
 			.sort((a, b) => a.start - b.start);
 
-		// Build the transcript from the speaker-tagged utterances when we have
-		// more than one speaker — the dashboard's transcript-card splits on
-		// em-dash to render dispatcher / caller turns. Falling back to a flat
-		// space-join would drop all turn structure and the UI shows it as one
-		// caller-only paragraph.
 		const transcript = buildConversationalTranscript(
 			utterances,
 			channelAlts
@@ -133,8 +117,6 @@ export function createTranscriber(config: TranscriberConfig): Transcriber {
 		const socket = await client.listen.v1.connect({
 			Authorization: `Token ${config.apiKey}`,
 			model: STT_MODEL,
-			// Streaming options are query-string flags, so the SDK types them as
-			// "true" / "false" strings rather than booleans.
 			smart_format: "true",
 			punctuate: "true",
 			interim_results: "true",
@@ -190,10 +172,7 @@ export function createTranscriber(config: TranscriberConfig): Transcriber {
 	return { transcribeAudioFile, transcribeAudioStream };
 }
 
-// Group consecutive same-speaker utterances and join groups with em-dash.
-// Mirrors the seed-transcript convention the dashboard's parseTurns expects
-// (alternates dispatcher/caller starting with dispatcher). For mono / single-
-// speaker output, returns the supplied fallback unchanged.
+// The dashboard's parseTurns splits on " — " and alternates dispatcher/caller, starting with dispatcher.
 function buildConversationalTranscript(
 	utterances: TranscribeUtterance[],
 	fallback: string,

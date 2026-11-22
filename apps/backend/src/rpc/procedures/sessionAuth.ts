@@ -2,25 +2,16 @@ import { ORPCError } from "@orpc/server";
 import { PublicKey } from "@solana/web3.js";
 import { signSessionToken } from "../../auth/jwt.js";
 import {
-	SIWS_DOMAIN,
-	SIWS_STATEMENT,
 	consumeNonce,
 	issueNonce,
 	parseSiwsNonce,
+	SIWS_DOMAIN,
+	SIWS_STATEMENT,
 	verifySiwsSignature,
 } from "../../auth/siws.js";
 import { ResponderModel } from "../../db/models/responder.js";
 import { serializeResponder } from "../../db/serializers/responder.js";
 import { authed, os } from "../builder.js";
-
-// Seeker-only auth (SIWS via Mobile Wallet Adapter `sign_in_payload`). The
-// vehicle-pairing `authRouter` (checkin/checkout) lives in the sibling
-// auth.ts; both routers merge under the `auth` namespace in router.ts.
-//
-// Wallet-binding model: a responder's walletAddress is bound on first SIWS
-// sign-in. After that, siwsVerify resolves the responder by walletAddress
-// alone — `name` in the request is ignored on subsequent sign-ins. This lets
-// a re-imaged Seeker re-bind by sending name on its first call.
 
 export const sessionAuthRouter = {
 	siwsChallenge: os.auth.siwsChallenge.handler(async () => {
@@ -57,10 +48,7 @@ export const sessionAuthRouter = {
 			throw new ORPCError("UNAUTHORIZED", { message: "Missing nonce" });
 		}
 
-		// Consume *after* signature check passes — a nonce should not be burned by
-		// a forged-signature probe. (A malicious caller could still burn a nonce by
-		// replaying a genuine message+sig to us first; that's fine, the genuine
-		// holder just re-challenges.)
+		// Consume only after the signature check so forged probes can't burn nonces.
 		if (!consumeNonce(nonce)) {
 			log.info({ address }, "auth.siwsVerify: bad nonce");
 			throw new ORPCError("UNAUTHORIZED", {
@@ -72,9 +60,7 @@ export const sessionAuthRouter = {
 
 		if (!responder) {
 			if (!input.name) {
-				// First-time sign-in for this pubkey; mobile must re-call with the
-				// picked responder name. Surfaced as a typed error so the client can
-				// branch into its picker UI without parsing the message string.
+				// Mobile matches this exact message to show its name picker.
 				throw new ORPCError("UNAUTHORIZED", {
 					message: "WALLET_UNBOUND",
 					data: { error: "wallet_unbound" as const },
@@ -117,11 +103,6 @@ export const sessionAuthRouter = {
 		return { responder: serializeResponder(responder) };
 	}),
 
-	// Issues a fresh JWT against the still-valid current one. Mobile pings this
-	// every ~half-TTL while the app is in the foreground; once the device
-	// backgrounds or locks the renewal stops, and the next cold boot fails
-	// `auth.me()` and falls back to login. Same shape as `siwsVerify` so the
-	// caller can rebind setApiToken without branching on the response type.
 	refresh: authed.auth.refresh.handler(async ({ context }) => {
 		const { config } = context;
 		const responder = await ResponderModel.findById(context.user.id).lean();

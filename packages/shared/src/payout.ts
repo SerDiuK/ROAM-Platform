@@ -1,9 +1,5 @@
 import { z } from "zod";
 
-// --- Payout ---
-// Recorded once the USDC SPL transfer is initiated via the wallet provider.
-// `solanaTxSignature` is the transfer tx; the tx itself is the on-chain proof,
-// no separate program log needed.
 export const PAYOUT_STATUSES = ["pending", "settled", "failed"] as const;
 export const PayoutStatusSchema = z.enum(PAYOUT_STATUSES);
 export type PayoutStatus = z.infer<typeof PayoutStatusSchema>;

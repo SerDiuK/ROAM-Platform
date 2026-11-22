@@ -1,6 +1,11 @@
 "use client";
 
-import type { Responder, Telemetry, Vehicle, VehicleStatus } from "@roam/shared";
+import type {
+	Responder,
+	Telemetry,
+	Vehicle,
+	VehicleStatus,
+} from "@roam/shared";
 import { STATUS_LABEL, STATUS_TONE } from "@roam/ui";
 import { useMemo } from "react";
 import { DataCell } from "../../ui/data-cell";

@@ -1,8 +1,5 @@
 import type { MapStyleElement } from "react-native-maps";
 
-// Dark dispatch map style — desaturated landscape, dimmed roads,
-// high-contrast text. Applied via MapView's `customMapStyle` on Android only;
-// Apple Maps on iOS does not support custom JSON styles.
 export const DISPATCH_MAP_STYLE: MapStyleElement[] = [
 	{ elementType: "geometry", stylers: [{ color: "#11161a" }] },
 	{ elementType: "labels.text.fill", stylers: [{ color: "#8a8a8a" }] },

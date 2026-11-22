@@ -15,9 +15,6 @@ export async function registerMqttHandlers(
 	broadcaster: TelemetryBroadcaster,
 	logger: FastifyBaseLogger,
 ): Promise<void> {
-	// Resolve the default VehicleSpec once at startup so the upsert path below can
-	// store a real ObjectId for `model` (the schema requires it; the seed of
-	// VehicleSpec is run earlier in main()).
 	const defaultSpec = await VehicleSpecModel.findOne({
 		slug: DEFAULT_MODEL_SLUG,
 	}).lean();
@@ -26,9 +23,7 @@ export async function registerMqttHandlers(
 			`Default VehicleSpec '${DEFAULT_MODEL_SLUG}' not found — seed step did not run`,
 		);
 	}
-	// defaultSpec._id is typed string per the shared VehicleSpec schema, but at
-	// runtime mongoose assigns it as an ObjectId. The cast through unknown keeps
-	// TS happy while preserving runtime behaviour.
+	// Typed as string by the shared VehicleSpec schema, but Mongoose stores an ObjectId.
 	const defaultModelId = defaultSpec._id as unknown as Types.ObjectId;
 
 	aedes.on("publish", (packet, client) => {
@@ -77,8 +72,6 @@ export async function handleTelemetry(
 
 	const ingest = result.data;
 
-	// Resolve callsign → vehicle ObjectId. Auto-creates the vehicle on first
-	// telemetry from a new bridge so devs don't have to pre-seed.
 	const snapshot = {
 		lat: ingest.lat,
 		lon: ingest.lon,

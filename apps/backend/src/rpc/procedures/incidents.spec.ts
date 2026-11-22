@@ -14,17 +14,10 @@ import { IncidentModel } from "../../db/models/incident.js";
 import type { RpcContext } from "../context.js";
 import { incidentsRouter } from "./incidents.js";
 
-// `brief` is the agent's tool-use loop and lives behind a real Anthropic
-// client. Mocking the whole module keeps these tests deterministic and lets us
-// assert that ingest fires brief() and broadcasts on resolve/reject without
-// needing a fake LLM transcript.
 vi.mock("../../agent/runner.js", () => ({
 	brief: vi.fn(),
 }));
 
-// Vitest doesn't clear mock call history between tests by default, so the
-// `brief` spy accumulates calls across the file. Reset before every test so
-// `toHaveBeenCalledTimes(N)` and `not.toHaveBeenCalled()` mean what they say.
 beforeEach(() => {
 	vi.mocked(brief).mockReset();
 });
@@ -39,9 +32,7 @@ interface ContextOverrides {
 	incidentBroadcaster?: ReturnType<typeof makeFakeBroadcaster>;
 }
 
-function buildContext(
-	overrides: ContextOverrides = {},
-): RpcContext & {
+function buildContext(overrides: ContextOverrides = {}): RpcContext & {
 	incidentBroadcaster: ReturnType<typeof makeFakeBroadcaster>;
 	transcriber: ReturnType<typeof makeFakeTranscriber>;
 } {
@@ -85,13 +76,11 @@ function makeFakeBriefing(incidentId: string): Briefing {
 
 describe("incidents.ingest — transcript path", () => {
 	it("creates an Incident with status='live' and the correct sha256 transcriptHash", async () => {
-		// brief() must not be allowed to run synchronously to completion in this
-		// test — we want to verify the *response* without waiting for the agent.
-		// A pending promise keeps the .then() from firing before our assertions.
 		vi.mocked(brief).mockReturnValue(new Promise(() => {}));
 
 		const ctx = buildContext();
-		const transcript = "Crash at Biscayne and 36th, two cars, injuries reported.";
+		const transcript =
+			"Crash at Biscayne and 36th, two cars, injuries reported.";
 
 		const incident = await call(
 			incidentsRouter.ingest,
@@ -113,10 +102,6 @@ describe("incidents.ingest — transcript path", () => {
 	});
 
 	it("broadcasts incident.created and kicks off brief() without awaiting it", async () => {
-		// Pending promise: brief() never resolves during this test, so any
-		// briefing.ready broadcast that fires must come from a bug. Asserting
-		// that .broadcast was called exactly once (with incident.created)
-		// proves the response path doesn't await brief().
 		vi.mocked(brief).mockReturnValue(new Promise(() => {}));
 
 		const ctx = buildContext();
@@ -135,8 +120,6 @@ describe("incidents.ingest — transcript path", () => {
 				maxTurns: 8,
 			}),
 		);
-		// Two synchronous broadcasts: `incident.created` and the `received`
-		// event from the on-chain event log helper.
 		expect(ctx.incidentBroadcaster.broadcast).toHaveBeenCalledWith(
 			expect.objectContaining({
 				type: "incident.created",
@@ -171,8 +154,6 @@ describe("incidents.ingest — audio path", () => {
 
 		expect(transcriber.transcribeAudioFile).toHaveBeenCalledTimes(1);
 		const [bufferArg, mimeArg] = transcriber.transcribeAudioFile.mock.calls[0];
-		// The decoded buffer must match the original bytes exactly — base64
-		// round-trip is the only thing the handler does to the audio payload.
 		expect(Buffer.isBuffer(bufferArg)).toBe(true);
 		expect((bufferArg as Buffer).equals(audioBytes)).toBe(true);
 		expect(mimeArg).toBe("audio/wav");
@@ -227,10 +208,6 @@ describe("incidents.ingest — async briefing broadcast", () => {
 	it("broadcasts briefing.ready after brief() resolves, with the briefing payload", async () => {
 		const ctx = buildContext();
 
-		// Resolve brief() with a fake briefing whose incidentId is set after the
-		// handler creates the Incident — we capture the id from the resolved
-		// response and craft the briefing on demand. Mocking with a thunk lets
-		// us read `incidentId` from the call args at resolve time.
 		vi.mocked(brief).mockImplementation(async (incidentId) =>
 			makeFakeBriefing(incidentId),
 		);
@@ -241,8 +218,6 @@ describe("incidents.ingest — async briefing broadcast", () => {
 			{ context: ctx },
 		);
 
-		// vi.waitFor flushes microtasks until the assertion passes — covers the
-		// .then() handler that fires *after* the procedure returns.
 		await vi.waitFor(() => {
 			expect(ctx.incidentBroadcaster.broadcast).toHaveBeenCalledWith(
 				expect.objectContaining({
@@ -255,8 +230,6 @@ describe("incidents.ingest — async briefing broadcast", () => {
 				}),
 			);
 		});
-		// Three synchronous broadcasts: incident.created + the `received`
-		// event row + briefing.ready (after the async brief resolves).
 		expect(ctx.incidentBroadcaster.broadcast).toHaveBeenCalledTimes(3);
 	});
 
@@ -283,7 +256,9 @@ describe("incidents.ingest — async briefing broadcast", () => {
 });
 
 describe("incidents.list / incidents.get round-trip", () => {
-	async function seedIncident(transcript = "seed transcript"): Promise<Incident> {
+	async function seedIncident(
+		transcript = "seed transcript",
+	): Promise<Incident> {
 		const id = randomUUID();
 		const transcriptHash = createHash("sha256")
 			.update(transcript)
@@ -302,17 +277,14 @@ describe("incidents.list / incidents.get round-trip", () => {
 
 	it("list returns the most recent incidents (newest first)", async () => {
 		const older = await seedIncident("older");
-		// Force a clear ordering — the list query sorts by callStartedAt desc.
 		await IncidentModel.findByIdAndUpdate(older._id, {
 			callStartedAt: new Date(Date.now() - 60_000),
 		});
 		const newer = await seedIncident("newer");
 
-		const list = await call(
-			incidentsRouter.list,
-			undefined as never,
-			{ context: buildContext() },
-		);
+		const list = await call(incidentsRouter.list, undefined as never, {
+			context: buildContext(),
+		});
 
 		expect(list.length).toBe(2);
 		expect(list[0]._id).toBe(newer._id);

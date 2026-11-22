@@ -1,19 +1,9 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { vi } from "vitest";
 
-// Tiny helper that lets specs build a mock Anthropic client by handing it a
-// fixed sequence of Message responses. Each call to `messages.create()`
-// returns the next one in order; running off the end is a test bug, so we
-// surface it loudly.
-
 export interface MockAnthropicClient {
 	client: Anthropic;
 	create: ReturnType<typeof vi.fn>;
-	// Per-call snapshot of `messages.create()` args. Use this instead of
-	// `create.mock.calls` for assertions — runAgent intentionally reuses one
-	// `messages` array and mutates it between turns, so the SDK call args
-	// captured by vi.fn are live references that look "wrong" by the time the
-	// test asserts.
 	calls: { args: unknown }[];
 }
 

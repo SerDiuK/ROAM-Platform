@@ -9,10 +9,6 @@ type ExplorerLinkProps = {
 	label?: string;
 };
 
-// Renders a Solana tx signature as a small "open in explorer" pill. When
-// `signature` is null/undefined (e.g., the chain write hasn't returned yet)
-// the pill renders disabled — the off-chain row is canonical, so we don't
-// hide it; we just signal the audit trail isn't anchored yet.
 export function ExplorerLink({ signature, label = "TX" }: ExplorerLinkProps) {
 	if (!signature) {
 		return (

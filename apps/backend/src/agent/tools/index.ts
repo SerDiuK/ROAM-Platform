@@ -5,14 +5,6 @@ import { getActiveIncidentsTool } from "./getActiveIncidents.js";
 import { getResponderStatusTool } from "./getResponderStatus.js";
 import type { AgentTool, AgentToolContext } from "./types.js";
 
-// Single source of truth for the agent's read-only tool surface. Each entry
-// owns its Zod input schema; the JSON Schema shipped to Anthropic is derived
-// from it at module load. The dispatcher validates the LLM's tool input
-// through the same Zod schema before invoking the handler — bad input from
-// the model surfaces as a typed error, not a runtime crash inside the tool.
-
-// Use a wider tuple type so the array can hold tools with different input /
-// output generics without collapsing to `unknown`.
 // biome-ignore lint/suspicious/noExplicitAny: registry needs to hold heterogeneous tools
 type AnyAgentTool = AgentTool<any, unknown>;
 
@@ -27,8 +19,6 @@ const TOOLS_BY_NAME = new Map<string, AnyAgentTool>(
 	TOOLS.map((t) => [t.name, t]),
 );
 
-// Anthropic tool-use envelope. We pass `agentTools` straight into the
-// Messages API as the `tools` parameter in AD-6.
 export interface AgentToolDefinition {
 	name: string;
 	description: string;

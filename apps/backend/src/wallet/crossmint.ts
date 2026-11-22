@@ -1,16 +1,6 @@
 import type { WalletProvider } from "./provider.js";
 import { WalletError } from "./provider.js";
 
-// Crossmint server-side Wallets API. Defaults to the 2022-06-09 stable API
-// version. See https://docs.crossmint.com/api-reference for the full surface.
-//
-// Wallet locators accepted by Crossmint (anywhere {locator} appears below):
-//   - wallet id (uuid)
-//   - on-chain address
-//   - shorthand `userId:<linkedUser>:solana-smart-wallet`
-// We use the userId shorthand so a responder's wallet is deterministic from
-// their backend ID without us having to track Crossmint's wallet IDs.
-
 const DEFAULT_BASE_URL = "https://www.crossmint.com/api/2022-06-09";
 const SOLANA_WALLET_TYPE = "solana-smart-wallet";
 
@@ -65,13 +55,8 @@ export class CrossmintProvider implements WalletProvider {
 		const locator = encodeURIComponent(address);
 		const body = await this.request<{
 			balances?: Array<{ token?: string; amount?: string; decimals?: number }>;
-		}>(
-			"GET",
-			`/wallets/${locator}/balances?currencies=usdc&chains=solana`,
-		);
-		const usdc = body.balances?.find(
-			(b) => b.token?.toLowerCase() === "usdc",
-		);
+		}>("GET", `/wallets/${locator}/balances?currencies=usdc&chains=solana`);
+		const usdc = body.balances?.find((b) => b.token?.toLowerCase() === "usdc");
 		if (!usdc?.amount) return 0;
 		const parsed = Number.parseFloat(usdc.amount);
 		return Number.isFinite(parsed) ? parsed : 0;

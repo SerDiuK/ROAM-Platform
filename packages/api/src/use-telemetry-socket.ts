@@ -21,9 +21,7 @@ export function useTelemetrySocket(
 		});
 	}, []);
 
-	// Browsers can't set Authorization on WS upgrade; the backend reads the
-	// token from `?token=...`. Treating an empty string as "no token" matches
-	// what the backend does (it won't open the socket).
+	// Browsers can't set headers on a WS upgrade, so the token goes in the query string.
 	const url = token
 		? `${baseWsUrl}/ws/telemetry?token=${encodeURIComponent(token)}`
 		: `${baseWsUrl}/ws/telemetry`;

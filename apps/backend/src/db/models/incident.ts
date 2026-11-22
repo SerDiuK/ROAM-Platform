@@ -36,9 +36,6 @@ const assignedSchema = new mongoose.Schema(
 	{ _id: false },
 );
 
-// `_id` is a string set explicitly at create time (matches IncidentSchema._id).
-// `createdAt` / `updatedAt` are managed by Mongoose timestamps so the round-trip
-// through Zod (which requires both as dates) succeeds without manual setup.
 const incidentSchema = new mongoose.Schema(
 	{
 		_id: { type: String, required: true },
@@ -55,6 +52,7 @@ const incidentSchema = new mongoose.Schema(
 		dispatchedAt: { type: Date },
 		clearedAt: { type: Date },
 	},
+	// The shared IncidentSchema requires createdAt and updatedAt.
 	{ timestamps: true },
 );
 

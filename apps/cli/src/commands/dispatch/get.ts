@@ -3,13 +3,13 @@ import { printTable } from "@oclif/table";
 import chalk from "chalk";
 import ora from "ora";
 import { BaseCommand } from "../../base-command.js";
-import { resolveDispatchId } from "../../lib/resolve.js";
 import {
 	formatDecision,
 	formatRelative,
 	formatStatus,
 	shortId,
 } from "../../lib/format.js";
+import { resolveDispatchId } from "../../lib/resolve.js";
 
 export default class DispatchGet extends BaseCommand {
 	static override summary = "Show a dispatch with all responses.";

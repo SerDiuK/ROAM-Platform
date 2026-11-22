@@ -141,7 +141,8 @@ export function VehicleDetail({
 								<SidebarGroupLabel>Responder</SidebarGroupLabel>
 								<SidebarGroupContent>
 									<div className="px-2 py-1 text-sm text-foreground">
-										{responderMap.get(display.currentResponderId)?.displayName ??
+										{responderMap.get(display.currentResponderId)
+											?.displayName ??
 											responderMap.get(display.currentResponderId)?.name ??
 											display.currentResponderId}
 									</div>

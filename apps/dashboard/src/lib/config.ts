@@ -1,14 +1,8 @@
 import { z } from "zod";
 
-// `process.env.NEXT_PUBLIC_*` is statically inlined by Next at build time, so
-// we read each var by its literal name (any computed access defeats the
-// inlining). Validation runs once at module load — a bad env crashes the
-// dashboard immediately rather than producing 404s deep in fetches.
+// Read NEXT_PUBLIC_* vars by literal name: Next inlines only literal access at build time.
 const EnvSchema = z.object({
-	NEXT_PUBLIC_BACKEND_URL: z
-		.string()
-		.url()
-		.default("http://localhost:3001"),
+	NEXT_PUBLIC_BACKEND_URL: z.string().url().default("http://localhost:3001"),
 	NEXT_PUBLIC_WS_URL: z
 		.string()
 		.regex(/^wss?:\/\//, "must be a ws:// or wss:// URL")

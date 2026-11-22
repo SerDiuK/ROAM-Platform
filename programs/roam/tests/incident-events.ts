@@ -1,15 +1,9 @@
-import * as anchor from "@coral-xyz/anchor";
-import type { Program } from "@coral-xyz/anchor";
-import { expect } from "chai";
 import { createHash, randomBytes } from "node:crypto";
+import type { Program } from "@coral-xyz/anchor";
+import * as anchor from "@coral-xyz/anchor";
 import { Keypair, SystemProgram } from "@solana/web3.js";
+import { expect } from "chai";
 import type { Roam } from "../../../target/types/roam";
-
-// Anchor tests for the single-instruction event log. Each test exercises a
-// distinct (incident_id, event_kind, responder_id_hash) tuple to avoid PDA
-// collisions across cases. The split-signer cases (attestor == fee_payer and
-// attestor != fee_payer) are explicit — the demo's biometric attestation
-// story depends on the chain enforcing two distinct signatures.
 
 const KIND_RECEIVED = 0;
 const KIND_DISPATCHED = 1;

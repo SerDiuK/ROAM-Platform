@@ -6,8 +6,6 @@ import { ResponderModel } from "../db/models/responder.js";
 import { EmbeddedSolanaProvider } from "./embedded.js";
 import { WalletError } from "./provider.js";
 
-// Devnet USDC. Any valid Pubkey would do for unit tests, but using the real
-// one keeps ATA-derivation parity with the actual code path.
 const USDC_DEVNET = new PublicKey(
 	"4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
 );
@@ -255,7 +253,6 @@ describe("EmbeddedSolanaProvider.agentAddress", () => {
 			encryptionKey: randomBytes(32),
 		});
 		expect(provider.agentAddress).toBe(agentKeypair.publicKey.toBase58());
-		// Sanity: same value as bs58-encoded pubkey bytes.
 		expect(provider.agentAddress).toBe(
 			bs58.encode(agentKeypair.publicKey.toBytes()),
 		);

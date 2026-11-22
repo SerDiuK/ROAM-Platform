@@ -7,9 +7,6 @@ type IncidentAssignedBodyProps = {
 	responderMap: Map<string, Responder>;
 };
 
-// Body for incidents that already have units assigned (status=responding,
-// resolved). Reads as a status report: address, dispatch / cleared
-// timestamps, and the per-vehicle crew list.
 export function IncidentAssignedBody({
 	incident,
 	vehicles,
@@ -47,7 +44,9 @@ export function IncidentAssignedBody({
 				<InfoRow label="Address" value={address} />
 				<InfoRow
 					label="Dispatched"
-					value={incident.dispatchedAt ? formatHHMM(incident.dispatchedAt) : "—"}
+					value={
+						incident.dispatchedAt ? formatHHMM(incident.dispatchedAt) : "—"
+					}
 				/>
 				{isResolved && (
 					<InfoRow
@@ -129,13 +128,7 @@ function InfoRow({
 	);
 }
 
-function UnitCrewRow({
-	callsign,
-	crew,
-}: {
-	callsign: string;
-	crew: string[];
-}) {
+function UnitCrewRow({ callsign, crew }: { callsign: string; crew: string[] }) {
 	return (
 		<div className="flex items-start justify-between gap-3">
 			<span className="font-mono text-xs font-bold text-foreground">
@@ -155,4 +148,3 @@ function UnitCrewRow({
 		</div>
 	);
 }
-

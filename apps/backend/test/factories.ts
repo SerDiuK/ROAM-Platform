@@ -62,9 +62,7 @@ export function makeFakeBroadcaster(): {
 	return { addClient: vi.fn(), removeClient: vi.fn(), broadcast: vi.fn() };
 }
 
-export function makeFakeTranscriber(
-	transcript = "fake transcript",
-): {
+export function makeFakeTranscriber(transcript = "fake transcript"): {
 	transcribeAudioFile: ReturnType<typeof vi.fn>;
 	transcribeAudioStream: ReturnType<typeof vi.fn>;
 } {

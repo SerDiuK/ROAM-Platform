@@ -5,17 +5,6 @@ import { ResponderModel } from "../../db/models/responder.js";
 import { VehicleModel } from "../../db/models/vehicle.js";
 import type { AgentTool } from "./types.js";
 
-// Geo-bounded vehicle lookup for the dispatch agent. Backed by the 2dsphere
-// index on `vehicles.lastTelemetry.location` (see db/models/vehicle.ts) so the
-// query plan stays sub-millisecond even as the fleet grows.
-//
-// Capability filtering is two-stage on purpose. Capabilities live on Responder
-// docs, but the agent dispatches a Vehicle (the Responder is along for the
-// ride). So we first resolve the set of qualifying responder IDs by capability,
-// then ask Mongo for the nearest Vehicles whose `assignedResponderIds` overlap
-// that set. If no responders match, we short-circuit to an empty result rather
-// than running the geo query — saves a round trip.
-
 const InputSchema = z.object({
 	lat: z.number().min(-90).max(90),
 	lon: z.number().min(-180).max(180),
@@ -32,8 +21,6 @@ const OutputItemSchema = z.object({
 });
 type OutputItem = z.infer<typeof OutputItemSchema>;
 
-// Aggregation result shape: $geoNear injects distanceMeters, the rest mirrors
-// the vehicle document. _id is an ObjectId at the Mongo layer.
 interface NearbyVehicleDoc {
 	_id: Types.ObjectId;
 	callsign: string;
@@ -55,9 +42,7 @@ export const findNearestVehiclesTool: AgentTool<Input, OutputItem[]> = {
 			})
 				.select({ _id: 1 })
 				.lean();
-			// Responder _id is overridden to String in the schema (see responder.ts);
-			// the default Mongoose typing assumes ObjectId, so cast to the runtime
-			// shape.
+			// lean() types _id as ObjectId, but the Responder schema overrides it to a string.
 			qualifyingResponderIds = (ops as unknown as { _id: string }[]).map(
 				(o) => o._id,
 			);

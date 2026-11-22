@@ -5,23 +5,6 @@ import { connectDb } from "../src/db/connection.js";
 import { ResponderModel } from "../src/db/models/responder.js";
 import { createExpoPushClient } from "../src/push/expo.js";
 
-// Smoke test for the Expo push wrapper. Two modes:
-//
-//   1) Live mode (preferred — exercises the real registration flow):
-//      Boot the mobile app on a device. It enrols and posts its push token
-//      via responders.upsertPushToken. Then run:
-//
-//        PUSH_SMOKE_NAME=RSP-1 pnpm --filter @roam/backend push:smoke
-//
-//      The script looks up that responder and sends to every registered token.
-//
-//   2) Token mode (no mobile app needed):
-//      Provide a token harvested manually (Snack, Expo notifications tool,
-//      etc.) and the script creates a temp responder, sends, then cleans up.
-//
-//        PUSH_SMOKE_TOKEN=ExponentPushToken[xxxxxxxx] \
-//          pnpm --filter @roam/backend push:smoke
-
 async function main(): Promise<void> {
 	const name = process.env.PUSH_SMOKE_NAME;
 	const pushToken = process.env.PUSH_SMOKE_TOKEN;

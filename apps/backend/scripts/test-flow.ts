@@ -1,10 +1,4 @@
-// One-shot end-to-end driver: seeds an incident + briefing recommending
-// THOMAS-1 (the user's Seeker), then calls dispatch.confirm to fan out the
-// push. Exercises the full demo flow: push → mobile sheet → SIWS accept →
-// ON SCENE panel → SIWS clear.
-//
-// Usage: pnpm --filter @roam/backend exec tsx scripts/test-flow.ts [responderName]
-//        # default responderName = THOMAS-1
+// Needs the backend running on localhost:3001.
 
 import { randomUUID } from "node:crypto";
 import mongoose from "mongoose";
@@ -21,7 +15,9 @@ async function main(): Promise<void> {
 	const config = parseConfig();
 	await connectDb(config.MONGODB_URL, console);
 
-	const responder = await ResponderModel.findOne({ name: responderName }).lean();
+	const responder = await ResponderModel.findOne({
+		name: responderName,
+	}).lean();
 	if (!responder) {
 		throw new Error(`No responder named ${responderName}`);
 	}
@@ -38,7 +34,9 @@ async function main(): Promise<void> {
 
 	const vehicle = await VehicleModel.findOne().lean();
 	if (!vehicle) {
-		throw new Error("No vehicles seeded — run pnpm --filter @roam/backend fleet:seed");
+		throw new Error(
+			"No vehicles seeded — run pnpm --filter @roam/backend fleet:seed",
+		);
 	}
 
 	const incidentId = randomUUID();
@@ -101,7 +99,6 @@ async function main(): Promise<void> {
 		),
 	);
 
-	// Hit the live backend's confirm endpoint so it does the full push fan-out.
 	const res = await fetch("http://localhost:3001/api/dispatch/confirm", {
 		method: "POST",
 		headers: { "content-type": "application/json" },

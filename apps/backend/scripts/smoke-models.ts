@@ -20,10 +20,6 @@ import { ResponderModel } from "../src/db/models/responder.js";
 import { VehicleModel } from "../src/db/models/vehicle.js";
 import { VehicleSpecModel } from "../src/db/models/vehicleSpec.js";
 
-// AD-1 smoke test: every new + extended model round-trips through Mongoose
-// and its Zod schema. Run with:
-//   pnpm --filter @roam/backend exec tsx scripts/smoke-models.ts
-
 const PREFIX = "smoke-AD1-";
 
 type CheckResult = { name: string; ok: boolean; message: string };
@@ -40,9 +36,7 @@ function fail(name: string, err: unknown): void {
 	results.push({ name, ok: false, message });
 }
 
-// JSON-serialize then re-parse to coerce ObjectId → hex string and Date → ISO
-// string, matching what the HTTP API does. Lets Zod schemas (with z.string()
-// `_id` and z.coerce.date() timestamps) round-trip cleanly off raw lean docs.
+// JSON round-trip turns ObjectIds and Dates into the strings the wire schemas expect.
 function toWire<T>(doc: unknown): T {
 	return JSON.parse(JSON.stringify(doc)) as T;
 }
@@ -208,9 +202,7 @@ async function checkVehicle(): Promise<void> {
 		},
 	}).save();
 
-	const doc = await VehicleModel.findById(vehicle._id)
-		.populate("model")
-		.lean();
+	const doc = await VehicleModel.findById(vehicle._id).populate("model").lean();
 	if (!doc) throw new Error("not found after save");
 
 	const wire = toWire<{

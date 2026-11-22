@@ -9,9 +9,6 @@ interface VehicleListItem {
 	currentResponderId?: string | null;
 }
 
-// AD-22: sessions are gone — "stale" means a vehicle is currently in_use with
-// a responder pinned via Responder.currentVehicleId. Checkout takes vehicleId
-// directly now.
 export async function endStaleFleetSessions(
 	backendUrl: string,
 	callsignToVehicleId: Map<string, string>,
@@ -48,11 +45,6 @@ export async function endStaleFleetSessions(
 	logger.info(`Ended ${ended} stale fleet checkins`);
 }
 
-/**
- * Resolves callsign → backend-assigned vehicleId for the configured fleet.
- * Vehicles + responders are seeded by `pnpm --filter @roam/backend fleet:seed`;
- * if a fleet entry isn't present here, the seed step was skipped.
- */
 export async function lookupFleet(
 	backendUrl: string,
 	fleet: FleetVehicle[],

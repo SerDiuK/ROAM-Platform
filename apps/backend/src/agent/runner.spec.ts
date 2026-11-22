@@ -48,8 +48,7 @@ const baseCtx = {
 	model: "claude-opus-4-7",
 	maxTokens: 1024,
 	maxTurns: 5,
-	// makeFakeLogger() doesn't structurally match FastifyBaseLogger's overloaded
-	// LogFn signature; the existing pattern (sessionAuth.spec.ts) is to cast.
+	// The factory's fake logger stands in for BriefContext["log"].
 	log: makeFakeLogger() as unknown as BriefContext["log"],
 };
 
@@ -121,9 +120,7 @@ describe("brief()", () => {
 
 	it("throws BriefError when the agent finishes without calling draft_briefing", async () => {
 		const incidentId = await seedIncident();
-		const responses = [
-			fakeMessage([textBlock("not enough info")], "end_turn"),
-		];
+		const responses = [fakeMessage([textBlock("not enough info")], "end_turn")];
 		const { client } = makeMockAnthropic(responses);
 
 		await expect(
@@ -140,16 +137,12 @@ describe("brief()", () => {
 
 	it("rejects an invalid draft_briefing payload via Zod and never persists", async () => {
 		const incidentId = await seedIncident();
-		// Empty recommendation arrays violate the Zod schema (min length 1).
 		const invalid = { ...SAMPLE_PAYLOAD, recommendedVehicleIds: [] };
 		const responses = [
 			fakeMessage(
 				[toolUseBlock("draft_briefing", invalid, "tu_bad")],
 				"tool_use",
 			),
-			// After the validation error comes back as a tool_result with
-			// is_error: true, the model gives up — runAgent returns and brief()
-			// throws because no valid draft was captured.
 			fakeMessage([textBlock("giving up")], "end_turn"),
 		];
 		const { client } = makeMockAnthropic(responses);

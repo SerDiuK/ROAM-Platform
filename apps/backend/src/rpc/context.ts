@@ -7,9 +7,6 @@ import type { WalletProvider } from "../wallet/index.js";
 import type { DispatchBroadcaster } from "../ws/dispatchBroadcaster.js";
 import type { IncidentBroadcaster } from "../ws/incidentBroadcaster.js";
 
-// The resolved responder behind the current request. `null` for unauthenticated
-// procedures (auth.signIn, health). Authenticated routers pull this through a
-// middleware that throws UNAUTHORIZED if it isn't populated.
 export type AuthedUser = {
 	id: string;
 	name: string;

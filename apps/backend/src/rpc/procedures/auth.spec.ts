@@ -69,8 +69,6 @@ describe("auth.checkin", () => {
 		const updatedResponder = await ResponderModel.findById(responder._id);
 		expect(updatedResponder?.currentVehicleId).toBe(vehicle._id.toHexString());
 
-		// AD-22: checkin must not write to Solana — the on-chain audit is
-		// dispatch-scoped now.
 		expect(mockedWithSolanaProvider).not.toHaveBeenCalled();
 	});
 
@@ -132,11 +130,9 @@ describe("auth.checkin", () => {
 			message: "responder_already_checked_in",
 		});
 
-		// Target vehicle was never touched.
 		const target = await VehicleModel.findById(targetVehicle._id);
 		expect(target?.status).toBe("available");
 
-		// And the existing pairing is intact.
 		const after = await ResponderModel.findById(responder._id);
 		expect(after?.currentVehicleId).toBe("507f1f77bcf86cd799439098");
 	});
@@ -173,10 +169,9 @@ describe("auth.checkin", () => {
 
 		const error = (rejected[0] as PromiseRejectedResult).reason;
 		expect(error).toBeInstanceOf(ORPCError);
-		expect([
-			"vehicle_not_available",
-			"responder_already_checked_in",
-		]).toContain((error as ORPCError<string, unknown>).message);
+		expect(["vehicle_not_available", "responder_already_checked_in"]).toContain(
+			(error as ORPCError<string, unknown>).message,
+		);
 
 		const updatedVehicle = await VehicleModel.findById(vehicle._id);
 		expect(updatedVehicle?.status).toBe("in_use");

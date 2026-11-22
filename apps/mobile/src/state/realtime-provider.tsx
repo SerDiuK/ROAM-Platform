@@ -11,14 +11,6 @@ import {
 	telemetryAtom,
 } from "@/state/vehicles";
 
-// Wires the socket streams from @roam/api into the Jotai atoms. Mounted only
-// inside the signed-in branch of the App shell — so the token from secure-
-// store is in memory by the time we open the WS upgrade. The WS endpoints
-// reject upgrades without a valid token (see backend /ws auth gate).
-//
-// AD-22: the /ws/sessions subscription was removed; the dashboard / mobile
-// pick up checkin/checkout state via the next vehicles.list poll. Mobile
-// triggers a fetch after auth.checkin/checkout completes locally.
 export function RealtimeProvider({
 	children,
 }: {

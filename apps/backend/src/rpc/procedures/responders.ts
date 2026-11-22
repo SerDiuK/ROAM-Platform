@@ -10,9 +10,6 @@ export const respondersRouter = {
 		return responders.map(serializeResponder);
 	}),
 
-	// Public for the demo. Mobile no longer self-enrols; new responders come in
-	// via `pnpm --filter @roam/backend responders:seed`. Locking this down with
-	// dispatcher-role auth is a future hardening step (see plan 32).
 	enrol: os.responders.enrol.handler(async ({ input, context }) => {
 		const { name, role, availability } = input;
 		const { walletProvider, log } = context;
@@ -48,9 +45,6 @@ export const respondersRouter = {
 		return { responder: serializeResponder(responder) };
 	}),
 
-	// The single authenticated procedure: device-to-responder binding for push
-	// notifications. The responder id is resolved from ctx.user, so a device can
-	// only register tokens against the responder it is signed in as.
 	upsertPushToken: authed.responders.upsertPushToken.handler(
 		async ({ input, context }) => {
 			const { token } = input;

@@ -1,13 +1,12 @@
 import { Command } from "@oclif/core";
-import { type ApiClient } from "@roam/api";
-import { api, backendUrl } from "./lib/api.js";
+import type { ApiClient } from "@roam/api";
+import { config } from "./config.js";
+import { api } from "./lib/api.js";
 import { connect, disconnect } from "./lib/db.js";
 
-// Base for commands that hit the backend HTTP API. No DB connection unless
-// the command opts in via `requireDb()`.
 export abstract class BaseCommand extends Command {
 	protected api: ApiClient = api();
-	protected backend = backendUrl();
+	protected backend = config.ROAM_BACKEND_URL;
 	private dbOpened = false;
 
 	protected async requireDb(): Promise<void> {

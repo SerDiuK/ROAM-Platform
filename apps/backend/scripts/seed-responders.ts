@@ -5,17 +5,6 @@ import { connectDb } from "../src/db/connection.js";
 import { ResponderModel } from "../src/db/models/responder.js";
 import { createWalletProvider } from "../src/wallet/index.js";
 
-// Seeds the canonical demo responders. Idempotent — safe to re-run.
-//
-// Run with:
-//   pnpm --filter @roam/backend responders:seed
-//
-// Auth is Seeker-only (SIWS). `walletAddress` is bound on first sign-in
-// from the device — no PIN, no pre-shared secret here.
-//
-// `name` is the login codename — short, uppercase. `displayName` is the real
-// name shown in dashboards and on the responder's own mobile profile.
-
 type Seed = {
 	name: string;
 	displayName: string;
@@ -67,10 +56,6 @@ async function main(): Promise<void> {
 				availability: seed.availability,
 			}).save());
 
-		// Re-set role + availability + capabilities on every seed so flips between
-		// responder/dispatcher land cleanly. Medic capability is the only one we
-		// have today (see RESPONDER_CAPABILITIES in shared); dispatchers get it
-		// cleared so they don't accidentally show up in find_nearest_vehicles.
 		await ResponderModel.findByIdAndUpdate(responder._id, {
 			displayName: seed.displayName,
 			role: seed.role,
@@ -78,8 +63,6 @@ async function main(): Promise<void> {
 			capabilities: seed.role === "responder" ? ["medic"] : [],
 		});
 
-		// Provision a wallet if missing (idempotent — see embedded.ts). Slated
-		// for removal alongside AD-2 cleanup once payouts target the Seeker pubkey.
 		const { address } = await wallet.createWallet(responder._id);
 
 		console.log(

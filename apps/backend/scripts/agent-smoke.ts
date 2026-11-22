@@ -2,23 +2,13 @@ import { createHash, randomUUID } from "node:crypto";
 import Anthropic from "@anthropic-ai/sdk";
 import dotenv from "dotenv";
 import mongoose from "mongoose";
-import { computeBriefingHash, brief } from "../src/agent/runner.js";
+import { brief, computeBriefingHash } from "../src/agent/runner.js";
 import { connectDb } from "../src/db/connection.js";
 import { BriefingModel } from "../src/db/models/briefing.js";
 import { IncidentModel } from "../src/db/models/incident.js";
 import { ResponderModel } from "../src/db/models/responder.js";
 import { VehicleModel } from "../src/db/models/vehicle.js";
 import { VehicleSpecModel } from "../src/db/models/vehicleSpec.js";
-
-// AD-6 smoke: seed an incident + vehicles + responders, run the agent loop
-// against the live Anthropic API, print the Briefing it produces, and verify
-// the briefingHash is stable across re-canonicalization of the payload.
-//
-// Run with:
-//   pnpm --filter @roam/backend agent:smoke
-//
-// Idempotent: every doc gets a `smoke-agent-` prefix that we wipe at the start
-// and end of the run.
 
 dotenv.config({ path: ".env.local" });
 
@@ -40,8 +30,7 @@ if (!ANTHROPIC_API_KEY) {
 }
 
 const PREFIX = "smoke-agent-";
-const ORIGIN = { lat: 25.7617, lon: -80.1918 }; // downtown Miami — vehicle seed origin
-const SCENE = { lat: 25.808, lon: -80.19 }; // Biscayne Blvd & NE 36th St — incident location
+const SCENE = { lat: 25.808, lon: -80.19 };
 
 const RESPONDERS = [
 	{ id: randomUUID(), name: `${PREFIX}MEDIC-1`, withWallet: true },
@@ -160,10 +149,6 @@ async function main(): Promise<void> {
 			maxTokens: AGENT_MAX_TOKENS,
 			maxTurns: AGENT_MAX_TURNS,
 			log: console,
-			// Sonnet 4.6 defaults to effort: "high" — too much for routine tool
-			// routing once classification is pre-filled. "low" is safe here:
-			// the agent has 4 read-only tools and a deterministic payout
-			// formula, no genuinely novel reasoning needed.
 			effort: "low",
 			onTurn: ({ turn, ms, toolUseCount, usage }) => {
 				const cacheRead = usage.cache_read_input_tokens ?? 0;
@@ -179,9 +164,6 @@ async function main(): Promise<void> {
 		console.log(`\nBriefing produced in ${elapsed}ms:\n`);
 		console.log(JSON.stringify(briefing, null, 2));
 
-		// Hash determinism check: re-canonicalize the same payload and confirm
-		// the hash matches. This guards the on-chain commit against canonical-
-		// ization drift between draft time and confirm time.
 		const recomputed = computeBriefingHash({
 			summary: briefing.summary,
 			recommendedVehicleIds: briefing.recommendedVehicleIds,

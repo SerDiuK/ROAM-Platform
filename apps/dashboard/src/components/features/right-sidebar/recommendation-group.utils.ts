@@ -1,7 +1,10 @@
-import { type Coord, haversineKm, type Telemetry, type Vehicle } from "@roam/shared";
+import {
+	type Coord,
+	haversineKm,
+	type Telemetry,
+	type Vehicle,
+} from "@roam/shared";
 
-// Average response speed used to convert distance into an ETA. Tuned to a
-// loose "lights and sirens through Miami traffic" feel — not a real model.
 const AVG_RESPONSE_KMH = 50;
 
 export function rankVehiclesByProximity(

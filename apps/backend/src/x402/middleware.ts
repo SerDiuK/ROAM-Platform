@@ -1,20 +1,20 @@
+import { getCluster } from "@roam/solana-client";
 import {
 	Connection,
+	clusterApiUrl,
 	PublicKey,
 	SystemProgram,
 	Transaction,
-	clusterApiUrl,
 } from "@solana/web3.js";
 import type { FastifyBaseLogger, FastifyReply, FastifyRequest } from "fastify";
 import type { Config } from "../config.js";
 import { DispatchModel } from "../db/models/dispatch.js";
-import { getCluster } from "@roam/solana-client";
 import { SETTLEMENT_SOL } from "./client.js";
 
 const LAMPORTS_PER_SOL = 1_000_000_000n;
 const X402_VERSION = 1;
 const MAX_TIMEOUT_SECONDS = 300;
-// SOL native mint sentinel used as asset identifier in the 402 challenge
+// Native SOL has no mint; the wrapped-SOL mint stands in as its asset id.
 const SOL_ASSET = "So11111111111111111111111111111111111111112";
 
 export interface X402Payment {
@@ -45,11 +45,6 @@ function buildConnection(config: Config): Connection {
 	return new Connection(url, "confirmed");
 }
 
-// Verifies a pre-signed native SOL transfer tx:
-//   - Deserializes the transaction
-//   - Checks it contains a SystemProgram.transfer instruction
-//   - Confirms recipient and lamport amount match requirements
-//   - Submits and returns the on-chain signature
 async function verifyAndSettle(
 	connection: Connection,
 	encodedTx: string,
@@ -60,17 +55,15 @@ async function verifyAndSettle(
 	const txBuf = Buffer.from(encodedTx, "base64");
 	const tx = Transaction.from(txBuf);
 
-	// Find the SystemProgram transfer instruction
-	const systemIx = tx.instructions.find(
-		(ix) => ix.programId.equals(SystemProgram.programId),
+	const systemIx = tx.instructions.find((ix) =>
+		ix.programId.equals(SystemProgram.programId),
 	);
 
 	if (!systemIx) {
 		throw new Error("x402: no SystemProgram instruction in payment tx");
 	}
 
-	// SystemProgram.transfer layout:
-	// data: [2, 0, 0, 0 (instruction index u32 le), lamports (u64 le)]
+	// Transfer data: u32 LE instruction index (2 = Transfer), then u64 LE lamports.
 	const data = systemIx.data;
 	if (data.length < 12) {
 		throw new Error("x402: SystemProgram instruction data too short");
@@ -86,7 +79,6 @@ async function verifyAndSettle(
 		);
 	}
 
-	// accounts[1] is the recipient
 	const recipient = systemIx.keys[1]?.pubkey;
 	if (!recipient) {
 		throw new Error("x402: no recipient account in transfer instruction");
@@ -121,7 +113,9 @@ export async function x402Prehandler(
 	const dispatchId = body?.dispatchId;
 
 	if (!dispatchId) {
-		await reply.status(400).send({ error: "dispatchId required in request body" });
+		await reply
+			.status(400)
+			.send({ error: "dispatchId required in request body" });
 		return;
 	}
 
@@ -129,11 +123,15 @@ export async function x402Prehandler(
 		.select("payoutUsdc")
 		.lean();
 	if (!dispatch) {
-		await reply.status(404).send({ error: `dispatch not found: ${dispatchId}` });
+		await reply
+			.status(404)
+			.send({ error: `dispatch not found: ${dispatchId}` });
 		return;
 	}
 
-	const lamports = BigInt(Math.round(SETTLEMENT_SOL * Number(LAMPORTS_PER_SOL)));
+	const lamports = BigInt(
+		Math.round(SETTLEMENT_SOL * Number(LAMPORTS_PER_SOL)),
+	);
 	const recipient = new PublicKey(config.X402_RECIPIENT_ADDRESS);
 
 	const paymentHeader = request.headers["x-payment"] as string | undefined;
@@ -183,7 +181,9 @@ export async function x402Prehandler(
 
 		reply.header(
 			"x-payment-response",
-			Buffer.from(JSON.stringify({ success: true, txSignature: sig })).toString("base64"),
+			Buffer.from(JSON.stringify({ success: true, txSignature: sig })).toString(
+				"base64",
+			),
 		);
 	} catch (err: unknown) {
 		const message = err instanceof Error ? err.message : String(err);

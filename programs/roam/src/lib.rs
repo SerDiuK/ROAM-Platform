@@ -2,37 +2,6 @@ use anchor_lang::prelude::*;
 
 declare_id!("Ad9AUd1XbFT41b92R6XgqFZQeotynLWF5aUSMp65gKQy");
 
-// ROAM incident event log. One instruction (`record_event`) writes an
-// immutable `IncidentEvent` PDA per (incident, kind, responder) tuple. The
-// off-chain Mongo mirror is canonical for queries; the chain is the audit
-// trail.
-//
-// Event kinds:
-//   0 = received   (incident-scoped — responder_id_hash zeroed)
-//   1 = dispatched (per responder)
-//   2 = accepted   (per responder)
-//   3 = rejected   (per responder)
-//   4 = arrived    (per responder, fired by a future proximity-check plan)
-//   5 = cleared    (incident-scoped — responder_id_hash zeroed)
-//
-// Split-signer: `fee_payer` is always the backend operator (mut, debited).
-// `attestor` is whoever personally signed the action — the backend today;
-// the responder's Seed Vault key on `accepted` / `rejected` once Seeker
-// sign-in lands. Different keypairs are explicitly supported. The instruction
-// stamps `attestor.key()` into the account at init time so off-chain
-// `getProgramAccounts` can filter by signer without re-deriving from tx
-// signatures.
-//
-// `incident_id` is a fixed 16-byte identifier — off-chain converts MongoDB
-// ObjectId(12 bytes) padded to 16 OR derives a UUID. The chain just stores
-// the bytes.
-//
-// `responder_id_hash` is sha256(responder UUID). Raw responder IDs never go
-// on chain. Zero bytes for incident-scoped events.
-//
-// `payload_hash` is event-specific — sha256(briefing) for `dispatched`,
-// sha256(decline reason) for `rejected`, etc. Zero bytes if unused.
-
 #[program]
 pub mod roam {
     use super::*;

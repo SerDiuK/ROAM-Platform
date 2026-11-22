@@ -23,9 +23,7 @@ export function formatStatus(status: Dispatch["status"]): string {
 }
 
 export function formatDecision(decision: DispatchResponse["decision"]): string {
-	return decision === "accept"
-		? chalk.green("accept")
-		: chalk.red("decline");
+	return decision === "accept" ? chalk.green("accept") : chalk.red("decline");
 }
 
 export function formatRole(role: Responder["role"]): string {

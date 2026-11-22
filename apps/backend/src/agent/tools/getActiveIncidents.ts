@@ -8,16 +8,6 @@ import { z } from "zod";
 import { IncidentModel } from "../../db/models/incident.js";
 import type { AgentTool } from "./types.js";
 
-// What still has units committed to it. The agent calls this before drafting
-// a briefing so it can avoid pulling a vehicle that is already responding to
-// another scene.
-//
-// The plan called these "live or briefed". The modern AD-1 enum doesn't have
-// "briefed" — its equivalent is `pending` (briefing drafted, awaiting
-// confirm). We also include `responding` so the agent sees vehicles that are
-// already committed and would otherwise be double-dispatched. Terminal states
-// (resolved / cancelled) are excluded.
-
 const ACTIVE_STATUSES: readonly IncidentStatus[] = [
 	"live",
 	"pending",

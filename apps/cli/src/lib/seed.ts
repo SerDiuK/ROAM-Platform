@@ -30,9 +30,6 @@ const DEFAULT_TRANSCRIPT =
 const DEFAULT_SUMMARY =
 	"Multi-vehicle crash at Biscayne Blvd & NE 36th St. Two cars, multiple injuries, possible entrapment. Lights & sirens.";
 
-// Inserts a synthetic Incident + Briefing pair with a valid briefingHash so
-// dispatch.confirm passes the hash check. Bypasses the LLM agent — the agent
-// path stays exercised by incidents.ingest in the real demo flow.
 export async function seedBriefing(
 	options: SeedOptions = {},
 ): Promise<SeededBriefing> {

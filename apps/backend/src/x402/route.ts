@@ -8,15 +8,13 @@ import type {
 import type { Config } from "../config.js";
 import { PayoutModel } from "../db/models/payout.js";
 import type { DispatchBroadcaster } from "../ws/dispatchBroadcaster.js";
-import { x402Prehandler, type X402Payment } from "./middleware.js";
+import { type X402Payment, x402Prehandler } from "./middleware.js";
 
 interface CompleteBody {
 	dispatchId: string;
 }
 
-// Registers POST /api/dispatch/complete as a raw Fastify route (not oRPC) so
-// the x402 preHandler can intercept and reply with 402 before the body ever
-// reaches the business logic.
+// Raw Fastify route, not oRPC, so the x402 preHandler can reply 402 before the handler runs.
 export function registerDispatchCompleteRoute(
 	app: FastifyInstance,
 	config: Config,
@@ -43,7 +41,6 @@ export function registerDispatchCompleteRoute(
 			const payment = request.x402Payment;
 
 			if (!payment) {
-				// Middleware should have handled this — defensive guard only.
 				await reply.status(402).send({ error: "payment_required" });
 				return;
 			}

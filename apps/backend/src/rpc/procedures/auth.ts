@@ -6,19 +6,11 @@ import { VehicleModel } from "../../db/models/vehicle.js";
 import { serializeVehicle } from "../../db/serializers/vehicle.js";
 import { os } from "../builder.js";
 
-// Shifts no longer write to Solana. Checkin / checkout flip
-// `Responder.currentVehicleId` and `Vehicle.status` only — the on-chain audit
-// is incident-scoped (see services/incidentEvents.ts). The unique-sparse
-// partial index on `Responder.currentVehicleId` is the canonical
-// "1 responder per vehicle" guarantee.
-
 function isObjectIdHex(value: string): boolean {
 	return Types.ObjectId.isValid(value) && /^[0-9a-fA-F]{24}$/.test(value);
 }
 
-// MongoServerError sets `code` to 11000 on duplicate-key violations. Narrow
-// through `unknown` rather than asserting `code: number` so a malformed error
-// (e.g., something thrown inside a transaction wrapper) can't slip through.
+// Asserts `code: unknown`, not `number`: nothing guarantees the error's shape.
 function isDuplicateKeyError(err: unknown): boolean {
 	if (!(err instanceof Error) || !("code" in err)) return false;
 	const { code } = err as { code: unknown };
@@ -53,7 +45,6 @@ export const authRouter = {
 			});
 		}
 
-		// Atomic flip — fails (returns null) when status is anything but available.
 		const vehicleDoc = await VehicleModel.findOneAndUpdate(
 			{ _id: input.vehicleId, status: "available" },
 			{ status: "in_use" },
@@ -80,9 +71,6 @@ export const authRouter = {
 				{ currentVehicleId: input.vehicleId },
 			).then((res) => {
 				if (res.matchedCount === 0) {
-					// Either currentVehicleId got set under us OR a separate query
-					// already checked someone else into this vehicle (unique-sparse
-					// would have caught a write conflict — handled below).
 					throw new ORPCError("CONFLICT", {
 						message: "responder_already_checked_in",
 						data: { error: "responder_already_checked_in" as const },

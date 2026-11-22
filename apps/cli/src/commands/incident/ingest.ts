@@ -8,9 +8,7 @@ import ora from "ora";
 import { BaseCommand } from "../../base-command.js";
 import { shortId } from "../../lib/format.js";
 
-// Resolve the default demo WAV from the CLI source location so the command
-// works regardless of where the user runs it from. Both src/ (dev) and build/
-// (compiled) sit five levels below the repo root.
+// src/ and build/ both sit five levels below the repo root.
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HERE, "../../../../..");
 const DEFAULT_AUDIO = resolve(REPO_ROOT, "apps/dashboard/public/911call.wav");
@@ -33,9 +31,6 @@ function truncate(s: string, n: number): string {
 	return s.length > n ? `${s.slice(0, n - 1)}…` : s;
 }
 
-// Walk the .cause chain (Node wraps low-level network errors) so the user
-// sees the actual signal — ECONNREFUSED, ECONNRESET, etc. — instead of the
-// generic "fetch failed" the top-level fetch throws.
 function describeError(err: unknown): { headline: string; details: string[] } {
 	const lines: string[] = [];
 	let current: unknown = err;
@@ -51,8 +46,6 @@ function describeError(err: unknown): { headline: string; details: string[] } {
 	return { headline: lines[0] ?? "unknown error", details: lines.slice(1) };
 }
 
-// fetch failures during dev usually mean the backend's tsx watch is mid-
-// restart from a file edit. Treat connect-time errors as transient and retry.
 const TRANSIENT_CODES = new Set([
 	"ECONNREFUSED",
 	"ECONNRESET",
@@ -156,9 +149,7 @@ export default class IncidentIngest extends BaseCommand {
 				);
 				return;
 			}
-			spinner.succeed(
-				`Briefing ready · ${chalk.cyan(shortId(briefing._id))}`,
-			);
+			spinner.succeed(`Briefing ready · ${chalk.cyan(shortId(briefing._id))}`);
 			this.log("");
 			this.log(chalk.bold("Briefing summary"));
 			this.log(`  ${briefing.summary}`);
@@ -225,16 +216,13 @@ export default class IncidentIngest extends BaseCommand {
 	private async waitForBriefing(
 		incidentId: string,
 		timeoutMs: number,
-	): Promise<
-		| {
-				_id: string;
-				summary: string;
-				payout: { totalUsdc: number };
-				recommendedResponderIds: string[];
-				recommendedVehicleIds: string[];
-		  }
-		| null
-	> {
+	): Promise<{
+		_id: string;
+		summary: string;
+		payout: { totalUsdc: number };
+		recommendedResponderIds: string[];
+		recommendedVehicleIds: string[];
+	} | null> {
 		const startedAt = Date.now();
 		const POLL_MS = 1500;
 		while (Date.now() - startedAt < timeoutMs) {

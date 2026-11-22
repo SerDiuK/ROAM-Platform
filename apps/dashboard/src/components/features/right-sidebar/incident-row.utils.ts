@@ -13,8 +13,6 @@ export function statusToneFor(
 		case "arrived":
 			return "warning";
 		case "resolved":
-			// Resolved rows render with a solid primary background instead of a
-			// dot — this branch is only reached defensively.
 			return "primary";
 	}
 }

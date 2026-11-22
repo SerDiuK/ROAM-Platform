@@ -1,14 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type { FastifyBaseLogger } from "fastify";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-	makeFakeBroadcaster,
-	makeFakeLogger,
-} from "../../test/factories.js";
-import {
-	makeSolanaSucceed,
-	resetSolanaMock,
-} from "../../test/mocks/solana.js";
+import { makeFakeBroadcaster, makeFakeLogger } from "../../test/factories.js";
+import { makeSolanaSucceed, resetSolanaMock } from "../../test/mocks/solana.js";
 import type { Config } from "../config.js";
 import { IncidentEventModel } from "../db/models/incidentEvent.js";
 import type { IncidentBroadcaster } from "../ws/incidentBroadcaster.js";
@@ -19,7 +13,6 @@ import {
 	responderIdHash,
 } from "./incidentEvents.js";
 
-// 32-byte hex (matches Config.CHAIN_HMAC_KEY shape).
 const HMAC_KEY = `${"0".repeat(63)}1`;
 const ALT_HMAC_KEY = `${"0".repeat(62)}12`;
 
@@ -131,7 +124,6 @@ describe("recordIncidentEvent", () => {
 			kind: "received",
 		});
 
-		// Synchronous return is before the signature patch — sig appears later.
 		expect(event.solanaTxSignature).toBeUndefined();
 
 		await vi.waitFor(async () => {
@@ -177,7 +169,7 @@ describe("recordIncidentEvent", () => {
 			await vi.waitFor(() => {
 				expect(deps.log.error).toHaveBeenCalled();
 			});
-			// Drain the microtask queue once more in case the rejection is delayed.
+			// Give a late unhandledRejection a chance to fire before asserting.
 			await new Promise((r) => setImmediate(r));
 
 			expect(unhandled).toBeNull();
@@ -220,7 +212,6 @@ describe("recordIncidentEvent", () => {
 		});
 		expect(docs).toHaveLength(1);
 
-		// Only the first call's persist path broadcast — the duplicate is a no-op.
 		expect(deps.incidentBroadcaster.broadcast).toHaveBeenCalledTimes(1);
 	});
 });
@@ -257,11 +248,14 @@ describe("recordIncidentEventWithSignature", () => {
 			kind: "cleared",
 			solanaTxSignature: "mobile-tx-sig",
 		});
-		const second = await recordIncidentEventWithSignature(deps.asServiceDeps(), {
-			incidentId,
-			kind: "cleared",
-			solanaTxSignature: "mobile-tx-sig",
-		});
+		const second = await recordIncidentEventWithSignature(
+			deps.asServiceDeps(),
+			{
+				incidentId,
+				kind: "cleared",
+				solanaTxSignature: "mobile-tx-sig",
+			},
+		);
 
 		expect(first._id).toBe(second._id);
 		expect(deps.incidentBroadcaster.broadcast).toHaveBeenCalledTimes(1);

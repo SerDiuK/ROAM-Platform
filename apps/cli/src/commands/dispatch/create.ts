@@ -5,8 +5,6 @@ import { BaseCommand } from "../../base-command.js";
 import { shortId } from "../../lib/format.js";
 import { seedBriefing } from "../../lib/seed.js";
 
-// 30-minute default. Long enough to walk a dashboard demo and pull out a
-// phone, short enough that stale dispatches don't accumulate during testing.
 const DEFAULT_EXPIRES_SECS = 1800;
 
 export default class DispatchCreate extends BaseCommand {
@@ -43,7 +41,8 @@ export default class DispatchCreate extends BaseCommand {
 			default: DEFAULT_EXPIRES_SECS,
 		}),
 		required: Flags.integer({
-			description: "Number of accepts required to flip the dispatch to claimed.",
+			description:
+				"Number of accepts required to flip the dispatch to claimed.",
 			default: 1,
 		}),
 		summary: Flags.string({
@@ -143,18 +142,6 @@ export default class DispatchCreate extends BaseCommand {
 			for (const id of dispatch.assignedResponderIds) {
 				this.log(`  ${id}`);
 			}
-			this.log("");
-			this.log(chalk.dim("Next:"));
-			this.log(
-				chalk.dim(
-					`  roam dispatch accept ${dispatch._id} --responder <id>`,
-				),
-			);
-			this.log(
-				chalk.dim(
-					`  roam dispatch decline ${dispatch._id} --responder <id> --reason 'too far'`,
-				),
-			);
 		} catch (err) {
 			spinner.fail(chalk.red(err instanceof Error ? err.message : String(err)));
 			this.exit(1);

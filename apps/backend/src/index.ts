@@ -9,7 +9,6 @@ import { ZodSmartCoercionPlugin, ZodToJsonSchemaConverter } from "@orpc/zod";
 import type { FastifyBaseLogger, FastifyRequest } from "fastify";
 import Fastify from "fastify";
 import { createTranscriber } from "./agent/transcribe.js";
-import { registerDispatchCompleteRoute } from "./x402/route.js";
 import { resolveUserFromSource } from "./auth/resolveUser.js";
 import { parseConfig } from "./config.js";
 import { connectDb } from "./db/connection.js";
@@ -23,6 +22,7 @@ import { createWalletProvider } from "./wallet/index.js";
 import { createDispatchBroadcaster } from "./ws/dispatchBroadcaster.js";
 import { createIncidentBroadcaster } from "./ws/incidentBroadcaster.js";
 import { createTelemetryBroadcaster } from "./ws/telemetryBroadcaster.js";
+import { registerDispatchCompleteRoute } from "./x402/route.js";
 
 async function main(): Promise<void> {
 	const config = parseConfig();
@@ -34,10 +34,7 @@ async function main(): Promise<void> {
 				options: { colorize: true },
 			},
 		},
-		// Fastify defaults to 1 MB. incidents.ingest carries base64-encoded
-		// 911-call audio — a 2-minute mono WAV is already ~3 MB encoded, and
-		// realistic stereo clips run higher. 25 MB leaves comfortable headroom
-		// without inviting accidental megaclip uploads.
+		// incidents.ingest carries base64 911-call audio; a 2-minute mono WAV is ~3 MB encoded.
 		bodyLimit: 25 * 1024 * 1024,
 	});
 
@@ -64,7 +61,6 @@ async function main(): Promise<void> {
 	});
 	await app.register(websocket);
 
-	// --- oRPC handlers ---
 	const buildContext = async (
 		request: FastifyRequest,
 	): Promise<RpcContext> => ({
@@ -98,10 +94,7 @@ async function main(): Promise<void> {
 			);
 			return;
 		}
-		log.error(
-			{ path: pathStr, input, err: error },
-			`oRPC error at ${pathStr}`,
-		);
+		log.error({ path: pathStr, input, err: error }, `oRPC error at ${pathStr}`);
 	};
 
 	const rpcHandler = new RPCHandler(rpcRouter, {
@@ -133,10 +126,8 @@ async function main(): Promise<void> {
 		schemaConverters: [new ZodToJsonSchemaConverter()],
 	});
 
-	// x402-protected payment settlement route (raw Fastify, not oRPC)
 	registerDispatchCompleteRoute(app, config, dispatchBroadcaster, app.log);
 
-	// RPC protocol for typed TS clients (dashboard, future mobile)
 	app.all("/rpc/*", async (request, reply) => {
 		const { matched } = await rpcHandler.handle(request, reply, {
 			prefix: "/rpc",
@@ -147,7 +138,6 @@ async function main(): Promise<void> {
 		}
 	});
 
-	// REST / OpenAPI surface for non-TS clients (sim-fleet)
 	const openapiFallthrough = async (
 		request: Parameters<typeof openapiHandler.handle>[0],
 		reply: Parameters<typeof openapiHandler.handle>[1],
@@ -162,14 +152,12 @@ async function main(): Promise<void> {
 	app.all("/health", openapiFallthrough);
 	app.all("/api/*", openapiFallthrough);
 
-	// OpenAPI JSON spec (for non-TS client codegen)
 	app.get("/openapi.json", async () =>
 		openapiGenerator.generate(rpcRouter, {
 			info: { title: "ROAM Platform API", version: "0.1.0" },
 		}),
 	);
 
-	// --- WebSocket broadcasters ---
 	app.get("/ws/telemetry", { websocket: true }, (socket) => {
 		telemetryBroadcaster.addClient(socket);
 		socket.on("close", () => {

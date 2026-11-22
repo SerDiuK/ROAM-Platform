@@ -11,10 +11,12 @@
 		"dirname": "roam",
 		"commands": "./build/commands",
 		"topicSeparator": " ",
-		"plugins": ["@oclif/plugin-help"],
+		"plugins": [
+			"@oclif/plugin-help"
+		],
 		"topics": {
 			"dispatch": {
-				"description": "Create, list, accept, and decline dispatches"
+				"description": "Create, list, inspect, and clear dispatches"
 			},
 			"incident": {
 				"description": "Ingest 911 calls from audio or transcript"
@@ -40,7 +42,8 @@
 		"@roam/shared": "workspace:*",
 		"chalk": "^5.3.0",
 		"mongoose": "^9.3.3",
-		"ora": "^8.0.0"
+		"ora": "^8.0.0",
+		"zod": "^3.24.0"
 	},
 	"devDependencies": {
 		"@types/node": "^22.10.0",

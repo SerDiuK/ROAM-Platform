@@ -18,6 +18,8 @@ import {
 	PrepareResponseTxRequestSchema,
 	PrepareResponseTxResponseSchema,
 } from "./dispatchResponse";
+import { IncidentIngestRequestSchema, IncidentSchema } from "./incident";
+import { IncidentEventSchema } from "./incidentEvent";
 import {
 	CheckinRequestSchema,
 	CheckoutRequestSchema,
@@ -30,24 +32,14 @@ import {
 	SiwsVerifyResponseSchema,
 	UpsertPushTokenRequestSchema,
 } from "./responder";
-import {
-	IncidentIngestRequestSchema,
-	IncidentSchema,
-} from "./incident";
-import { IncidentEventSchema } from "./incidentEvent";
 import { TelemetrySchema } from "./telemetry";
 import { VehicleSchema, VehicleStatusSchema } from "./vehicle";
-
-// --- Response fragments ---
 
 const HealthResponseSchema = z.object({
 	status: z.literal("ok"),
 	timestamp: z.coerce.date(),
 });
 
-// AD-22: checkin/checkout return the affected Vehicle (with currentResponderId
-// populated from the responder lookup) — sessions no longer exist as a
-// separate object.
 const CheckinResponseSchema = z.object({
 	vehicle: VehicleSchema,
 	responder: ResponderSchema.pick({ _id: true, name: true, role: true }),
@@ -82,23 +74,15 @@ const VehicleUpsertInputSchema = z.object({
 
 const IdParamSchema = z.object({ id: z.string() });
 
-// Returned by incidents.get — the Briefing is optional because the agent runs
-// async after ingest, so callers immediately after ingest see briefing=null
-// and learn it's ready via the WS broadcaster.
 const IncidentWithBriefingResponseSchema = z.object({
 	incident: IncidentSchema,
 	briefing: BriefingSchema.optional(),
 });
 
-// Returned by dispatch.get — the dispatch plus all responses recorded against
-// it (accepts and declines). DispatchTracker (AD-15) renders this as a live
-// row-per-responder list.
 const DispatchWithResponsesResponseSchema = z.object({
 	dispatch: DispatchSchema,
 	responses: DispatchResponseSchema.array(),
 });
-
-// --- Contract ---
 
 export const contract = {
 	health: {
@@ -120,7 +104,7 @@ export const contract = {
 			.route({
 				method: "POST",
 				path: "/api/responders/enrol",
-				summary: "Enrol a responder (NFC / PIN)",
+				summary: "Enrol a responder",
 			})
 			.input(EnrolRequestSchema)
 			.output(ResponderResponseSchema),
@@ -329,10 +313,6 @@ export const contract = {
 			.output(DispatchSchema),
 	},
 
-	// On-chain incident event log: one row per (incident, kind, responder) tuple.
-	// Dispatcher gets the full timeline by incident; mobile gets only the
-	// signed-in responder's events plus the incident-scoped events for incidents
-	// they're involved in.
 	events: {
 		listByIncident: oc
 			.route({
@@ -356,5 +336,4 @@ export const contract = {
 
 export type Contract = typeof contract;
 
-// Re-exports used elsewhere in the codebase so we don't leak the zod import path
 export { CoordSchema };

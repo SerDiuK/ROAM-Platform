@@ -64,8 +64,6 @@ export default class DispatchClear extends BaseCommand {
 		}
 		const { dispatch } = await this.api.dispatch.get({ id: dispatchId });
 		if (dispatch.claimedByResponderIds.length === 0) {
-			// No claimers — likely the clear will fail, but let it through with
-			// no clearedBy so the backend's CONFLICT message is what surfaces.
 			return null;
 		}
 		const allResponders = await this.api.responders.list();

@@ -5,9 +5,6 @@ import { Text } from "@/components/ui/text";
 import type { DispatchInboxData } from "../use-dispatch-inbox";
 import { DispatchSheetLayout } from "./dispatch-sheet";
 
-// Terminal state when another responder claimed the dispatch first or the
-// race lost the atomic claim. Surface a single dismiss action — there's
-// nothing for the responder to do here.
 export function ConflictBody({
 	data,
 	message,

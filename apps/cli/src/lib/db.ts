@@ -4,11 +4,9 @@ import {
 	RESPONDER_CAPABILITIES,
 } from "@roam/shared";
 import mongoose from "mongoose";
+import { config } from "../config.js";
 
-// Minimal schemas covering only what the CLI needs to read/write. Mirrors
-// apps/backend/src/db/models — duplicated here so the CLI can run without a
-// runtime dep on the backend app. Field names and indexes are kept in sync
-// with the backend definitions; both write into the same collection.
+// Keep field names in sync with apps/backend/src/db/models: both apps share these collections.
 
 const responderSchema = new mongoose.Schema(
 	{
@@ -101,16 +99,9 @@ export const IncidentModel =
 export const BriefingModel =
 	mongoose.models.CliBriefing ?? mongoose.model("CliBriefing", briefingSchema);
 
-export function mongoUrl(): string {
-	return (
-		process.env.MONGODB_URL ??
-		"mongodb://localhost:27018/roam?directConnection=true"
-	);
-}
-
 export async function connect(): Promise<void> {
 	if (mongoose.connection.readyState === 1) return;
-	await mongoose.connect(mongoUrl());
+	await mongoose.connect(config.MONGODB_URL);
 }
 
 export async function disconnect(): Promise<void> {

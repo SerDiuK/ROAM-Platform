@@ -10,8 +10,6 @@ type TranscriptCardProps = {
 	transcript: string;
 	callStartedAt: Date;
 	isLive: boolean;
-	// Restart the typing reveal when the panel transitions closed → open, or
-	// when resetKey (incident _id) changes while it stays open.
 	panelOpen: boolean;
 	resetKey: string;
 };
