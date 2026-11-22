@@ -60,7 +60,6 @@ function buildContext(
 			fakeBroadcaster() as unknown as RpcContext["incidentBroadcaster"],
 		dispatchBroadcaster:
 			fakeBroadcaster() as unknown as RpcContext["dispatchBroadcaster"],
-		walletProvider: {} as RpcContext["walletProvider"],
 		transcriber: {} as RpcContext["transcriber"],
 		anthropic: {} as RpcContext["anthropic"],
 		pushClient: {

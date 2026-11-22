@@ -18,7 +18,6 @@ import { registerMqttHandlers } from "./mqtt/handlers.js";
 import { createExpoPushClient } from "./push/expo.js";
 import type { RpcContext } from "./rpc/context.js";
 import { rpcRouter } from "./rpc/router.js";
-import { createWalletProvider } from "./wallet/index.js";
 import { createDispatchBroadcaster } from "./ws/dispatchBroadcaster.js";
 import { createIncidentBroadcaster } from "./ws/incidentBroadcaster.js";
 import { createTelemetryBroadcaster } from "./ws/telemetryBroadcaster.js";
@@ -48,7 +47,6 @@ async function main(): Promise<void> {
 	const dispatchBroadcaster = createDispatchBroadcaster(app.log);
 	await registerMqttHandlers(mqttBroker.aedes, telemetryBroadcaster, app.log);
 
-	const walletProvider = createWalletProvider(config);
 	const transcriber = createTranscriber({ apiKey: config.DEEPGRAM_API_KEY });
 	const anthropic = new Anthropic({ apiKey: config.ANTHROPIC_API_KEY });
 	const pushClient = createExpoPushClient({
@@ -67,7 +65,6 @@ async function main(): Promise<void> {
 		config,
 		incidentBroadcaster,
 		dispatchBroadcaster,
-		walletProvider,
 		transcriber,
 		anthropic,
 		pushClient,

@@ -32,15 +32,10 @@ const ConfigSchema = z.object({
 					return new RegExp(`^${escaped}$`);
 				}),
 		),
-	WALLET_PROVIDER: z.enum(["embedded-solana"]).default("embedded-solana"),
-	WALLET_ENCRYPTION_KEY: z
-		.string()
-		.regex(/^[0-9a-fA-F]{64}$/, "must be 32 bytes hex (64 hex chars)"),
 	// Rotating this breaks the off-chain ↔ on-chain PDA mapping for all existing events.
 	CHAIN_HMAC_KEY: z
 		.string()
 		.regex(/^[0-9a-fA-F]{64}$/, "must be 32 bytes hex (64 hex chars)"),
-	USDC_MINT_ADDRESS: z.string().min(1),
 	// Only needed once push security is enabled on the Expo account.
 	EXPO_ACCESS_TOKEN: z.string().optional(),
 	AUTH_SECRET: z.string().min(32),

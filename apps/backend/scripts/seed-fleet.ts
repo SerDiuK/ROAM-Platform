@@ -7,7 +7,6 @@ import { ResponderModel } from "../src/db/models/responder.js";
 import { VehicleModel } from "../src/db/models/vehicle.js";
 import { VehicleSpecModel } from "../src/db/models/vehicleSpec.js";
 import { seedVehicleSpecs } from "../src/db/seed.js";
-import { createWalletProvider } from "../src/wallet/index.js";
 
 const FALLBACK_MODEL_SLUG = "ambulance-type-1";
 
@@ -17,8 +16,6 @@ async function main(): Promise<void> {
 
 	// Repeats the backend's boot-time seed so a fresh DB works without the server.
 	await seedVehicleSpecs(console);
-
-	const wallet = createWalletProvider(config);
 
 	for (const vehicle of DEMO_FLEET) {
 		const slug = vehicle.modelSlug ?? FALLBACK_MODEL_SLUG;
@@ -74,9 +71,8 @@ async function main(): Promise<void> {
 			`[seed-fleet] vehicle ${vehicle.callsign} (${slug}) — id=${v._id.toHexString()} driver=${vehicle.responderName}`,
 		);
 
-		const { address } = await wallet.createWallet(responder._id);
 		console.log(
-			`[seed-fleet] responder ${vehicle.responderName} — id=${responder._id} wallet=${address}`,
+			`[seed-fleet] responder ${vehicle.responderName} — id=${responder._id}`,
 		);
 	}
 

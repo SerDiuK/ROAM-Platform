@@ -13,7 +13,6 @@ const responderSchema = new mongoose.Schema({
 		required: true,
 	},
 	walletAddress: { type: String, index: true },
-	encryptedWalletSecret: { type: String, select: false },
 	pushTokens: { type: [String], default: undefined },
 	capabilities: {
 		type: [{ type: String, enum: RESPONDER_CAPABILITIES }],

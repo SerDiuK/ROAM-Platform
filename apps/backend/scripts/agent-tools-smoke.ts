@@ -24,7 +24,6 @@ interface SeededResponder {
 	id: string;
 	name: string;
 	capabilities: "medic"[];
-	withWallet: boolean;
 }
 
 interface SeededVehicle {
@@ -39,19 +38,16 @@ const RESPONDER_SEEDS: SeededResponder[] = [
 		id: randomUUID(),
 		name: `${PREFIX}MEDIC-1`,
 		capabilities: ["medic"],
-		withWallet: true,
 	},
 	{
 		id: randomUUID(),
 		name: `${PREFIX}MEDIC-2`,
 		capabilities: ["medic"],
-		withWallet: true,
 	},
 	{
 		id: randomUUID(),
 		name: `${PREFIX}MEDIC-3`,
 		capabilities: ["medic"],
-		withWallet: false,
 	},
 ];
 
@@ -104,9 +100,6 @@ async function seed(): Promise<void> {
 			role: "responder",
 			availability: "available",
 			capabilities: op.capabilities,
-			...(op.withWallet
-				? { walletAddress: "11111111111111111111111111111111" }
-				: {}),
 		}).save();
 	}
 

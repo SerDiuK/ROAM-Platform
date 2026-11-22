@@ -10,32 +10,17 @@ export const respondersRouter = {
 		return responders.map(serializeResponder);
 	}),
 
-	enrol: os.responders.enrol.handler(async ({ input, context }) => {
+	enrol: os.responders.enrol.handler(async ({ input }) => {
 		const { name, role, availability } = input;
-		const { walletProvider, log } = context;
 
-		const upserted = await ResponderModel.findOneAndUpdate(
+		const responder = await ResponderModel.findOneAndUpdate(
 			{ name },
 			{
 				$set: { role, availability },
 				$setOnInsert: { _id: randomUUID(), name },
 			},
 			{ upsert: true, returnDocument: "after" },
-		);
-
-		try {
-			await walletProvider.createWallet(upserted._id);
-		} catch (err) {
-			log.error(
-				{ err, responderId: upserted._id },
-				"enrol: walletProvider.createWallet failed",
-			);
-			throw new ORPCError("INTERNAL_SERVER_ERROR", {
-				message: "Failed to provision responder wallet",
-			});
-		}
-
-		const responder = await ResponderModel.findById(upserted._id).lean();
+		).lean();
 		if (!responder) {
 			throw new ORPCError("INTERNAL_SERVER_ERROR", {
 				message: "Responder vanished after enrol",

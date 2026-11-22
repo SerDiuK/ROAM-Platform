@@ -34,7 +34,6 @@ function buildContext(user: AuthedUser | null = fakeUser): RpcContext {
 			makeFakeBroadcaster() as unknown as RpcContext["incidentBroadcaster"],
 		dispatchBroadcaster:
 			makeFakeBroadcaster() as unknown as RpcContext["dispatchBroadcaster"],
-		walletProvider: {} as RpcContext["walletProvider"],
 		transcriber: {} as RpcContext["transcriber"],
 		anthropic: {} as RpcContext["anthropic"],
 		pushClient: {} as RpcContext["pushClient"],

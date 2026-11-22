@@ -85,7 +85,6 @@ function buildContext(overrides: ContextOverrides = {}): RpcContext & {
 			makeFakeBroadcaster() as unknown as RpcContext["incidentBroadcaster"],
 		dispatchBroadcaster:
 			dispatchBroadcaster as unknown as RpcContext["dispatchBroadcaster"],
-		walletProvider: {} as RpcContext["walletProvider"],
 		transcriber: {} as RpcContext["transcriber"],
 		anthropic: {} as RpcContext["anthropic"],
 		pushClient: pushClient as unknown as ExpoPushClient,

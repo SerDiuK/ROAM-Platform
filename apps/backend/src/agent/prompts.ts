@@ -7,7 +7,7 @@ export function buildSystemPrompt(): string {
 		"Workflow (latency-sensitive — parallelize wherever possible):",
 		"1. The user message includes a pre-computed <classification> block (incidentType, urgency, location, requiredCapabilities). Use it directly — do NOT call classify_incident unless the classification is missing or obviously wrong for the transcript.",
 		"2. In ONE turn, emit two parallel tool_use blocks: find_nearest_vehicles (using classification.location.lat/lon + requiredCapabilities, ambulance-only fleet so capabilities collapse to ['medic']) AND get_active_incidents (so you can avoid double-dispatching). They have no dependency on each other — issuing them sequentially is wasted latency.",
-		"3. get_responder_status — once find_nearest_vehicles returns, verify the responders attached to those vehicles are available and have walletAddress=true (required for USDC payouts).",
+		"3. get_responder_status — once find_nearest_vehicles returns, verify the responders attached to those vehicles are available.",
 		"4. draft_briefing — call this exactly once with the full payload. Do not call it twice; the dispatcher only reviews one draft.",
 		"",
 		"If location coordinates are missing in the classification but a Miami intersection is named, estimate lat/lon from your knowledge of the city.",

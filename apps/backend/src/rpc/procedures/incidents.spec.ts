@@ -43,7 +43,6 @@ function buildContext(overrides: ContextOverrides = {}): RpcContext & {
 		config: fakeConfig,
 		incidentBroadcaster:
 			incidentBroadcaster as unknown as RpcContext["incidentBroadcaster"],
-		walletProvider: {} as RpcContext["walletProvider"],
 		transcriber: transcriber as unknown as RpcContext["transcriber"],
 		anthropic: {} as RpcContext["anthropic"],
 		log: makeFakeLogger() as unknown as RpcContext["log"],

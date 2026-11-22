@@ -33,9 +33,9 @@ const PREFIX = "smoke-agent-";
 const SCENE = { lat: 25.808, lon: -80.19 };
 
 const RESPONDERS = [
-	{ id: randomUUID(), name: `${PREFIX}MEDIC-1`, withWallet: true },
-	{ id: randomUUID(), name: `${PREFIX}MEDIC-2`, withWallet: true },
-	{ id: randomUUID(), name: `${PREFIX}MEDIC-3`, withWallet: true },
+	{ id: randomUUID(), name: `${PREFIX}MEDIC-1` },
+	{ id: randomUUID(), name: `${PREFIX}MEDIC-2` },
+	{ id: randomUUID(), name: `${PREFIX}MEDIC-3` },
 ] as const;
 
 const VEHICLES = [
@@ -90,9 +90,6 @@ async function seed(): Promise<void> {
 			role: "responder",
 			availability: "available",
 			capabilities: ["medic"],
-			...(r.withWallet
-				? { walletAddress: "11111111111111111111111111111111" }
-				: {}),
 		}).save();
 	}
 

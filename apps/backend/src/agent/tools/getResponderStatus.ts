@@ -18,7 +18,6 @@ const OutputItemSchema = z.object({
 	name: z.string(),
 	availability: ResponderAvailabilitySchema,
 	capabilities: z.array(ResponderCapabilitySchema),
-	walletAddress: z.boolean(),
 });
 type OutputItem = z.infer<typeof OutputItemSchema>;
 
@@ -27,13 +26,12 @@ interface ResponderLeanDoc {
 	name: string;
 	availability: ResponderAvailability;
 	capabilities?: ResponderCapability[];
-	walletAddress?: string;
 }
 
 export const getResponderStatusTool: AgentTool<Input, OutputItem[]> = {
 	name: "get_responder_status",
 	description:
-		"Look up availability, capabilities, and wallet-provisioning status for a list of responder IDs. Returns one entry per known responder (unknown IDs are silently dropped). walletAddress is a boolean: true means the responder can receive USDC payouts.",
+		"Look up availability and capabilities for a list of responder IDs. Returns one entry per known responder (unknown IDs are silently dropped).",
 	inputSchema: InputSchema,
 	handler: async ({ responderIds }) => {
 		// lean() types _id as ObjectId, but the Responder schema overrides it to a string.
@@ -43,7 +41,6 @@ export const getResponderStatusTool: AgentTool<Input, OutputItem[]> = {
 				name: 1,
 				availability: 1,
 				capabilities: 1,
-				walletAddress: 1,
 			})
 			.lean()) as unknown as ResponderLeanDoc[];
 
@@ -52,8 +49,6 @@ export const getResponderStatusTool: AgentTool<Input, OutputItem[]> = {
 			name: d.name,
 			availability: d.availability,
 			capabilities: d.capabilities ?? [],
-			walletAddress:
-				typeof d.walletAddress === "string" && d.walletAddress.length > 0,
 		}));
 	},
 };

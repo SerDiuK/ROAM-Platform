@@ -3,7 +3,6 @@ import mongoose from "mongoose";
 import { parseConfig } from "../src/config.js";
 import { connectDb } from "../src/db/connection.js";
 import { ResponderModel } from "../src/db/models/responder.js";
-import { createWalletProvider } from "../src/wallet/index.js";
 
 type Seed = {
 	name: string;
@@ -42,7 +41,6 @@ const SEEDS: Seed[] = [
 async function main(): Promise<void> {
 	const config = parseConfig();
 	await connectDb(config.MONGODB_URL, console);
-	const wallet = createWalletProvider(config);
 
 	for (const seed of SEEDS) {
 		const existing = await ResponderModel.findOne({ name: seed.name });
@@ -63,10 +61,8 @@ async function main(): Promise<void> {
 			capabilities: seed.role === "responder" ? ["medic"] : [],
 		});
 
-		const { address } = await wallet.createWallet(responder._id);
-
 		console.log(
-			`[seed-responders] ${seed.displayName} (login=${seed.name}, ${seed.role}) — id=${responder._id} wallet=${address}`,
+			`[seed-responders] ${seed.displayName} (login=${seed.name}, ${seed.role}) — id=${responder._id}`,
 		);
 	}
 
