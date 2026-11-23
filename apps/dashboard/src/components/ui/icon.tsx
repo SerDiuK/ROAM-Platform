@@ -22,5 +22,3 @@ export function Icon({ name, className, ...props }: IconProps) {
 		</span>
 	);
 }
-
-export type { IconProps };

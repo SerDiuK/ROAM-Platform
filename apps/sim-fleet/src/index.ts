@@ -3,8 +3,9 @@ import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
+import { type ApiClient, createApiClient } from "@roam/api";
 import pino from "pino";
-import { parseConfig } from "./config.js";
+import { childProcessEnv, parseConfig } from "./config.js";
 import { loadFleet } from "./fleet.js";
 import { endStaleFleetSessions, lookupFleet } from "./seed.js";
 
@@ -37,8 +38,6 @@ function delay(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/** Send a signal to the entire process group of a child (POSIX).
- *  Falls back to child.kill() if pid is unavailable. */
 function killProcessGroup(
 	child: ChildProcess,
 	signal: NodeJS.Signals,
@@ -47,7 +46,8 @@ function killProcessGroup(
 		try {
 			process.kill(-child.pid, signal);
 			return true;
-		} catch {
+		} catch (err: unknown) {
+			logger.debug({ err }, `Process group ${child.pid} already exited`);
 			return false;
 		}
 	}
@@ -55,7 +55,7 @@ function killProcessGroup(
 }
 
 async function autoCheckin(
-	backendUrl: string,
+	api: ApiClient,
 	callsign: string,
 	vehicleId: string,
 	responderName: string,
@@ -66,22 +66,12 @@ async function autoCheckin(
 
 	for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
 		try {
-			const res = await fetch(`${backendUrl}/api/auth/checkin`, {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ vehicleId, responderName }),
-			});
-			if (res.ok) {
-				checkedIn.add(vehicleId);
-				logger.info(
-					`Auto-checkin OK for ${callsign} as ${responderName} (vehicle ${vehicleId})`,
-				);
-				return;
-			}
-			const body = await res.text();
-			logger.warn(
-				`Auto-checkin attempt ${attempt}/${MAX_RETRIES} failed for ${callsign}: ${res.status} ${body}`,
+			await api.auth.checkin({ vehicleId, responderName });
+			checkedIn.add(vehicleId);
+			logger.info(
+				`Auto-checkin OK for ${callsign} as ${responderName} (vehicle ${vehicleId})`,
 			);
+			return;
 		} catch (err: unknown) {
 			logger.warn(
 				`Auto-checkin attempt ${attempt}/${MAX_RETRIES} error for ${callsign}: ${err}`,
@@ -100,16 +90,17 @@ async function main(): Promise<void> {
 	const config = parseConfig();
 	const fleet = loadFleet(config.FLEET_CONFIG);
 	const tsxBin = resolveTsx();
+	const api = createApiClient(config.BACKEND_URL);
 
 	logger.info(`Resolving ${fleet.length} fleet vehicles from backend...`);
-	const callsignToVehicleId = await lookupFleet(config.BACKEND_URL, fleet);
-	await endStaleFleetSessions(config.BACKEND_URL, callsignToVehicleId);
+	const vehicles = await api.vehicles.list();
+	const callsignToVehicleId = lookupFleet(vehicles, fleet);
+	await endStaleFleetSessions(api, vehicles, callsignToVehicleId);
 
 	const children = new Map<string, ChildProcess>();
 	const checkedInVehicleIds = new Set<string>();
 
 	for (const vehicle of fleet) {
-		// Skip spawning an iot-bridge for vehicles seeded as static markers only
 		if (vehicle.seedTelemetry) {
 			logger.info(`Skipping bridge for static vehicle ${vehicle.callsign}`);
 			continue;
@@ -124,8 +115,7 @@ async function main(): Promise<void> {
 		const child = spawn(tsxBin, [IOT_BRIDGE_ENTRY], {
 			cwd: IOT_BRIDGE_DIR,
 			detached: true,
-			env: {
-				...process.env,
+			env: childProcessEnv({
 				VEHICLE_CALLSIGN: vehicle.callsign,
 				MQTT_URL: config.MQTT_URL,
 				LOCATION_SOURCE: "simulate",
@@ -133,7 +123,7 @@ async function main(): Promise<void> {
 				...(vehicle.batteryPct != null && {
 					BATTERY_PCT: String(vehicle.batteryPct),
 				}),
-			},
+			}),
 			stdio: ["ignore", "pipe", "pipe"],
 		});
 
@@ -149,7 +139,6 @@ async function main(): Promise<void> {
 		logger.info(`Spawned ${vehicle.callsign} → ${vehicle.routeFile}`);
 	}
 
-	// Auto-checkin after 3-second delay
 	for (const vehicle of fleet) {
 		if (!vehicle.autoCheckin) continue;
 		const vehicleId = callsignToVehicleId.get(vehicle.callsign);
@@ -160,8 +149,8 @@ async function main(): Promise<void> {
 			continue;
 		}
 		setTimeout(() => {
-			void autoCheckin(
-				config.BACKEND_URL,
+			autoCheckin(
+				api,
 				vehicle.callsign,
 				vehicleId,
 				vehicle.responderName,
@@ -172,7 +161,6 @@ async function main(): Promise<void> {
 
 	logger.info(`Fleet started: ${children.size} vehicles`);
 
-	// Graceful shutdown
 	async function checkoutAll(): Promise<void> {
 		const ids = [...checkedInVehicleIds];
 		if (ids.length === 0) return;
@@ -181,16 +169,8 @@ async function main(): Promise<void> {
 		await Promise.allSettled(
 			ids.map(async (vehicleId) => {
 				try {
-					const res = await fetch(`${config.BACKEND_URL}/api/auth/checkout`, {
-						method: "POST",
-						headers: { "Content-Type": "application/json" },
-						body: JSON.stringify({ vehicleId }),
-					});
-					if (res.ok) {
-						logger.info(`Checkout OK for vehicle ${vehicleId}`);
-					} else {
-						logger.warn(`Checkout failed for ${vehicleId}: ${res.status}`);
-					}
+					await api.auth.checkout({ vehicleId });
+					logger.info(`Checkout OK for vehicle ${vehicleId}`);
 				} catch (err: unknown) {
 					logger.warn(`Checkout error for ${vehicleId}: ${err}`);
 				}
@@ -202,7 +182,7 @@ async function main(): Promise<void> {
 	function shutdown(): void {
 		logger.info("Shutting down fleet...");
 
-		void checkoutAll().finally(() => {
+		checkoutAll().finally(() => {
 			for (const [id, child] of children) {
 				logger.info(`Sending SIGTERM to ${id}`);
 				killProcessGroup(child, "SIGTERM");
@@ -217,7 +197,6 @@ async function main(): Promise<void> {
 			}, 5000);
 			killTimer.unref();
 
-			// Exit once all children have exited
 			const checkInterval = setInterval(() => {
 				if (children.size === 0) {
 					clearInterval(checkInterval);

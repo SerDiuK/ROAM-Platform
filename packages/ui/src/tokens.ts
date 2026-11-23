@@ -1,5 +1,4 @@
-// TS mirror of tokens.css for JS consumers (Leaflet markers, react-navigation themes).
-// Values must match tokens.css verbatim — change both together.
+// Values must match tokens.css verbatim; change both together.
 
 const TOKENS = {
 	background: "#0a0c10",

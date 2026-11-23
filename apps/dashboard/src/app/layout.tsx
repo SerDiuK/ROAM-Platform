@@ -10,11 +10,15 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-	title: "ROAM Commander Dashboard",
-	description: "Tactical fleet command center",
+	title: "ROAM Dispatch",
+	description: "AI-powered emergency dispatch and fleet accountability",
 };
 
-function RootLayout({ children }: { children: ReactNode }) {
+type RootLayoutProps = {
+	children: ReactNode;
+};
+
+function RootLayout({ children }: RootLayoutProps) {
 	return (
 		<html lang="en" className={inter.variable}>
 			<body>{children}</body>

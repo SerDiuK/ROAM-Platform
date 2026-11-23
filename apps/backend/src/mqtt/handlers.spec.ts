@@ -2,8 +2,8 @@ import type mongoose from "mongoose";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
 	getDefaultSpec,
-	makeFakeBroadcaster,
 	makeFakeLogger,
+	makeFakeTelemetryBroadcaster,
 	makeVehicle,
 } from "../../test/factories.js";
 import { TelemetryModel } from "../db/models/telemetry.js";
@@ -14,12 +14,12 @@ let defaultModelId: mongoose.Types.ObjectId;
 
 beforeEach(async () => {
 	const spec = await getDefaultSpec();
-	defaultModelId = spec._id as unknown as mongoose.Types.ObjectId;
+	defaultModelId = spec._id;
 });
 
 describe("handleTelemetry", () => {
 	it("upserts vehicle, writes telemetry, broadcasts on valid payload", async () => {
-		const broadcaster = makeFakeBroadcaster();
+		const broadcaster = makeFakeTelemetryBroadcaster();
 		const logger = makeFakeLogger();
 		const callsign = "V-INGEST-1";
 		const payload = JSON.stringify({
@@ -36,8 +36,8 @@ describe("handleTelemetry", () => {
 			Buffer.from(payload),
 			callsign,
 			defaultModelId,
-			broadcaster as unknown as Parameters<typeof handleTelemetry>[3],
-			logger as unknown as Parameters<typeof handleTelemetry>[4],
+			broadcaster,
+			logger,
 		);
 
 		const vehicle = await VehicleModel.findOne({ callsign });
@@ -61,7 +61,7 @@ describe("handleTelemetry", () => {
 	it("updates an existing vehicle on subsequent telemetry instead of creating a duplicate", async () => {
 		const callsign = "V-INGEST-2";
 		const existing = await makeVehicle({ callsign });
-		const broadcaster = makeFakeBroadcaster();
+		const broadcaster = makeFakeTelemetryBroadcaster();
 		const logger = makeFakeLogger();
 		const payload = JSON.stringify({
 			callsign,
@@ -76,8 +76,8 @@ describe("handleTelemetry", () => {
 			Buffer.from(payload),
 			callsign,
 			defaultModelId,
-			broadcaster as unknown as Parameters<typeof handleTelemetry>[3],
-			logger as unknown as Parameters<typeof handleTelemetry>[4],
+			broadcaster,
+			logger,
 		);
 
 		const vehicles = await VehicleModel.find({ callsign });
@@ -87,7 +87,7 @@ describe("handleTelemetry", () => {
 	});
 
 	it("logs a warning and returns without throwing on invalid JSON", async () => {
-		const broadcaster = makeFakeBroadcaster();
+		const broadcaster = makeFakeTelemetryBroadcaster();
 		const logger = makeFakeLogger();
 		const callsign = "V-BAD-JSON";
 
@@ -95,8 +95,8 @@ describe("handleTelemetry", () => {
 			Buffer.from("not-json"),
 			callsign,
 			defaultModelId,
-			broadcaster as unknown as Parameters<typeof handleTelemetry>[3],
-			logger as unknown as Parameters<typeof handleTelemetry>[4],
+			broadcaster,
+			logger,
 		);
 
 		expect(logger.warn).toHaveBeenCalledTimes(1);
@@ -108,7 +108,7 @@ describe("handleTelemetry", () => {
 	});
 
 	it("logs a warning and returns when payload fails schema validation", async () => {
-		const broadcaster = makeFakeBroadcaster();
+		const broadcaster = makeFakeTelemetryBroadcaster();
 		const logger = makeFakeLogger();
 		const callsign = "V-BAD-SCHEMA";
 		const payload = JSON.stringify({
@@ -124,8 +124,8 @@ describe("handleTelemetry", () => {
 			Buffer.from(payload),
 			callsign,
 			defaultModelId,
-			broadcaster as unknown as Parameters<typeof handleTelemetry>[3],
-			logger as unknown as Parameters<typeof handleTelemetry>[4],
+			broadcaster,
+			logger,
 		);
 
 		expect(logger.warn).toHaveBeenCalledTimes(1);

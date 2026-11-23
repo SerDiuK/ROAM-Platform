@@ -1,11 +1,10 @@
 import { createServer, type Server } from "node:net";
-import { Aedes, type PublishPacket } from "aedes";
+import { Aedes } from "aedes";
 import type { FastifyBaseLogger } from "fastify";
 
-export interface MqttBroker {
+interface MqttBroker {
 	aedes: Aedes;
 	server: Server;
-	publishCommand: (vehicleId: string, payload: object) => void;
 }
 
 export async function createMqttBroker(
@@ -23,20 +22,6 @@ export async function createMqttBroker(
 		logger.info({ clientId: client.id }, "MQTT client disconnected");
 	});
 
-	function publishCommand(vehicleId: string, payload: object): void {
-		const packet: PublishPacket = {
-			topic: `vehicles/${vehicleId}/commands`,
-			payload: Buffer.from(JSON.stringify(payload)),
-			cmd: "publish",
-			qos: 0 as const,
-			dup: false,
-			retain: false,
-		};
-		aedes.publish(packet, (err?: Error) => {
-			if (err) logger.error(err, "Failed to publish command");
-		});
-	}
-
 	await new Promise<void>((resolve, reject) => {
 		server.listen(port, () => {
 			logger.info(`MQTT broker listening on port ${port}`);
@@ -45,5 +30,5 @@ export async function createMqttBroker(
 		server.on("error", reject);
 	});
 
-	return { aedes, server, publishCommand };
+	return { aedes, server };
 }

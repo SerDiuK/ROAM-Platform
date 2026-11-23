@@ -7,7 +7,7 @@ import {
 	VehicleModel,
 } from "./db.js";
 
-export type SeededBriefing = {
+type SeededBriefing = {
 	incidentId: string;
 	briefingId: string;
 	recommendedResponderIds: string[];
@@ -15,11 +15,10 @@ export type SeededBriefing = {
 	summary: string;
 };
 
-export type SeedOptions = {
+type SeedOptions = {
 	transcript?: string;
 	summary?: string;
 	incidentType?: string;
-	totalUsdc?: number;
 	responderCount?: number;
 	responderName?: string;
 	vehicleCount?: number;
@@ -30,9 +29,6 @@ const DEFAULT_TRANSCRIPT =
 const DEFAULT_SUMMARY =
 	"Multi-vehicle crash at Biscayne Blvd & NE 36th St. Two cars, multiple injuries, possible entrapment. Lights & sirens.";
 
-// Inserts a synthetic Incident + Briefing pair with a valid briefingHash so
-// dispatch.confirm passes the hash check. Bypasses the LLM agent — the agent
-// path stays exercised by incidents.ingest in the real demo flow.
 export async function seedBriefing(
 	options: SeedOptions = {},
 ): Promise<SeededBriefing> {
@@ -61,23 +57,11 @@ export async function seedBriefing(
 		);
 	}
 
-	const recommendedResponderIds = responders.map(
-		(r) => (r as { _id: string })._id,
-	);
-	const recommendedVehicleIds = vehicles.map((v) =>
-		String((v as { _id: unknown })._id),
-	);
+	const recommendedResponderIds = responders.map((r) => String(r._id));
+	const recommendedVehicleIds = vehicles.map((v) => String(v._id));
 
 	const summary = options.summary ?? DEFAULT_SUMMARY;
 	const transcript = options.transcript ?? DEFAULT_TRANSCRIPT;
-	const totalUsdc = options.totalUsdc ?? 25;
-	const payout = {
-		baseUsdc: 10,
-		urgencyMultiplier: 2,
-		hazmatMultiplier: 1,
-		distanceMultiplier: 1.25,
-		totalUsdc,
-	};
 
 	const incidentId = randomUUID();
 	const briefingId = randomUUID();
@@ -93,7 +77,7 @@ export async function seedBriefing(
 			locationDescription: "Biscayne & NE 36th",
 			requiredCapabilities: ["medic"],
 		},
-		status: "live",
+		status: "pending",
 		assigned: { vehicles: [], responders: [] },
 	});
 
@@ -105,12 +89,10 @@ export async function seedBriefing(
 		summary,
 		recommendedVehicleIds,
 		recommendedResponderIds,
-		payout,
 		briefingHash: computeBriefingHash({
 			summary,
 			recommendedVehicleIds,
 			recommendedResponderIds,
-			payout,
 		}),
 	});
 

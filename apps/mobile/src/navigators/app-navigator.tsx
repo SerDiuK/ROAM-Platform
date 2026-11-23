@@ -1,6 +1,6 @@
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { HomeScreen } from "@/app/home";
-import { ProfileScreen } from "@/app/profile";
+import { HomeScreen } from "@/app/home/home-screen";
+import { ProfileScreen } from "@/app/profile/profile-screen";
 import type { RootStackParamList } from "./navigation-types";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -11,12 +11,9 @@ export function AppNavigator(): React.JSX.Element {
 			<Stack.Screen name="Home" component={HomeScreen} />
 			<Stack.Screen
 				name="Profile"
+				component={ProfileScreen}
 				options={{ presentation: "modal", animation: "slide_from_bottom" }}
-			>
-				{({ navigation }) => (
-					<ProfileScreen onClose={() => navigation.goBack()} />
-				)}
-			</Stack.Screen>
+			/>
 		</Stack.Navigator>
 	);
 }

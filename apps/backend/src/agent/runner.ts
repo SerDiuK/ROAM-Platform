@@ -4,7 +4,6 @@ import {
 	type Briefing,
 	BriefingSchema,
 	computeBriefingHash,
-	type IncidentClassification,
 } from "@roam/shared";
 import type { MinimalLogger } from "../db/connection.js";
 import { BriefingModel } from "../db/models/briefing.js";
@@ -17,11 +16,8 @@ import {
 } from "./tools/draftBriefing.js";
 import { agentTools, dispatchToolCall } from "./tools/index.js";
 
-// Re-export so existing callers (apps/backend/src/rpc/procedures/dispatch.ts,
-// scripts/seed-test-dispatch.ts) keep their import path. The implementation
-// itself lives in @roam/shared so external tools (CLI, mobile, dashboard) can
-// verify hashes without depending on backend internals.
-export { computeBriefingHash };
+// Headroom for thinking blocks plus a multi-paragraph `draft_briefing` payload.
+export const AGENT_MAX_TOKENS = 16384;
 
 export class BriefError extends Error {
 	constructor(message: string) {
@@ -30,14 +26,12 @@ export class BriefError extends Error {
 	}
 }
 
-export interface BriefContext {
+interface BriefContext {
 	client: Anthropic;
 	model: string;
 	maxTokens: number;
 	maxTurns: number;
 	log: MinimalLogger;
-	// Optional speed knobs forwarded to runAgent. Default: effort omitted
-	// (model picks), thinking off. Smoke / demo path sets effort: "low".
 	effort?: AgentEffort;
 	thinking?: Anthropic.ThinkingConfigParam;
 	onTurn?: (info: {
@@ -48,27 +42,13 @@ export interface BriefContext {
 	}) => void;
 }
 
-interface IncidentLeanDoc {
-	_id: string;
-	transcript: string;
-	classification?: IncidentClassification;
-}
-
-// AD-6 entry point. Loads the incident transcript + any pre-computed
-// classification, runs the LLM tool-use loop with the AD-5 read-only tools +
-// draft_briefing, validates the agent's final payload against BriefingSchema,
-// computes a stable briefingHash, and persists the Briefing.
-//
-// When `incident.classification` is present (the common case — populated at
-// ingest time, see AD-7), it's threaded into the user prompt so the agent
-// can skip the classify_incident round-trip. Saves ~5s on Sonnet 4.6.
 export async function brief(
 	incidentId: string,
 	ctx: BriefContext,
 ): Promise<Briefing> {
-	const incident = (await IncidentModel.findById(incidentId)
+	const incident = await IncidentModel.findById(incidentId)
 		.select({ _id: 1, transcript: 1, classification: 1 })
-		.lean()) as unknown as IncidentLeanDoc | null;
+		.lean();
 	if (!incident) {
 		throw new BriefError(`Incident not found: ${incidentId}`);
 	}
@@ -82,9 +62,6 @@ export async function brief(
 		},
 	];
 
-	// Captured by the onTool callback when the model calls draft_briefing.
-	// We don't read it from runAgent's toolCalls because we want the exact
-	// validated shape, not the raw model input.
 	let draftPayload: DraftBriefingInput | undefined;
 
 	const briefStart = Date.now();
@@ -133,8 +110,6 @@ export async function brief(
 			);
 			ctx.onTurn?.(info);
 		},
-		// Once draft_briefing fires we have the validated payload — skip the
-		// trailing "I'm done" turn the model would otherwise generate.
 		terminalToolName: draftBriefingTool.name,
 	});
 
@@ -156,18 +131,17 @@ export async function brief(
 		summary: draftPayload.summary,
 		recommendedVehicleIds: draftPayload.recommendedVehicleIds,
 		recommendedResponderIds: draftPayload.recommendedResponderIds,
-		payout: draftPayload.payout,
 		briefingHash: computeBriefingHash(draftPayload),
 	});
 
 	await BriefingModel.create(briefing);
+	await IncidentModel.updateOne(
+		{ _id: incidentId, status: "live" },
+		{ $set: { status: "pending" } },
+	);
 	return briefing;
 }
 
-// Compact one-line snapshot of arbitrary tool input/output. Caps the
-// serialized form so the log stays readable when the agent passes a 400-line
-// `draft_briefing` payload. Replaces newlines so the message stays one
-// pino-pretty line.
 function snippet(value: unknown, max = 240): string {
 	let s: string;
 	try {
@@ -178,4 +152,3 @@ function snippet(value: unknown, max = 240): string {
 	s = s.replace(/\s+/g, " ");
 	return s.length > max ? `${s.slice(0, max - 1)}…` : s;
 }
-

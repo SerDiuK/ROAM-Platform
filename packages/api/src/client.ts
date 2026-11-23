@@ -5,12 +5,12 @@ import type { Contract } from "@roam/shared";
 
 export type ApiClient = ContractRouterClient<Contract>;
 
-export type CreateApiClientOptions = {
-	// Async getter so callers can lazily resolve a token from secure-store /
-	// localStorage on every request rather than capturing it at construction
-	// time. Returning null/undefined sends the request without an Authorization
-	// header — the backend will only allow auth.signIn + health to land.
-	getAuthToken?: () => string | null | undefined | Promise<string | null | undefined>;
+type CreateApiClientOptions = {
+	getAuthToken?: () =>
+		| string
+		| null
+		| undefined
+		| Promise<string | null | undefined>;
 };
 
 export function createApiClient(

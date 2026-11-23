@@ -1,8 +1,14 @@
 import { randomUUID } from "node:crypto";
-import { vi } from "vitest";
+import type { FastifyBaseLogger } from "fastify";
+import { type Mock, vi } from "vitest";
+import type { Transcriber } from "../src/agent/transcribe.js";
+import type { Config } from "../src/config.js";
 import { ResponderModel } from "../src/db/models/responder.js";
 import { VehicleModel } from "../src/db/models/vehicle.js";
 import { VehicleSpecModel } from "../src/db/models/vehicleSpec.js";
+import type { ExpoPushClient } from "../src/push/expo.js";
+import type { RpcContext } from "../src/rpc/context.js";
+import type { TelemetryBroadcaster } from "../src/ws/telemetryBroadcaster.js";
 
 export async function getDefaultSpec() {
 	const existing = await VehicleSpecModel.findOne({ slug: "ambulance-type-1" });
@@ -54,51 +60,74 @@ export async function makeVehicle(
 	}).save();
 }
 
-export function makeFakeBroadcaster(): {
-	addClient: ReturnType<typeof vi.fn>;
-	removeClient: ReturnType<typeof vi.fn>;
-	broadcast: ReturnType<typeof vi.fn>;
+export function makeFakeTelemetryBroadcaster(): TelemetryBroadcaster & {
+	broadcast: Mock;
 } {
 	return { addClient: vi.fn(), removeClient: vi.fn(), broadcast: vi.fn() };
 }
 
 export function makeFakeTranscriber(
 	transcript = "fake transcript",
-): {
-	transcribeAudioFile: ReturnType<typeof vi.fn>;
-	transcribeAudioStream: ReturnType<typeof vi.fn>;
+): Transcriber & {
+	transcribeAudioFile: Mock<Transcriber["transcribeAudioFile"]>;
 } {
 	return {
-		transcribeAudioFile: vi.fn(async () => ({
-			transcript,
-			confidence: 0.95,
-			utterances: [],
-		})),
-		transcribeAudioStream: vi.fn(async () => transcript),
+		transcribeAudioFile: vi.fn<Transcriber["transcribeAudioFile"]>(
+			async () => ({ transcript, confidence: 0.95, utterances: [] }),
+		),
+		transcribeAudioStream: vi.fn<Transcriber["transcribeAudioStream"]>(
+			async () => transcript,
+		),
 	};
 }
 
-export function makeFakeLogger(): {
-	info: ReturnType<typeof vi.fn>;
-	warn: ReturnType<typeof vi.fn>;
-	error: ReturnType<typeof vi.fn>;
-	debug: ReturnType<typeof vi.fn>;
-	trace: ReturnType<typeof vi.fn>;
-	fatal: ReturnType<typeof vi.fn>;
-	child: () => ReturnType<typeof makeFakeLogger>;
-	level: string;
-	silent: () => void;
-} {
-	const logger = {
+type FakeLogger = FastifyBaseLogger & {
+	info: Mock;
+	warn: Mock;
+	error: Mock;
+	debug: Mock;
+};
+
+export function makeFakeLogger(): FakeLogger {
+	const logger: FakeLogger = {
 		info: vi.fn(),
 		warn: vi.fn(),
 		error: vi.fn(),
 		debug: vi.fn(),
 		trace: vi.fn(),
 		fatal: vi.fn(),
+		silent: vi.fn(),
 		child: () => logger,
 		level: "silent",
-		silent: () => {},
 	};
 	return logger;
+}
+
+export function makeFakePushClient(): ExpoPushClient & {
+	sendPushToResponders: Mock;
+} {
+	return {
+		sendPushToResponders: vi.fn(async () => ({
+			tickets: [],
+			delivered: 0,
+			skipped: 0,
+		})),
+	};
+}
+
+export function makeRpcContext(
+	config: Partial<Config>,
+	overrides: Partial<Omit<RpcContext, "config">> = {},
+): RpcContext {
+	return {
+		// Specs pass only the config keys the procedure under test reads.
+		config: config as Config,
+		transcriber: makeFakeTranscriber(),
+		// No procedure spec reaches the Anthropic client: incidents.spec mocks the agent.
+		anthropic: {} as RpcContext["anthropic"],
+		pushClient: makeFakePushClient(),
+		log: makeFakeLogger(),
+		user: null,
+		...overrides,
+	};
 }

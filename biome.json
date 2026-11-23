@@ -23,7 +23,8 @@
 					"level": "error",
 					"fix": "safe"
 				},
-				"noNonNullAssertion": "warn"
+				"noNonNullAssertion": "warn",
+				"noProcessEnv": "error"
 			},
 			"a11y": {
 				"noStaticElementInteractions": "warn"
@@ -32,7 +33,7 @@
 	},
 	"overrides": [
 		{
-			"includes": ["**/tsconfig.*.json", "**/tsconfig.json", "**/nextjs.json"],
+			"includes": ["**/tsconfig.*.json", "**/tsconfig.json"],
 			"json": {
 				"parser": {
 					"allowComments": true,
@@ -93,97 +94,14 @@
 		},
 		{
 			"includes": [
-				"packages/**/src/index.ts",
-				"packages/**/src/shared/**/*.ts",
-				"packages/**/src/shared/**/*.tsx"
+				"apps/*/src/config.ts",
+				"apps/dashboard/src/lib/config.ts",
+				"apps/mobile/app.config.ts"
 			],
 			"linter": {
 				"rules": {
 					"style": {
-						"noRestrictedImports": {
-							"level": "error",
-							"options": {
-								"patterns": [
-									{
-										"group": [
-											"./**/*.client",
-											"./**/*.client.*",
-											"../**/*.client",
-											"../**/*.client.*",
-											"./**/client/**",
-											"../**/client/**",
-											"./**/*.server",
-											"./**/*.server.*",
-											"../**/*.server",
-											"../**/*.server.*",
-											"./**/server/**",
-											"../**/server/**"
-										],
-										"message": "Shared entry points must not import client or server modules."
-									}
-								]
-							}
-						}
-					}
-				}
-			}
-		},
-		{
-			"includes": [
-				"packages/**/src/**/client/**/*.ts",
-				"packages/**/src/**/client/**/*.tsx"
-			],
-			"linter": {
-				"rules": {
-					"style": {
-						"noRestrictedImports": {
-							"level": "error",
-							"options": {
-								"patterns": [
-									{
-										"group": [
-											"./**/*.server",
-											"./**/*.server.*",
-											"../**/*.server",
-											"../**/*.server.*",
-											"./**/server/**",
-											"../**/server/**"
-										],
-										"message": "Client modules must not import server modules."
-									}
-								]
-							}
-						}
-					}
-				}
-			}
-		},
-		{
-			"includes": [
-				"packages/**/src/**/server/**/*.ts",
-				"packages/**/src/**/server/**/*.tsx"
-			],
-			"linter": {
-				"rules": {
-					"style": {
-						"noRestrictedImports": {
-							"level": "error",
-							"options": {
-								"patterns": [
-									{
-										"group": [
-											"./**/*.client",
-											"./**/*.client.*",
-											"../**/*.client",
-											"../**/*.client.*",
-											"./**/client/**",
-											"../**/client/**"
-										],
-										"message": "Server modules must not import client modules."
-									}
-								]
-							}
-						}
+						"noProcessEnv": "off"
 					}
 				}
 			}
@@ -199,18 +117,13 @@
 	"files": {
 		"includes": [
 			"**",
-			"!!**/.react-email",
 			"!!**/.next",
 			"!!**/.turbo",
 			"!!**/node_modules",
 			"!!**/dist",
 			"!!**/build",
-			"!!**/tmp",
-			"!!**/output",
-			"!!**/.output",
-			"!!**/__tests__/fixtures",
 			"!!**/target",
-			"!**/types.generated.ts",
+			"!!**/.anchor",
 			"!**/.expo",
 			"!**/apps/mobile/ios",
 			"!**/apps/mobile/android",
@@ -218,9 +131,6 @@
 		]
 	},
 	"javascript": {
-		"jsxRuntime": "reactClassic",
-		"parser": {
-			"unsafeParameterDecoratorsEnabled": true
-		}
+		"jsxRuntime": "reactClassic"
 	}
 }

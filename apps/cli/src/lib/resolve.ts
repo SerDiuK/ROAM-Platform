@@ -1,10 +1,5 @@
 import type { ApiClient } from "@roam/api";
 
-// Best-effort resolver: accept either a full UUID or a short prefix and find
-// the matching dispatch. Searches active dispatches first; if no match, falls
-// back to recently cleared/expired/cancelled — that way `roam dispatch get
-// <prefix>` still works for a dispatch you just cleared. Returns null if
-// zero or multiple match.
 export async function resolveDispatchId(
 	api: ApiClient,
 	idOrPrefix: string,
@@ -32,9 +27,7 @@ export async function resolveResponderId(
 		(r) => r.name.toLowerCase() === idOrPrefixOrName.toLowerCase(),
 	);
 	if (exactName) return exactName._id;
-	const matches = responders.filter((r) =>
-		r._id.startsWith(idOrPrefixOrName),
-	);
+	const matches = responders.filter((r) => r._id.startsWith(idOrPrefixOrName));
 	if (matches.length === 1) return matches[0]?._id ?? null;
 	return null;
 }

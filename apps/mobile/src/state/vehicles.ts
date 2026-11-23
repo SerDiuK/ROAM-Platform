@@ -1,18 +1,18 @@
-import type { Telemetry, Vehicle } from "@roam/shared";
+import type { Vehicle } from "@roam/shared";
 import { atom } from "jotai";
 import { api } from "@/lib/api";
 
 export const vehiclesAtom = atom<Vehicle[]>([]);
-export const telemetryAtom = atom<Map<string, Telemetry>>(new Map());
-export const connectedAtom = atom<boolean>(false);
+export const vehiclesFailedAtom = atom(false);
 
-// Write-only atom that fetches the vehicle list and updates the cache.
-// Trigger via `useSetAtom(fetchVehiclesAtom)()`.
-export const fetchVehiclesAtom = atom(null, async (_get, set) => {
-	try {
-		const v = await api.vehicles.list();
-		set(vehiclesAtom, v);
-	} catch {
-		// soft-fail; RealtimeProvider retries on next session event tick
-	}
-});
+export const fetchVehiclesAtom = atom(
+	null,
+	async (_get, set): Promise<void> => {
+		try {
+			set(vehiclesAtom, await api.vehicles.list());
+			set(vehiclesFailedAtom, false);
+		} catch {
+			set(vehiclesFailedAtom, true);
+		}
+	},
+);

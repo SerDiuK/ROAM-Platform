@@ -2,7 +2,7 @@
 
 import type { Incident } from "@roam/shared";
 import { cn, formatRelative } from "@roam/ui";
-import type { KeyboardEvent } from "react";
+import { useCallback } from "react";
 import { ListRow } from "../../ui/list-row";
 import { StatusDot } from "../../ui/status-pill";
 import { formatAssignedCounts, statusToneFor } from "./incident-row.utils";
@@ -10,15 +10,22 @@ import { UrgencyBadge } from "./urgency-badge";
 
 type IncidentRowProps = {
 	incident: Incident;
-	isActive?: boolean;
-	onSelect: () => void;
+	isActive: boolean;
+	now: number;
+	onSelect: (id: string) => void;
 };
 
 export function IncidentRow({
 	incident,
 	isActive,
+	now,
 	onSelect,
 }: IncidentRowProps) {
+	const handleSelect = useCallback(
+		() => onSelect(incident._id),
+		[onSelect, incident._id],
+	);
+
 	const isResolved = incident.status === "resolved";
 	const isCancelled = incident.status === "cancelled";
 
@@ -27,21 +34,10 @@ export function IncidentRow({
 	const urgency = incident.classification?.urgency;
 	const assignedSummary = formatAssignedCounts(incident);
 
-	const handleKeyDown = (event: KeyboardEvent<HTMLLIElement>): void => {
-		if (event.key === "Enter" || event.key === " ") {
-			event.preventDefault();
-			onSelect();
-		}
-	};
-
 	return (
 		<ListRow
-			layout="stack"
-			role="button"
-			tabIndex={0}
 			aria-pressed={isActive}
-			onClick={onSelect}
-			onKeyDown={handleKeyDown}
+			onClick={handleSelect}
 			className={cn(
 				"cursor-pointer gap-1.5 outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
 				isResolved &&
@@ -80,7 +76,7 @@ export function IncidentRow({
 						isResolved ? "text-primary-foreground/70" : "text-muted-foreground",
 					)}
 				>
-					{formatRelative(incident.callStartedAt)}
+					{formatRelative(incident.callStartedAt, now)}
 				</span>
 			</div>
 

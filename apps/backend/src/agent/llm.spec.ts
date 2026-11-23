@@ -17,8 +17,6 @@ const baseArgs = {
 
 describe("runAgent", () => {
 	it("terminates at maxTurns when the model never stops calling tools", async () => {
-		// Model emits a tool_use every turn — without a maxTurns ceiling this
-		// would loop forever.
 		const responses = Array.from({ length: 10 }, () =>
 			fakeMessage(
 				[toolUseBlock("classify_incident", { transcript: "x" })],
@@ -85,10 +83,9 @@ describe("runAgent", () => {
 			isError: false,
 		});
 
-		// The second turn's request must have carried both tool_results back so
-		// the model could continue. The user-role message at the tail of the
-		// `messages` array is what the SDK sees as the next turn's input.
-		const secondCall = calls[1].args as { messages: { role: string; content: unknown }[] };
+		const secondCall = calls[1].args as {
+			messages: { role: string; content: unknown }[];
+		};
 		const tail = secondCall.messages[secondCall.messages.length - 1];
 		expect(tail.role).toBe("user");
 		expect(tail.content).toEqual([
@@ -129,7 +126,9 @@ describe("runAgent", () => {
 			error: "boom",
 		});
 
-		const secondCall = calls[1].args as { messages: { role: string; content: { type: string }[] }[] };
+		const secondCall = calls[1].args as {
+			messages: { role: string; content: { type: string }[] }[];
+		};
 		const tail = secondCall.messages[secondCall.messages.length - 1];
 		expect(tail.content[0]).toMatchObject({
 			type: "tool_result",
@@ -148,8 +147,6 @@ describe("runAgent", () => {
 				],
 				"tool_use",
 			),
-			// This response would only be reached if short-circuit failed —
-			// the mock surfaces the "no more responses" error if we hit it.
 		];
 		const { client, create } = makeMockAnthropic(responses);
 		const onTool = vi.fn(async () => ({ ok: true }));
@@ -162,21 +159,15 @@ describe("runAgent", () => {
 			terminalToolName: "draft_briefing",
 		});
 
-		// Only one model call — the trailing "task complete" round trip
-		// was skipped.
 		expect(create).toHaveBeenCalledTimes(1);
 		expect(result.turns).toBe(1);
 		expect(result.stoppedAtMaxTurns).toBe(false);
-		// Both tools (including the terminal one) were dispatched before we
-		// returned, so the caller's onTool has the captured payload.
 		expect(onTool).toHaveBeenCalledTimes(2);
 		expect(result.toolCalls).toHaveLength(2);
 	});
 
 	it("returns immediately when the model emits text only (no tool_use)", async () => {
-		const responses = [
-			fakeMessage([textBlock("nothing to do")], "end_turn"),
-		];
+		const responses = [fakeMessage([textBlock("nothing to do")], "end_turn")];
 		const { client } = makeMockAnthropic(responses);
 		const onTool = vi.fn();
 

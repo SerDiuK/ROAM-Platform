@@ -1,13 +1,18 @@
-import { Expo, type ExpoPushMessage, type ExpoPushTicket } from "expo-server-sdk";
+import { DISPATCH_PUSH_CHANNEL } from "@roam/shared";
+import {
+	Expo,
+	type ExpoPushMessage,
+	type ExpoPushTicket,
+} from "expo-server-sdk";
 import { ResponderModel } from "../db/models/responder.js";
 
-export type PushMessage = {
+type PushMessage = {
 	title: string;
 	body: string;
 	data?: Record<string, unknown>;
 };
 
-export type SendPushResult = {
+type SendPushResult = {
 	tickets: ExpoPushTicket[];
 	delivered: number;
 	skipped: number;
@@ -24,15 +29,11 @@ type PushLogger = {
 	warn: (obj: object, msg: string) => void;
 };
 
-export type ExpoPushClientOptions = {
+type ExpoPushClientOptions = {
 	accessToken?: string;
 	logger?: PushLogger;
 };
 
-// Wraps expo-server-sdk so the rest of the backend can fan out push
-// notifications by responder id without thinking about chunking, token validity,
-// or the underlying HTTP client. Look-up of pushTokens reads directly from the
-// Responder document; mobile-side registration of those tokens lives in AD-12.
 export function createExpoPushClient(
 	options: ExpoPushClientOptions = {},
 ): ExpoPushClient {
@@ -84,9 +85,7 @@ export function createExpoPushClient(
 			data: message.data,
 			sound: "default",
 			priority: "high",
-			// Routes to the "dispatch" channel registered by the mobile app
-			// (AndroidImportance.MAX + custom vibration). No-op on iOS.
-			channelId: "dispatch",
+			channelId: DISPATCH_PUSH_CHANNEL,
 		}));
 
 		const chunks = expo.chunkPushNotifications(messages);

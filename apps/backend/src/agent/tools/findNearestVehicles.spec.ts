@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type { VehicleStatus } from "@roam/shared";
 import { beforeEach, describe, expect, it } from "vitest";
 import { getDefaultSpec, makeResponder } from "../../../test/factories.js";
 import { ResponderModel } from "../../db/models/responder.js";
@@ -8,16 +9,13 @@ import type { AgentToolContext } from "./types.js";
 
 const ctx = { log: {} as AgentToolContext["log"] } satisfies AgentToolContext;
 
-// ORIGIN is roughly downtown Miami; the seeded vehicles fan out NW/N.
-// Spacing is wide enough that no two come within 100 m of each other so
-// distance ordering is unambiguous regardless of the geodesic precision.
 const ORIGIN = { lat: 25.7617, lon: -80.1918 };
 
 interface SeedSpec {
 	callsign: string;
 	lat: number;
 	lon: number;
-	status?: "available" | "in_use";
+	status?: VehicleStatus;
 	capabilities?: "medic"[];
 }
 
@@ -80,7 +78,6 @@ describe("findNearestVehiclesTool", () => {
 		expect(result).toHaveLength(3);
 		expect(result.map((r) => r.id)).toEqual([nearId, midId, farId]);
 		expect(result[0].callsign).toBe("V-NEAR");
-		// strictly increasing
 		for (let i = 1; i < result.length; i++) {
 			expect(result[i].distanceMeters).toBeGreaterThan(
 				result[i - 1].distanceMeters,
@@ -89,18 +86,30 @@ describe("findNearestVehiclesTool", () => {
 		expect(result.length).toBeLessThanOrEqual(5);
 	});
 
-	it("filters out vehicles whose status is not 'available'", async () => {
+	it("returns available and checked-in vehicles, not locked or offline ones", async () => {
 		const availableId = await seedVehicleWithResponder({
 			callsign: "V-FREE",
 			lat: 25.766,
 			lon: -80.193,
 			status: "available",
 		});
-		await seedVehicleWithResponder({
-			callsign: "V-BUSY",
+		const crewedId = await seedVehicleWithResponder({
+			callsign: "V-CREWED",
 			lat: 25.767,
 			lon: -80.194,
 			status: "in_use",
+		});
+		await seedVehicleWithResponder({
+			callsign: "V-LOCKED",
+			lat: 25.768,
+			lon: -80.195,
+			status: "locked",
+		});
+		await seedVehicleWithResponder({
+			callsign: "V-OFF",
+			lat: 25.769,
+			lon: -80.196,
+			status: "offline",
 		});
 
 		const result = await findNearestVehiclesTool.handler(
@@ -108,7 +117,7 @@ describe("findNearestVehiclesTool", () => {
 			ctx,
 		);
 
-		expect(result.map((r) => r.id)).toEqual([availableId]);
+		expect(result.map((r) => r.id)).toEqual([availableId, crewedId]);
 	});
 
 	it("requiredCapabilities restricts to vehicles whose assigned responder has any matching capability", async () => {
@@ -155,7 +164,7 @@ describe("findNearestVehiclesTool", () => {
 	it("returns an empty array when the radius excludes every vehicle", async () => {
 		await seedVehicleWithResponder({
 			callsign: "V-FAR",
-			lat: 26.5, // ~80km north
+			lat: 26.5,
 			lon: -80.0,
 			capabilities: ["medic"],
 		});

@@ -8,10 +8,6 @@ export interface GpsFix {
 
 const KNOTS_TO_KMH = 1.852;
 
-/**
- * Convert NMEA coordinate format DDMM.MMMM (lat) or DDDMM.MMMM (lon)
- * to decimal degrees. Negate for South / West hemispheres.
- */
 function nmeaCoordToDecimal(
 	raw: string,
 	hemisphere: string,
@@ -26,26 +22,17 @@ function nmeaCoordToDecimal(
 	return decimal;
 }
 
-/**
- * Parse an RMC NMEA sentence into a GpsFix. Accepts any talker ID — $GPRMC
- * (GPS-only chips), $GNRMC (multi-constellation chips like SIM7670G), $GLRMC,
- * etc. The payload format is identical across talkers.
- *
- * Format: $xxRMC,hhmmss.ss,A,ddmm.mmmm,N,dddmm.mmmm,W,knots,heading,ddmmyy,...*checksum
- *
- * Returns null for non-RMC lines, void fixes (status 'V'), and parse errors.
- */
+// Any talker ID: the SIM7670G sends $GNRMC.
+// $xxRMC,hhmmss.ss,A,ddmm.mmmm,N,dddmm.mmmm,W,knots,heading,ddmmyy,...*checksum
 export function parseNmea(line: string): GpsFix | null {
 	try {
 		const trimmed = line.trim();
 		if (!/^\$[A-Z]{2}RMC,/.test(trimmed)) return null;
 
-		// Strip checksum portion before splitting
 		const body = trimmed.split("*")[0];
 		const fields = body.split(",");
 		if (fields.length < 10) return null;
 
-		// Status: 'A' = active, 'V' = void
 		if (fields[2] !== "A") return null;
 
 		const rawLat = fields[3];
@@ -61,7 +48,6 @@ export function parseNmea(line: string): GpsFix | null {
 		const speed = fields[7] ? parseFloat(fields[7]) * KNOTS_TO_KMH : 0;
 		const heading = fields[8] ? parseFloat(fields[8]) : 0;
 
-		// Build timestamp from time (field 1: hhmmss.ss) and date (field 9: ddmmyy)
 		const timeStr = fields[1];
 		const dateStr = fields[9];
 		if (!timeStr || !dateStr || timeStr.length < 6 || dateStr.length < 6) {

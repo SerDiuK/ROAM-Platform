@@ -1,10 +1,10 @@
-import { SignJWT, jwtVerify } from "jose";
+import { jwtVerify, SignJWT } from "jose";
 
 const ALG = "HS256";
 const ISSUER = "roam-backend";
 
-export type SessionClaims = {
-	sub: string; // responder id
+type SessionClaims = {
+	sub: string;
 	name: string;
 	role: "responder" | "dispatcher";
 };

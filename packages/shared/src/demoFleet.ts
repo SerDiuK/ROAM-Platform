@@ -1,8 +1,43 @@
 import { z } from "zod";
+import type { ResponderAvailability } from "./responder";
 
-// Canonical demo simulator fleet. Owned by @roam/shared so backend can seed
-// it into Mongo and sim-fleet can drive telemetry without duplicating the list.
-export const DemoFleetVehicleSchema = z.object({
+export const DEMO_CLUSTER = "devnet";
+
+type DemoResponder = {
+	name: string;
+	displayName: string;
+	role: "responder" | "dispatcher";
+	availability: ResponderAvailability;
+};
+
+export const DEMO_RESPONDERS: DemoResponder[] = [
+	{
+		name: "THOMAS-1",
+		displayName: "Thomas Goethals",
+		role: "responder",
+		availability: "available",
+	},
+	{
+		name: "RSP-1",
+		displayName: "Alex Ramirez",
+		role: "responder",
+		availability: "available",
+	},
+	{
+		name: "RSP-2",
+		displayName: "Sam Patel",
+		role: "responder",
+		availability: "available",
+	},
+	{
+		name: "DSP-1",
+		displayName: "Mia Bennett",
+		role: "dispatcher",
+		availability: "off_duty",
+	},
+];
+
+const DemoFleetVehicleSchema = z.object({
 	routeFile: z.string().min(1),
 	callsign: z.string().min(1),
 	responderName: z.string().min(1),
@@ -17,11 +52,6 @@ export type DemoFleetVehicle = z.infer<typeof DemoFleetVehicleSchema>;
 
 export const DemoFleetSchema = z.array(DemoFleetVehicleSchema).min(1);
 
-// seedTelemetry positions cluster the medics within ~3km of the demo scene at
-// Biscayne Blvd & NE 36th St (≈25.812 N, -80.190 W) so the agent's
-// find_nearest_vehicles tool can return them on a freshly-seeded DB without
-// sim-fleet having to be running. Once sim-fleet starts, real telemetry
-// overrides these via the MQTT pipeline.
 export const DEMO_FLEET: DemoFleetVehicle[] = [
 	{
 		routeFile: "patrol_alpha.json",

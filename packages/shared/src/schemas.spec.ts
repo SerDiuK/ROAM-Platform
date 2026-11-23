@@ -92,4 +92,3 @@ describe("TelemetrySnapshotSchema", () => {
 		expect(result).not.toHaveProperty("vehicleId");
 	});
 });
-

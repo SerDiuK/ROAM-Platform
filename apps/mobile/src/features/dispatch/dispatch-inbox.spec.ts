@@ -1,9 +1,12 @@
+import { ORPCError } from "@orpc/client";
 import type { Briefing, Dispatch, Incident, Responder } from "@roam/shared";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-	DispatchInbox,
-	type DispatchInboxApi,
-} from "./dispatch-inbox.js";
+import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
+import { SeekerAuthorizationError, SeekerSigningError } from "@/lib/mwa";
+import { DispatchInbox, type DispatchInboxApi } from "./dispatch-inbox.js";
+
+vi.mock("react-native", () => ({
+	Platform: { OS: "ios" },
+}));
 
 const RESPONDER_ID = "rsp-1";
 
@@ -16,7 +19,6 @@ function makeDispatch(overrides: Partial<Dispatch> = {}): Dispatch {
 		decidedAt: new Date("2026-05-06T12:00:00Z"),
 		assignedVehicleIds: ["veh-1"],
 		assignedResponderIds: [RESPONDER_ID, "rsp-2"],
-		payoutUsdc: 50,
 		requiredAccepts: 1,
 		status: "pending",
 		claimedByResponderIds: [],
@@ -53,13 +55,6 @@ function makeBriefing(): Briefing {
 		summary: "Pt. unresponsive, bystander performing CPR",
 		recommendedVehicleIds: ["veh-1"],
 		recommendedResponderIds: [RESPONDER_ID],
-		payout: {
-			baseUsdc: 50,
-			urgencyMultiplier: 1,
-			hazmatMultiplier: 1,
-			distanceMultiplier: 1,
-			totalUsdc: 50,
-		},
 		briefingHash: "deadbeef",
 	};
 }
@@ -75,16 +70,16 @@ function makeResponder(id: string, name: string): Responder {
 }
 
 type MockedApi = {
-	[K in keyof DispatchInboxApi]: ReturnType<typeof vi.fn> & DispatchInboxApi[K];
+	[K in keyof DispatchInboxApi]: Mock<DispatchInboxApi[K]>;
 };
 
 function makeApi(): MockedApi {
 	return {
-		getDispatch: vi.fn() as MockedApi["getDispatch"],
-		getIncident: vi.fn() as MockedApi["getIncident"],
-		listResponders: vi.fn() as MockedApi["listResponders"],
-		respond: vi.fn() as MockedApi["respond"],
-		clear: vi.fn() as MockedApi["clear"],
+		getDispatch: vi.fn<DispatchInboxApi["getDispatch"]>(),
+		getIncident: vi.fn<DispatchInboxApi["getIncident"]>(),
+		listResponders: vi.fn<DispatchInboxApi["listResponders"]>(),
+		respond: vi.fn<DispatchInboxApi["respond"]>(),
+		clear: vi.fn<DispatchInboxApi["clear"]>(),
 	};
 }
 
@@ -103,13 +98,16 @@ function seedHappy(api: ReturnType<typeof makeApi>): void {
 
 describe("DispatchInbox", () => {
 	let api: ReturnType<typeof makeApi>;
+	let forgetDevice: Mock<() => Promise<void>>;
 	let inbox: DispatchInbox;
 
 	beforeEach(() => {
 		api = makeApi();
+		forgetDevice = vi.fn(async () => {});
 		inbox = new DispatchInbox({
 			api,
 			getResponderId: () => RESPONDER_ID,
+			forgetDevice,
 		});
 	});
 
@@ -130,7 +128,6 @@ describe("DispatchInbox", () => {
 		if (state.kind !== "incoming") return;
 		expect(state.data.dispatch._id).toBe("dsp-1");
 		expect(state.data.briefing?.summary).toContain("CPR");
-		// Filtered to assigned responders only — `rsp-other` must be dropped.
 		expect(state.data.responders.map((r) => r._id)).toEqual([
 			RESPONDER_ID,
 			"rsp-2",
@@ -144,8 +141,6 @@ describe("DispatchInbox", () => {
 
 		await inbox.showFor("dsp-1");
 
-		// At minimum: loading → incoming. The exact count is impl-detail-ish but
-		// must be >= 2 to prove transitions are emitted.
 		expect(listener.mock.calls.length).toBeGreaterThanOrEqual(2);
 	});
 
@@ -179,10 +174,9 @@ describe("DispatchInbox", () => {
 
 	it("surfaces CONFLICT as a typed error state without crashing", async () => {
 		seedHappy(api);
-		api.respond.mockRejectedValue({
-			code: "CONFLICT",
-			message: "dispatch_already_claimed",
-		});
+		api.respond.mockRejectedValue(
+			new ORPCError("CONFLICT", { message: "dispatch_already_claimed" }),
+		);
 		await inbox.showFor("dsp-1");
 		await inbox.acceptDispatch();
 
@@ -193,13 +187,30 @@ describe("DispatchInbox", () => {
 		expect(state.data.dispatch._id).toBe("dsp-1");
 	});
 
+	it("forgets the device only when the Seeker refuses authorization", async () => {
+		seedHappy(api);
+		api.respond.mockRejectedValueOnce(
+			new SeekerSigningError("Transaction declined"),
+		);
+		await inbox.showFor("dsp-1");
+		await inbox.acceptDispatch();
+
+		expect(inbox.getState().kind).toBe("error");
+		expect(forgetDevice).not.toHaveBeenCalled();
+
+		api.respond.mockRejectedValueOnce(
+			new SeekerAuthorizationError("Authorization failed"),
+		);
+		await inbox.showFor("dsp-1");
+		await inbox.acceptDispatch();
+
+		expect(forgetDevice).toHaveBeenCalledTimes(1);
+	});
+
 	it("ignores stale fetch results when showFor is called twice in quick succession", async () => {
 		const slowDispatch = makeDispatch({ _id: "dsp-old" });
 		const fastDispatch = makeDispatch({ _id: "dsp-new" });
 
-		// Held by reference so the test body can resolve the slow first fetch
-		// after the second one has won. Wrapping in a tuple bypasses TS's
-		// control-flow narrowing of `let` assigned only inside a callback.
 		const firstResolver: { fn: ((value: Dispatch) => void) | null } = {
 			fn: null,
 		};
@@ -218,7 +229,7 @@ describe("DispatchInbox", () => {
 			makeResponder(RESPONDER_ID, "A. van Gaal"),
 		]);
 
-		void inbox.showFor("dsp-old");
+		const stale = inbox.showFor("dsp-old");
 		await inbox.showFor("dsp-new");
 
 		const after = inbox.getState();
@@ -226,10 +237,8 @@ describe("DispatchInbox", () => {
 		if (after.kind !== "incoming") return;
 		expect(after.data.dispatch._id).toBe("dsp-new");
 
-		// Now the slow first fetch resolves — must not overwrite the new state.
 		firstResolver.fn?.(slowDispatch);
-		await Promise.resolve();
-		await Promise.resolve();
+		await stale;
 		const final = inbox.getState();
 		if (final.kind !== "incoming") return;
 		expect(final.data.dispatch._id).toBe("dsp-new");
@@ -239,6 +248,7 @@ describe("DispatchInbox", () => {
 		const noIdInbox = new DispatchInbox({
 			api,
 			getResponderId: () => undefined,
+			forgetDevice,
 		});
 		seedHappy(api);
 		await noIdInbox.showFor("dsp-1");
@@ -275,10 +285,11 @@ describe("DispatchInbox", () => {
 	it("clearDispatch surfaces CONFLICT (e.g. dispatch already cleared)", async () => {
 		seedHappy(api);
 		api.respond.mockResolvedValue(undefined);
-		api.clear.mockRejectedValue({
-			code: "CONFLICT",
-			message: "dispatch_not_claimable_for_clear: status=cleared",
-		});
+		api.clear.mockRejectedValue(
+			new ORPCError("CONFLICT", {
+				message: "dispatch_not_claimable_for_clear: status=cleared",
+			}),
+		);
 		await inbox.showFor("dsp-1");
 		await inbox.acceptDispatch();
 		await inbox.clearDispatch();

@@ -3,14 +3,13 @@ import { readFile } from "node:fs/promises";
 import { basename, dirname, extname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Args, Flags } from "@oclif/core";
+import type { Briefing } from "@roam/shared";
 import chalk from "chalk";
 import ora from "ora";
 import { BaseCommand } from "../../base-command.js";
 import { shortId } from "../../lib/format.js";
 
-// Resolve the default demo WAV from the CLI source location so the command
-// works regardless of where the user runs it from. Both src/ (dev) and build/
-// (compiled) sit five levels below the repo root.
+// src/ and build/ both sit five levels below the repo root.
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HERE, "../../../../..");
 const DEFAULT_AUDIO = resolve(REPO_ROOT, "apps/dashboard/public/911call.wav");
@@ -33,26 +32,24 @@ function truncate(s: string, n: number): string {
 	return s.length > n ? `${s.slice(0, n - 1)}…` : s;
 }
 
-// Walk the .cause chain (Node wraps low-level network errors) so the user
-// sees the actual signal — ECONNREFUSED, ECONNRESET, etc. — instead of the
-// generic "fetch failed" the top-level fetch throws.
+function errorCode(err: Error): string | undefined {
+	return "code" in err && typeof err.code === "string" ? err.code : undefined;
+}
+
 function describeError(err: unknown): { headline: string; details: string[] } {
 	const lines: string[] = [];
 	let current: unknown = err;
-	let depth = 0;
-	while (current && depth < 5) {
-		const e = current as { code?: string; message?: string; cause?: unknown };
-		const code = e.code ? `${e.code} ` : "";
-		const msg = e.message ?? String(current);
-		lines.push(`${code}${msg}`);
-		current = e.cause;
-		depth += 1;
+	for (let depth = 0; depth < 5 && current; depth += 1) {
+		if (!(current instanceof Error)) {
+			lines.push(String(current));
+			break;
+		}
+		lines.push(`${errorCode(current) ?? ""} ${current.message}`.trim());
+		current = current.cause;
 	}
 	return { headline: lines[0] ?? "unknown error", details: lines.slice(1) };
 }
 
-// fetch failures during dev usually mean the backend's tsx watch is mid-
-// restart from a file edit. Treat connect-time errors as transient and retry.
 const TRANSIENT_CODES = new Set([
 	"ECONNREFUSED",
 	"ECONNRESET",
@@ -63,10 +60,10 @@ const TRANSIENT_CODES = new Set([
 
 function isTransientFetchError(err: unknown): boolean {
 	let current: unknown = err;
-	for (let depth = 0; depth < 5 && current; depth += 1) {
-		const code = (current as { code?: string }).code;
+	for (let depth = 0; depth < 5 && current instanceof Error; depth += 1) {
+		const code = errorCode(current);
 		if (code && TRANSIENT_CODES.has(code)) return true;
-		current = (current as { cause?: unknown }).cause;
+		current = current.cause;
 	}
 	return false;
 }
@@ -139,7 +136,7 @@ export default class IncidentIngest extends BaseCommand {
 			this.log("");
 			this.log(
 				chalk.dim(
-					"Dashboard: incident appears in the right sidebar · briefing arrives over /ws/incidents",
+					"Dashboard: incident appears in the right sidebar; the briefing follows when the agent finishes",
 				),
 			);
 
@@ -156,14 +153,12 @@ export default class IncidentIngest extends BaseCommand {
 				);
 				return;
 			}
-			spinner.succeed(
-				`Briefing ready · ${chalk.cyan(shortId(briefing._id))}`,
-			);
+			spinner.succeed(`Briefing ready · ${chalk.cyan(shortId(briefing._id))}`);
 			this.log("");
 			this.log(chalk.bold("Briefing summary"));
 			this.log(`  ${briefing.summary}`);
 			this.log(
-				`  payout      ${briefing.payout.totalUsdc} USDC · ${briefing.recommendedResponderIds.length} responders · ${briefing.recommendedVehicleIds.length} vehicles`,
+				`  units       ${briefing.recommendedResponderIds.length} responders · ${briefing.recommendedVehicleIds.length} vehicles`,
 			);
 			this.log("");
 			this.log(chalk.dim("Next:"));
@@ -225,16 +220,7 @@ export default class IncidentIngest extends BaseCommand {
 	private async waitForBriefing(
 		incidentId: string,
 		timeoutMs: number,
-	): Promise<
-		| {
-				_id: string;
-				summary: string;
-				payout: { totalUsdc: number };
-				recommendedResponderIds: string[];
-				recommendedVehicleIds: string[];
-		  }
-		| null
-	> {
+	): Promise<Briefing | null> {
 		const startedAt = Date.now();
 		const POLL_MS = 1500;
 		while (Date.now() - startedAt < timeoutMs) {

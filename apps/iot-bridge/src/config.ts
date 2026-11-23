@@ -3,7 +3,7 @@ import { z } from "zod";
 
 dotenv.config({ path: ".env.local" });
 
-export class ConfigError extends Error {
+class ConfigError extends Error {
 	constructor(message: string) {
 		super(message);
 		this.name = "ConfigError";

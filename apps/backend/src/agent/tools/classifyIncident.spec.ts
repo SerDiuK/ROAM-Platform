@@ -37,7 +37,9 @@ describe("classifyIncidentTool", () => {
 	});
 
 	it("routes a softer medical signal to Medical assist at urgency 2", async () => {
-		const result = await classify("Someone is injured at the park, please send an ambulance.");
+		const result = await classify(
+			"Someone is injured at the park, please send an ambulance.",
+		);
 		expect(result.incidentType).toBe("Medical assist");
 		expect(result.urgency).toBe(2);
 		expect(result.requiredCapabilities).toEqual(["medic"]);
@@ -48,7 +50,6 @@ describe("classifyIncidentTool", () => {
 			"Hazmat spill at Flagler and 2nd Ave, please hurry.",
 		);
 		expect(result.locationDescription).toBe("Flagler and 2nd Ave");
-		// Unknown intersections do not get geocoded — coords stay undefined.
 		expect(result.location).toBeUndefined();
 	});
 

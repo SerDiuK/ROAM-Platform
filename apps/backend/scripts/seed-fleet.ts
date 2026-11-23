@@ -7,14 +7,6 @@ import { ResponderModel } from "../src/db/models/responder.js";
 import { VehicleModel } from "../src/db/models/vehicle.js";
 import { VehicleSpecModel } from "../src/db/models/vehicleSpec.js";
 import { seedVehicleSpecs } from "../src/db/seed.js";
-import { createWalletProvider } from "../src/wallet/index.js";
-
-// Seeds the canonical demo simulator fleet (vehicles + their drivers) into
-// Mongo. Idempotent — safe to re-run. Run with:
-//   pnpm --filter @roam/backend fleet:seed
-//
-// Auth is Seeker-only (SIWS). Drivers' walletAddress is bound on first sign-in
-// from the device — no PIN, no pre-shared secret here.
 
 const FALLBACK_MODEL_SLUG = "ambulance-type-1";
 
@@ -22,11 +14,8 @@ async function main(): Promise<void> {
 	const config = parseConfig();
 	await connectDb(config.MONGODB_URL, console);
 
-	// VehicleSpec seed normally runs in the backend boot path; do it here too so
-	// `fleet:seed` works on a freshly-nuked DB without needing the server up.
+	// Repeats the backend's boot-time seed so a fresh DB works without the server.
 	await seedVehicleSpecs(console);
-
-	const wallet = createWalletProvider(config);
 
 	for (const vehicle of DEMO_FLEET) {
 		const slug = vehicle.modelSlug ?? FALLBACK_MODEL_SLUG;
@@ -37,10 +26,9 @@ async function main(): Promise<void> {
 			);
 		}
 
-		// Responder first so we can stamp the vehicle's assignedResponderIds in
-		// the same upsert. The agent's find_nearest_vehicles tool joins on this
-		// to honor capability filters.
-		const existing = await ResponderModel.findOne({ name: vehicle.responderName });
+		const existing = await ResponderModel.findOne({
+			name: vehicle.responderName,
+		});
 		const responder =
 			existing ??
 			(await new ResponderModel({
@@ -83,9 +71,8 @@ async function main(): Promise<void> {
 			`[seed-fleet] vehicle ${vehicle.callsign} (${slug}) — id=${v._id.toHexString()} driver=${vehicle.responderName}`,
 		);
 
-		const { address } = await wallet.createWallet(responder._id);
 		console.log(
-			`[seed-fleet] responder ${vehicle.responderName} — id=${responder._id} wallet=${address}`,
+			`[seed-fleet] responder ${vehicle.responderName} — id=${responder._id}`,
 		);
 	}
 

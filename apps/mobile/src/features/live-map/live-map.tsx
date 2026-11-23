@@ -1,4 +1,9 @@
-import type { Incident, IncidentUrgency, Telemetry, Vehicle } from "@roam/shared";
+import type {
+	Incident,
+	IncidentUrgency,
+	Telemetry,
+	Vehicle,
+} from "@roam/shared";
 import { color, STATUS_HEX, URGENCY_HEX } from "@roam/ui";
 import * as Location from "expo-location";
 import { LocateFixed, Siren } from "lucide-react-native";
@@ -88,9 +93,7 @@ export function LiveMap({
 	const incidentPulse =
 		incident?.status === "live" || incident?.status === "pending";
 
-	// Zoom to the incident the moment one appears (or the location changes).
-	// Keyed on lat/lon so re-renders that don't actually move the scene don't
-	// re-trigger the camera animation.
+	// Keyed on lat/lon so re-renders that don't move the scene don't re-run the camera animation.
 	const incidentLat = incidentLocation?.lat;
 	const incidentLon = incidentLocation?.lon;
 	useEffect(() => {

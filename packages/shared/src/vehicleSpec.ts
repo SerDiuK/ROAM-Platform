@@ -1,9 +1,8 @@
 import { z } from "zod";
 
-// --- Vehicle Spec (catalog: manufacturer, model name, image, performance specs) ---
 export const VehicleSpecSchema = z.object({
-	_id: z.string(), // 24-char ObjectId hex
-	slug: z.string(), // e.g. "ambulance-type-1" — stable seed/lookup key
+	_id: z.string(),
+	slug: z.string(),
 	manufacturer: z.string(),
 	name: z.string(),
 	imageUrl: z.string().url(),

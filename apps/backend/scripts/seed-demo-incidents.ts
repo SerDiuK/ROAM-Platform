@@ -1,19 +1,11 @@
 import { createHash } from "node:crypto";
 import { IncidentSchema } from "@roam/shared";
-import dotenv from "dotenv";
 import mongoose from "mongoose";
+import { parseConfig } from "../src/config.js";
 import { connectDb } from "../src/db/connection.js";
 import { IncidentModel } from "../src/db/models/incident.js";
 import { ResponderModel } from "../src/db/models/responder.js";
 import { VehicleModel } from "../src/db/models/vehicle.js";
-
-// Demo data loader — only needs MONGODB_URL. Skips parseConfig() so it can
-// run before the full auth / STT / wallet env is set up locally.
-dotenv.config({ path: ".env.local" });
-
-// Demo seed for the dispatcher right-sidebar. Idempotent: deletes anything
-// with the `demo-` _id prefix before re-inserting. Run with:
-//   pnpm --filter @roam/backend exec tsx scripts/seed-demo-incidents.ts
 
 const PREFIX = "demo-";
 
@@ -29,14 +21,10 @@ type DemoIncidentSeed = {
 	transcript: string;
 	assignVehicleCount: number;
 	assignResponderCount: number;
-	// Minutes after the call start when the dispatcher confirmed dispatch /
-	// the last unit cleared scene. Set on responding/arrived/resolved incidents.
 	dispatchedAfterMin?: number;
 	clearedAfterMin?: number;
 };
 
-// Times are minutes-ago at script run; the sidebar will render relative times
-// like "2 min ago" / "1 h ago".
 const SEEDS: DemoIncidentSeed[] = [
 	{
 		suffix: "responding-overtown",
@@ -98,12 +86,9 @@ async function pickAvailableIds(): Promise<{
 		VehicleModel.find().select({ _id: 1 }).limit(10).lean(),
 		ResponderModel.find().select({ _id: 1 }).limit(10).lean(),
 	]);
-	// Mongoose typings default `_id` to ObjectId, but the responder schema
-	// overrides it to String. Cast to the runtime shape.
-	const opDocs = responders as unknown as { _id: string }[];
 	return {
 		vehicleIds: vehicles.map((v) => v._id.toHexString()),
-		responderIds: opDocs.map((o) => o._id),
+		responderIds: responders.map((r) => r._id),
 	};
 }
 
@@ -115,12 +100,7 @@ async function clearExisting(): Promise<number> {
 }
 
 async function seed(): Promise<void> {
-	const mongoUrl = process.env.MONGODB_URL;
-	if (!mongoUrl) {
-		console.error("MONGODB_URL is required (set it in apps/backend/.env.local)");
-		process.exit(1);
-	}
-	await connectDb(mongoUrl, console);
+	await connectDb(parseConfig().MONGODB_URL, console);
 
 	try {
 		const cleared = await clearExisting();
@@ -164,7 +144,6 @@ async function seed(): Promise<void> {
 				dispatchedAt,
 				clearedAt,
 			};
-			// Validate before save so a schema drift fails fast in dev.
 			IncidentSchema.parse({
 				...doc,
 				createdAt: callStartedAt,

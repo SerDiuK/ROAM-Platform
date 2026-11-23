@@ -1,24 +1,13 @@
-import { RESPONDER_AVAILABILITIES, RESPONDER_CAPABILITIES } from "@roam/shared";
+import {
+	RESPONDER_AVAILABILITIES,
+	RESPONDER_CAPABILITIES,
+	type Responder,
+} from "@roam/shared";
 import mongoose from "mongoose";
 
-// `_id` is a UUID-with-dashes string assigned at enrol time (see
-// rpc/procedures/responders.ts). The schema must override `_id` to String;
-// otherwise mongoose treats it as ObjectId and casts fail at runtime.
-//
-// `encryptedWalletSecret` holds the AES-256-GCM ciphertext of the responder's
-// embedded Solana keypair. `select: false` keeps it out of every default query
-// — it is read only inside the wallet provider when a transfer needs signing.
-// (Dead weight under Seeker auth; slated for follow-up cleanup with AD-2.)
-//
-// `walletAddress` is the Seeker pubkey (Seed Vault), bound at first SIWS
-// sign-in. Indexed because siwsVerify resolves the responder by pubkey.
-//
-// `currentVehicleId` (AD-22) is the persistent responder↔vehicle pairing,
-// replacing the off-chain Session collection. The unique-sparse partial
-// index enforces "1 responder per vehicle" — the sparse partialFilter is on
-// the string type, not "exists", so a missing/null currentVehicleId is
-// excluded from the uniqueness check.
-const responderSchema = new mongoose.Schema({
+type ResponderDoc = Responder & { pushTokens?: string[] };
+
+const responderSchema = new mongoose.Schema<ResponderDoc>({
 	_id: { type: String, required: true },
 	name: { type: String, required: true, unique: true },
 	displayName: { type: String },
@@ -30,7 +19,6 @@ const responderSchema = new mongoose.Schema({
 		required: true,
 	},
 	walletAddress: { type: String, index: true },
-	encryptedWalletSecret: { type: String, select: false },
 	pushTokens: { type: [String], default: undefined },
 	capabilities: {
 		type: [{ type: String, enum: RESPONDER_CAPABILITIES }],
@@ -40,6 +28,7 @@ const responderSchema = new mongoose.Schema({
 });
 
 responderSchema.index({ capabilities: 1 }, { sparse: true });
+// `$type`, not `$exists`: unpaired responders store null, which `$exists` would index.
 responderSchema.index(
 	{ currentVehicleId: 1 },
 	{
@@ -48,4 +37,7 @@ responderSchema.index(
 	},
 );
 
-export const ResponderModel = mongoose.model("Responder", responderSchema);
+export const ResponderModel = mongoose.model<ResponderDoc>(
+	"Responder",
+	responderSchema,
+);

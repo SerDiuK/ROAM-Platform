@@ -2,7 +2,10 @@
 
 import type { Incident } from "@roam/shared";
 import { getIncidents } from "@/lib/api";
-import { type PollingResource, usePollingResource } from "./use-polling-resource";
+import {
+	type PollingResource,
+	usePollingResource,
+} from "./use-polling-resource";
 
 const INCIDENTS_POLL_MS = 10_000;
 const EMPTY: Incident[] = [];

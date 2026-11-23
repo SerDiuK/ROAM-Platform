@@ -1,30 +1,22 @@
 "use client";
 
-import { Slot } from "@radix-ui/react-slot";
 import { cn } from "@roam/ui";
-import { cva, type VariantProps } from "class-variance-authority";
 import {
 	type ComponentProps,
 	type CSSProperties,
 	createContext,
-	useCallback,
 	useContext,
 	useMemo,
-	useState,
 } from "react";
-import { Icon } from "./icon";
 
 type SidebarContextValue = {
 	state: "expanded" | "collapsed";
-	open: boolean;
-	setOpen: (open: boolean) => void;
-	toggleSidebar: () => void;
 	side: "left" | "right";
 };
 
 const SidebarContext = createContext<SidebarContextValue | null>(null);
 
-export function useSidebar(): SidebarContextValue {
+function useSidebar(): SidebarContextValue {
 	const context = useContext(SidebarContext);
 	if (!context) {
 		throw new Error("useSidebar must be used within a SidebarProvider.");
@@ -33,44 +25,22 @@ export function useSidebar(): SidebarContextValue {
 }
 
 type SidebarProviderProps = {
-	defaultOpen?: boolean;
-	open?: boolean;
-	onOpenChange?: (open: boolean) => void;
+	open: boolean;
 	side?: "left" | "right";
 	children: React.ReactNode;
 };
 
 export function SidebarProvider({
-	defaultOpen = true,
-	open: openProp,
-	onOpenChange,
+	open,
 	side = "left",
 	children,
 }: SidebarProviderProps) {
-	const [internalOpen, setInternalOpen] = useState(defaultOpen);
-	const open = openProp ?? internalOpen;
-
-	const setOpen = useCallback(
-		(value: boolean) => {
-			if (onOpenChange) onOpenChange(value);
-			else setInternalOpen(value);
-		},
-		[onOpenChange],
-	);
-
-	const toggleSidebar = useCallback(() => {
-		setOpen(!open);
-	}, [open, setOpen]);
-
 	const value = useMemo<SidebarContextValue>(
 		() => ({
 			state: open ? "expanded" : "collapsed",
-			open,
-			setOpen,
-			toggleSidebar,
 			side,
 		}),
-		[open, setOpen, toggleSidebar, side],
+		[open, side],
 	);
 
 	return (
@@ -134,61 +104,6 @@ export function Sidebar({
 	);
 }
 
-export function SidebarTrigger({
-	className,
-	onClick,
-	children,
-	...props
-}: ComponentProps<"button">) {
-	const { toggleSidebar } = useSidebar();
-
-	return (
-		<button
-			type="button"
-			data-sidebar="trigger"
-			data-slot="sidebar-trigger"
-			aria-label="Toggle Sidebar"
-			className={cn(
-				"inline-flex size-7 items-center justify-center rounded-md text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-none",
-				className,
-			)}
-			onClick={(event) => {
-				onClick?.(event);
-				toggleSidebar();
-			}}
-			{...props}
-		>
-			{children ?? <Icon name="left_panel_open" />}
-			<span className="sr-only">Toggle Sidebar</span>
-		</button>
-	);
-}
-
-export function SidebarRail({ className, ...props }: ComponentProps<"button">) {
-	const { toggleSidebar } = useSidebar();
-
-	return (
-		<button
-			type="button"
-			data-sidebar="rail"
-			data-slot="sidebar-rail"
-			aria-label="Toggle Sidebar"
-			tabIndex={-1}
-			onClick={toggleSidebar}
-			title="Toggle Sidebar"
-			className={cn(
-				"absolute inset-y-0 z-30 hidden w-3 transition-all ease-linear sm:flex",
-				"group-data-[side=left]:-right-3",
-				"group-data-[side=right]:-left-3",
-				"after:absolute after:inset-y-0 after:left-1/2 after:w-px after:-translate-x-1/2 after:bg-sidebar-border hover:after:bg-sidebar-ring",
-				"group-data-[collapsible=offcanvas]:translate-x-0",
-				className,
-			)}
-			{...props}
-		/>
-	);
-}
-
 export function SidebarHeader({ className, ...props }: ComponentProps<"div">) {
 	return (
 		<div
@@ -245,16 +160,12 @@ export function SidebarGroup({ className, ...props }: ComponentProps<"div">) {
 	);
 }
 
-type SidebarGroupLabelProps = ComponentProps<"div"> & { asChild?: boolean };
-
 export function SidebarGroupLabel({
 	className,
-	asChild = false,
 	...props
-}: SidebarGroupLabelProps) {
-	const Comp = asChild ? Slot : "div";
+}: ComponentProps<"div">) {
 	return (
-		<Comp
+		<div
 			data-slot="sidebar-group-label"
 			data-sidebar="group-label"
 			className={cn(
@@ -302,48 +213,6 @@ export function SidebarMenuItem({ className, ...props }: ComponentProps<"li">) {
 	);
 }
 
-const sidebarMenuButtonVariants = cva(
-	"peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-md px-2 text-left outline-none transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground [&>svg]:size-4 [&>svg]:shrink-0",
-	{
-		variants: {
-			size: {
-				sm: "h-7 text-xs",
-				default: "h-9 text-sm",
-				lg: "h-11 text-sm",
-			},
-		},
-		defaultVariants: {
-			size: "default",
-		},
-	},
-);
-
-type SidebarMenuButtonProps = ComponentProps<"button"> & {
-	asChild?: boolean;
-	isActive?: boolean;
-} & VariantProps<typeof sidebarMenuButtonVariants>;
-
-export function SidebarMenuButton({
-	asChild = false,
-	isActive = false,
-	size = "default",
-	className,
-	...props
-}: SidebarMenuButtonProps) {
-	const Comp = asChild ? Slot : "button";
-	return (
-		<Comp
-			data-slot="sidebar-menu-button"
-			data-sidebar="menu-button"
-			data-active={isActive}
-			className={cn(sidebarMenuButtonVariants({ size }), className)}
-			{...props}
-		/>
-	);
-}
-
-export type { SidebarContextValue };
-export const SIDEBAR_CSS_VARS: CSSProperties = {
+export const SIDEBAR_CSS_VARS: CSSProperties & Record<`--${string}`, string> = {
 	"--sidebar-width": "17rem",
-	"--sidebar-width-icon": "3rem",
-} as CSSProperties;
+};

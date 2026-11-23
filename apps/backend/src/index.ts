@@ -6,11 +6,10 @@ import { OpenAPIGenerator } from "@orpc/openapi";
 import { OpenAPIHandler } from "@orpc/openapi/fastify";
 import { RPCHandler } from "@orpc/server/fastify";
 import { ZodSmartCoercionPlugin, ZodToJsonSchemaConverter } from "@orpc/zod";
-import type { FastifyBaseLogger, FastifyRequest } from "fastify";
+import type { FastifyBaseLogger } from "fastify";
 import Fastify from "fastify";
 import { createTranscriber } from "./agent/transcribe.js";
-import { registerDispatchCompleteRoute } from "./x402/route.js";
-import { resolveUserFromSource } from "./auth/resolveUser.js";
+import { resolveUser } from "./auth/resolveUser.js";
 import { parseConfig } from "./config.js";
 import { connectDb } from "./db/connection.js";
 import { seedVehicleSpecs } from "./db/seed.js";
@@ -19,10 +18,8 @@ import { registerMqttHandlers } from "./mqtt/handlers.js";
 import { createExpoPushClient } from "./push/expo.js";
 import type { RpcContext } from "./rpc/context.js";
 import { rpcRouter } from "./rpc/router.js";
-import { createWalletProvider } from "./wallet/index.js";
-import { createDispatchBroadcaster } from "./ws/dispatchBroadcaster.js";
-import { createIncidentBroadcaster } from "./ws/incidentBroadcaster.js";
 import { createTelemetryBroadcaster } from "./ws/telemetryBroadcaster.js";
+import { registerDispatchCompleteRoute } from "./x402/route.js";
 
 async function main(): Promise<void> {
 	const config = parseConfig();
@@ -34,10 +31,7 @@ async function main(): Promise<void> {
 				options: { colorize: true },
 			},
 		},
-		// Fastify defaults to 1 MB. incidents.ingest carries base64-encoded
-		// 911-call audio — a 2-minute mono WAV is already ~3 MB encoded, and
-		// realistic stereo clips run higher. 25 MB leaves comfortable headroom
-		// without inviting accidental megaclip uploads.
+		// incidents.ingest carries base64 911-call audio; a 2-minute mono WAV is ~3 MB encoded.
 		bodyLimit: 25 * 1024 * 1024,
 	});
 
@@ -47,11 +41,8 @@ async function main(): Promise<void> {
 	const mqttBroker = await createMqttBroker(config.MQTT_PORT, app.log);
 
 	const telemetryBroadcaster = createTelemetryBroadcaster(app.log);
-	const incidentBroadcaster = createIncidentBroadcaster(app.log);
-	const dispatchBroadcaster = createDispatchBroadcaster(app.log);
 	await registerMqttHandlers(mqttBroker.aedes, telemetryBroadcaster, app.log);
 
-	const walletProvider = createWalletProvider(config);
 	const transcriber = createTranscriber({ apiKey: config.DEEPGRAM_API_KEY });
 	const anthropic = new Anthropic({ apiKey: config.ANTHROPIC_API_KEY });
 	const pushClient = createExpoPushClient({
@@ -64,44 +55,32 @@ async function main(): Promise<void> {
 	});
 	await app.register(websocket);
 
-	// --- oRPC handlers ---
-	const buildContext = async (
-		request: FastifyRequest,
-	): Promise<RpcContext> => ({
+	const buildContext = async (request: {
+		headers: { authorization?: string };
+	}): Promise<RpcContext> => ({
 		config,
-		incidentBroadcaster,
-		dispatchBroadcaster,
-		walletProvider,
 		transcriber,
 		anthropic,
 		pushClient,
 		log: app.log,
-		user: await resolveUserFromSource(
-			{ authorization: request.headers.authorization },
-			config,
-			app.log,
-		),
+		user: await resolveUser(request.headers.authorization, config, app.log),
 	});
 
 	const logRpcError = (
 		log: FastifyBaseLogger,
 		path: readonly string[],
-		input: unknown,
 		error: unknown,
 	): void => {
 		const pathStr = path.join(".");
 		const cause = error instanceof Error ? error.cause : undefined;
 		if (cause instanceof ValidationError) {
 			log.error(
-				{ path: pathStr, input, issues: cause.issues, data: cause.data },
+				{ path: pathStr, issues: cause.issues },
 				`oRPC ${cause.message} at ${pathStr}`,
 			);
 			return;
 		}
-		log.error(
-			{ path: pathStr, input, err: error },
-			`oRPC error at ${pathStr}`,
-		);
+		log.error({ path: pathStr, err: error }, `oRPC error at ${pathStr}`);
 	};
 
 	const rpcHandler = new RPCHandler(rpcRouter, {
@@ -110,7 +89,7 @@ async function main(): Promise<void> {
 				try {
 					return await options.next();
 				} catch (error) {
-					logRpcError(app.log, options.path, options.input, error);
+					logRpcError(app.log, options.path, error);
 					throw error;
 				}
 			},
@@ -123,7 +102,7 @@ async function main(): Promise<void> {
 				try {
 					return await options.next();
 				} catch (error) {
-					logRpcError(app.log, options.path, options.input, error);
+					logRpcError(app.log, options.path, error);
 					throw error;
 				}
 			},
@@ -133,10 +112,8 @@ async function main(): Promise<void> {
 		schemaConverters: [new ZodToJsonSchemaConverter()],
 	});
 
-	// x402-protected payment settlement route (raw Fastify, not oRPC)
-	registerDispatchCompleteRoute(app, config, dispatchBroadcaster, app.log);
+	registerDispatchCompleteRoute(app, config, app.log);
 
-	// RPC protocol for typed TS clients (dashboard, future mobile)
 	app.all("/rpc/*", async (request, reply) => {
 		const { matched } = await rpcHandler.handle(request, reply, {
 			prefix: "/rpc",
@@ -147,13 +124,12 @@ async function main(): Promise<void> {
 		}
 	});
 
-	// REST / OpenAPI surface for non-TS clients (sim-fleet)
 	const openapiFallthrough = async (
 		request: Parameters<typeof openapiHandler.handle>[0],
 		reply: Parameters<typeof openapiHandler.handle>[1],
 	): Promise<void> => {
 		const { matched } = await openapiHandler.handle(request, reply, {
-			context: await buildContext(request as FastifyRequest),
+			context: await buildContext(request),
 		});
 		if (!matched) {
 			reply.status(404).send({ error: "not_found" });
@@ -162,32 +138,16 @@ async function main(): Promise<void> {
 	app.all("/health", openapiFallthrough);
 	app.all("/api/*", openapiFallthrough);
 
-	// OpenAPI JSON spec (for non-TS client codegen)
 	app.get("/openapi.json", async () =>
 		openapiGenerator.generate(rpcRouter, {
 			info: { title: "ROAM Platform API", version: "0.1.0" },
 		}),
 	);
 
-	// --- WebSocket broadcasters ---
 	app.get("/ws/telemetry", { websocket: true }, (socket) => {
 		telemetryBroadcaster.addClient(socket);
 		socket.on("close", () => {
 			telemetryBroadcaster.removeClient(socket);
-		});
-	});
-
-	app.get("/ws/incidents", { websocket: true }, (socket) => {
-		incidentBroadcaster.addClient(socket);
-		socket.on("close", () => {
-			incidentBroadcaster.removeClient(socket);
-		});
-	});
-
-	app.get("/ws/dispatch", { websocket: true }, (socket) => {
-		dispatchBroadcaster.addClient(socket);
-		socket.on("close", () => {
-			dispatchBroadcaster.removeClient(socket);
 		});
 	});
 

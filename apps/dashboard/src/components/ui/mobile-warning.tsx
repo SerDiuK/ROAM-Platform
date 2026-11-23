@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@roam/ui";
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useSyncExternalStore } from "react";
 import { Icon } from "./icon";
 
 const MIN_WIDTH = 1024;
@@ -12,23 +12,39 @@ type Viewport = {
 	height: number;
 };
 
+function subscribeToViewport(onChange: () => void): () => void {
+	window.addEventListener("resize", onChange);
+	window.addEventListener("orientationchange", onChange);
+	return () => {
+		window.removeEventListener("resize", onChange);
+		window.removeEventListener("orientationchange", onChange);
+	};
+}
+
+function getWidth(): number {
+	return window.innerWidth;
+}
+
+function getHeight(): number {
+	return window.innerHeight;
+}
+
+function getServerSnapshot(): null {
+	return null;
+}
+
 function useViewport(): Viewport | null {
-	const [viewport, setViewport] = useState<Viewport | null>(null);
-
-	useEffect(() => {
-		const update = (): void => {
-			setViewport({ width: window.innerWidth, height: window.innerHeight });
-		};
-		update();
-		window.addEventListener("resize", update);
-		window.addEventListener("orientationchange", update);
-		return () => {
-			window.removeEventListener("resize", update);
-			window.removeEventListener("orientationchange", update);
-		};
-	}, []);
-
-	return viewport;
+	const width = useSyncExternalStore<number | null>(
+		subscribeToViewport,
+		getWidth,
+		getServerSnapshot,
+	);
+	const height = useSyncExternalStore<number | null>(
+		subscribeToViewport,
+		getHeight,
+		getServerSnapshot,
+	);
+	return width === null || height === null ? null : { width, height };
 }
 
 function isUnsupported(viewport: Viewport): boolean {
@@ -51,7 +67,11 @@ export function MobileWarning({ children }: MobileWarningProps) {
 	return <>{children}</>;
 }
 
-function UnsupportedScreen({ viewport }: { viewport: Viewport }) {
+type UnsupportedScreenProps = {
+	viewport: Viewport;
+};
+
+function UnsupportedScreen({ viewport }: UnsupportedScreenProps) {
 	const tooNarrow = viewport.width < MIN_WIDTH;
 	const portrait = viewport.height > viewport.width;
 	const rotateOnly = !tooNarrow && portrait;
@@ -130,15 +150,13 @@ const specToneClass: Record<SpecTone, string> = {
 	muted: "text-foreground",
 };
 
-function Spec({
-	label,
-	value,
-	tone,
-}: {
+type SpecProps = {
 	label: string;
 	value: string;
 	tone: SpecTone;
-}) {
+};
+
+function Spec({ label, value, tone }: SpecProps) {
 	return (
 		<div className="bg-sidebar p-3 text-left">
 			<div className="text-2xs font-medium uppercase tracking-widest text-muted-foreground/70">

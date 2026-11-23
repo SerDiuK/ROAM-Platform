@@ -1,8 +1,7 @@
 import type { Incident, IncidentStatus } from "@roam/shared";
+import type { Tone } from "../../ui/status-pill";
 
-export function statusToneFor(
-	status: IncidentStatus,
-): "primary" | "warning" | "danger" | "offline" | "muted" {
+export function statusToneFor(status: IncidentStatus): Tone {
 	switch (status) {
 		case "cancelled":
 			return "muted";
@@ -13,8 +12,6 @@ export function statusToneFor(
 		case "arrived":
 			return "warning";
 		case "resolved":
-			// Resolved rows render with a solid primary background instead of a
-			// dot — this branch is only reached defensively.
 			return "primary";
 	}
 }

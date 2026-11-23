@@ -1,19 +1,21 @@
+"use client";
+
 import { cn } from "@roam/ui";
 import type { ComponentProps } from "react";
 
-type ListRowProps = ComponentProps<"li"> & {
-	layout?: "row" | "stack";
-};
+type ListRowProps = ComponentProps<"button">;
 
-export function ListRow({ className, layout = "row", ...props }: ListRowProps) {
+export function ListRow({ className, ...props }: ListRowProps) {
 	return (
-		<li
-			className={cn(
-				"rounded-md border border-sidebar-border bg-sidebar-accent/20 px-2 py-2 transition-colors hover:bg-sidebar-accent/40",
-				layout === "row" ? "flex items-start gap-2" : "flex flex-col gap-2",
-				className,
-			)}
-			{...props}
-		/>
+		<li>
+			<button
+				type="button"
+				className={cn(
+					"flex w-full flex-col gap-2 rounded-md border border-sidebar-border bg-sidebar-accent/20 px-2 py-2 text-left transition-colors hover:bg-sidebar-accent/40",
+					className,
+				)}
+				{...props}
+			/>
+		</li>
 	);
 }

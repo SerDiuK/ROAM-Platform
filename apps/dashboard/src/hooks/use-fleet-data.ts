@@ -23,7 +23,7 @@ async function loadFleet(): Promise<{
 	return { vehicles, responders };
 }
 
-export type FleetData = {
+type FleetData = {
 	vehicles: Vehicle[];
 	responders: Responder[];
 	responderMap: Map<string, Responder>;

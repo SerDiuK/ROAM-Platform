@@ -1,5 +1,5 @@
 /** @type {import('next').NextConfig} */
-// Next.js config requires default export — exception to the named-export convention
+// Next.js requires a default export here.
 const nextConfig = {
 	transpilePackages: ["@roam/api", "@roam/shared", "@roam/ui"],
 };

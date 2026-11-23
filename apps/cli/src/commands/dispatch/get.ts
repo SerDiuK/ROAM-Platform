@@ -3,13 +3,13 @@ import { printTable } from "@oclif/table";
 import chalk from "chalk";
 import ora from "ora";
 import { BaseCommand } from "../../base-command.js";
-import { resolveDispatchId } from "../../lib/resolve.js";
 import {
 	formatDecision,
 	formatRelative,
 	formatStatus,
 	shortId,
 } from "../../lib/format.js";
+import { resolveDispatchId } from "../../lib/resolve.js";
 
 export default class DispatchGet extends BaseCommand {
 	static override summary = "Show a dispatch with all responses.";
@@ -45,10 +45,9 @@ export default class DispatchGet extends BaseCommand {
 		this.log(
 			`  required     ${dispatch.claimedByResponderIds.length}/${dispatch.requiredAccepts}`,
 		);
-		this.log(`  payoutUsdc   ${dispatch.payoutUsdc}`);
 		this.log(`  decidedAt    ${new Date(dispatch.decidedAt).toISOString()}`);
 		this.log(
-			`  expiresAt    ${new Date(dispatch.expiresAt).toISOString()} (${formatRelative(dispatch.expiresAt)})`,
+			`  expiresAt    ${new Date(dispatch.expiresAt).toISOString()} (${formatRelative(dispatch.expiresAt, Date.now())})`,
 		);
 		this.log("");
 		this.log(chalk.bold("Assigned responders"));

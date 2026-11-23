@@ -12,6 +12,7 @@
 		"dotenv": "^16.4.0",
 		"pino": "^9.6.0",
 		"zod": "^3.24.0",
+		"@roam/api": "workspace:^",
 		"@roam/shared": "workspace:^"
 	},
 	"devDependencies": {

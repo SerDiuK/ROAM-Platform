@@ -1,52 +1,46 @@
 import { createHash, randomUUID } from "node:crypto";
 import { ORPCError } from "@orpc/server";
-import type { Dispatch, DispatchResponse } from "@roam/shared";
+import {
+	computeBriefingHash,
+	DISPATCH_STATUSES,
+	type Dispatch,
+	type DispatchResponse,
+	DispatchResponseSchema,
+	DispatchSchema,
+} from "@roam/shared";
 import {
 	buildRecordEventTx,
 	partialSignAsFeePayer,
+	verifyRecordEventTx,
 } from "@roam/solana-client";
-import { PublicKey } from "@solana/web3.js";
-import { computeBriefingHash } from "../../agent/runner.js";
+import { type Keypair, PublicKey, type Transaction } from "@solana/web3.js";
+import { isDuplicateKeyError } from "../../db/errors.js";
 import { BriefingModel } from "../../db/models/briefing.js";
 import { DispatchModel } from "../../db/models/dispatch.js";
 import { DispatchResponseModel } from "../../db/models/dispatchResponse.js";
 import { IncidentModel } from "../../db/models/incident.js";
 import { ResponderModel } from "../../db/models/responder.js";
+import { toWire } from "../../db/serializers/wire.js";
 import {
+	responderIdHash as hashResponderId,
 	incidentIdToBytes,
 	recordIncidentEvent,
 	recordIncidentEventWithSignature,
-	responderIdHash as hashResponderId,
 } from "../../services/incidentEvents.js";
-import { getSolanaContext } from "../../services/solana.js";
+import { buildConnection, getSolanaContext } from "../../services/solana.js";
 import { triggerX402Payment } from "../../x402/client.js";
 import { authed, os } from "../builder.js";
 import type { RpcContext } from "../context.js";
 
 const ACTIVE_STATUSES = ["pending", "claimed"] as const;
-const ALL_STATUSES = [
-	"pending",
-	"claimed",
-	"cleared",
-	"expired",
-	"cancelled",
-] as const;
 
-function serialize<T>(doc: T): T {
-	return JSON.parse(JSON.stringify(doc)) as T;
-}
+// A blockhash is valid for 150 blocks, roughly 60–90 s.
+const PREPARED_TX_TTL_MS = 60_000;
 
-function isDuplicateKeyError(err: unknown): boolean {
-	return (
-		typeof err === "object" &&
-		err !== null &&
-		"code" in err &&
-		(err as { code?: number }).code === 11000
-	);
-}
+// `cleared` is incident-scoped: a zero responder hash gives one cleared PDA per incident.
+const ZERO_RESPONDER_HASH = new Uint8Array(32);
 
-// Atomic claim with first-to-claim race semantics. Returns the post-update
-// dispatch on success, or null if the dispatch is no longer claimable.
+// One atomic update, so concurrent accepts can't over-claim.
 async function claimDispatch(
 	dispatchId: string,
 	responderId: string,
@@ -74,10 +68,7 @@ async function claimDispatch(
 					status: {
 						$cond: [
 							{
-								$gte: [
-									{ $size: "$claimedByResponderIds" },
-									"$requiredAccepts",
-								],
+								$gte: [{ $size: "$claimedByResponderIds" }, "$requiredAccepts"],
 							},
 							"claimed",
 							"pending",
@@ -86,9 +77,85 @@ async function claimDispatch(
 				},
 			},
 		],
-		{ new: true, updatePipeline: true },
+		{ returnDocument: "after", updatePipeline: true },
 	).lean();
-	return claimed ? (serialize(claimed) as Dispatch) : null;
+	return claimed ? toWire(DispatchSchema, claimed) : null;
+}
+
+async function releaseClaim(
+	dispatchId: string,
+	responderId: string,
+): Promise<void> {
+	await DispatchModel.updateOne(
+		{ _id: dispatchId, status: { $in: ACTIVE_STATUSES } },
+		[
+			{
+				$set: {
+					claimedByResponderIds: {
+						$filter: {
+							input: "$claimedByResponderIds",
+							cond: { $ne: ["$$this", responderId] },
+						},
+					},
+				},
+			},
+			{
+				$set: {
+					status: {
+						$cond: [
+							{
+								$lt: [{ $size: "$claimedByResponderIds" }, "$requiredAccepts"],
+							},
+							"pending",
+							"$status",
+						],
+					},
+				},
+			},
+		],
+		{ updatePipeline: true },
+	);
+}
+
+async function withdrawDecliningCrew(
+	dispatch: { _id: string; incidentId: string },
+	responderId: string,
+): Promise<Dispatch | null> {
+	await IncidentModel.updateOne(
+		{ _id: dispatch.incidentId },
+		{ $pull: { "assigned.responders": responderId } },
+	);
+	const updated = await DispatchModel.findOneAndUpdate(
+		{
+			_id: dispatch._id,
+			status: "pending",
+			assignedResponderIds: responderId,
+		},
+		[
+			{
+				$set: {
+					requiredAccepts: {
+						$max: [1, { $subtract: ["$requiredAccepts", 1] }],
+					},
+				},
+			},
+			{
+				$set: {
+					status: {
+						$cond: [
+							{
+								$gte: [{ $size: "$claimedByResponderIds" }, "$requiredAccepts"],
+							},
+							"claimed",
+							"pending",
+						],
+					},
+				},
+			},
+		],
+		{ returnDocument: "after", updatePipeline: true },
+	).lean();
+	return updated ? toWire(DispatchSchema, updated) : null;
 }
 
 function dispatchEventPayloadHash(args: {
@@ -109,15 +176,101 @@ function dispatchClearPayloadHash(args: { dispatchId: string }): Uint8Array {
 	return Uint8Array.from(createHash("sha256").update(canonical).digest());
 }
 
-// `cleared` is an incident-scoped event — the on-chain PDA uses a zero
-// responder hash so there's exactly one cleared row per incident regardless
-// of which responder triggered it. The responder still signs as attestor on
-// the tx (chain-of-custody), but the row is keyed to the incident.
-const ZERO_RESPONDER_HASH = new Uint8Array(32);
+async function boundWallet(responderId: string): Promise<PublicKey> {
+	const responder = await ResponderModel.findById(responderId).lean();
+	if (!responder?.walletAddress) {
+		throw new ORPCError("UNAUTHORIZED", { message: "wallet_not_bound" });
+	}
+	try {
+		return new PublicKey(responder.walletAddress);
+	} catch {
+		throw new ORPCError("UNAUTHORIZED", { message: "wallet_address_invalid" });
+	}
+}
 
-// Fans dispatch.created push notifications out to the recommended responders
-// without blocking the API response. Errors are logged here so the call site
-// stays a single line.
+function toPreparedTx(
+	transaction: Transaction,
+	operator: Keypair,
+): { serializedTx: string; recentBlockhash: string; expiresAt: string } {
+	partialSignAsFeePayer(transaction, operator);
+	return {
+		serializedTx: transaction
+			.serialize({ requireAllSignatures: false, verifySignatures: false })
+			.toString("base64"),
+		recentBlockhash: transaction.recentBlockhash ?? "",
+		expiresAt: new Date(Date.now() + PREPARED_TX_TTL_MS).toISOString(),
+	};
+}
+
+async function assertEventLanded(
+	context: RpcContext,
+	args: {
+		signature: string;
+		incidentId: string;
+		kind: "accepted" | "rejected" | "cleared";
+		responderIdHash: Uint8Array;
+		attestor: PublicKey;
+	},
+): Promise<void> {
+	const landed = await verifyRecordEventTx({
+		connection: buildConnection(context.config),
+		signature: args.signature,
+		incidentId: incidentIdToBytes(
+			args.incidentId,
+			context.config.CHAIN_HMAC_KEY,
+		),
+		kind: args.kind,
+		responderIdHash: args.responderIdHash,
+		attestorPubkey: args.attestor,
+	});
+	if (!landed) {
+		throw new ORPCError("BAD_REQUEST", { message: "signature_not_verified" });
+	}
+}
+
+async function saveResponse(
+	args: {
+		dispatchId: string;
+		responderId: string;
+		decision: "accept" | "decline";
+		declineReason?: string;
+		signature: string;
+		attestor: PublicKey;
+	},
+	releaseOnConflict: boolean,
+): Promise<DispatchResponse> {
+	try {
+		const created = await DispatchResponseModel.create({
+			_id: randomUUID(),
+			dispatchId: args.dispatchId,
+			responderId: args.responderId,
+			decision: args.decision,
+			declineReason: args.declineReason,
+			respondedAt: new Date(),
+			solanaTxSignature: args.signature,
+			attestorPubkey: args.attestor.toBase58(),
+		});
+		return toWire(DispatchResponseSchema, created);
+	} catch (err) {
+		if (!isDuplicateKeyError(err)) throw err;
+		if (releaseOnConflict)
+			await releaseClaim(args.dispatchId, args.responderId);
+		throw new ORPCError("CONFLICT", { message: "duplicate_response" });
+	}
+}
+
+async function rejectUnclearable(dispatchId: string): Promise<never> {
+	const existing = await DispatchModel.findById(dispatchId).lean();
+	if (!existing) {
+		throw new ORPCError("NOT_FOUND", {
+			message: `Dispatch not found: ${dispatchId}`,
+		});
+	}
+	throw new ORPCError("CONFLICT", {
+		message: `dispatch_not_claimable_for_clear: status=${existing.status}`,
+	});
+}
+
 function notifyDispatchedResponders(
 	context: RpcContext,
 	args: {
@@ -125,18 +278,13 @@ function notifyDispatchedResponders(
 		responderIds: string[];
 		title: string;
 		body: string;
-		payoutUsdc: number;
 	},
 ): void {
-	void context.pushClient
+	context.pushClient
 		.sendPushToResponders(args.responderIds, {
 			title: args.title,
 			body: args.body,
-			data: {
-				type: "dispatch.created",
-				dispatchId: args.dispatchId,
-				payoutUsdc: args.payoutUsdc,
-			},
+			data: { type: "dispatch.created", dispatchId: args.dispatchId },
 		})
 		.catch((err: unknown) => {
 			context.log.error(
@@ -146,10 +294,9 @@ function notifyDispatchedResponders(
 		});
 }
 
-// Triggers x402 settlement after a dispatch is cleared. Non-blocking by
-// design — the clear must succeed regardless of payment outcome.
+// Non-blocking: the clear must succeed regardless of the payment outcome.
 function settleDispatchPayment(context: RpcContext, dispatchId: string): void {
-	void triggerX402Payment(context.config, context.log, dispatchId).catch(
+	triggerX402Payment(context.config, context.log, dispatchId).catch(
 		(err: unknown) => {
 			context.log.error(
 				{ err, dispatchId },
@@ -161,14 +308,14 @@ function settleDispatchPayment(context: RpcContext, dispatchId: string): void {
 
 export const dispatchRouter = {
 	list: os.dispatch.list.handler(async ({ input }) => {
-		const includeCleared = input?.includeCleared ?? false;
-		const limit = input?.limit ?? 50;
-		const statuses = includeCleared ? ALL_STATUSES : ACTIVE_STATUSES;
+		const statuses = input?.includeCleared
+			? DISPATCH_STATUSES
+			: ACTIVE_STATUSES;
 		const docs = await DispatchModel.find({ status: { $in: statuses } })
 			.sort({ decidedAt: -1 })
-			.limit(limit)
+			.limit(input?.limit ?? 50)
 			.lean();
-		return serialize(docs) as Dispatch[];
+		return docs.map((doc) => toWire(DispatchSchema, doc));
 	}),
 
 	get: os.dispatch.get.handler(async ({ input }) => {
@@ -183,9 +330,9 @@ export const dispatchRouter = {
 		})
 			.sort({ respondedAt: 1 })
 			.lean();
-		return serialize({ dispatch, responses }) as {
-			dispatch: Dispatch;
-			responses: DispatchResponse[];
+		return {
+			dispatch: toWire(DispatchSchema, dispatch),
+			responses: responses.map((r) => toWire(DispatchResponseSchema, r)),
 		};
 	}),
 
@@ -196,16 +343,14 @@ export const dispatchRouter = {
 				message: `Briefing not found: ${input.briefingId}`,
 			});
 		}
-
-		const recomputedHash = computeBriefingHash({
-			summary: briefing.summary,
-			recommendedVehicleIds: briefing.recommendedVehicleIds,
-			recommendedResponderIds: briefing.recommendedResponderIds,
-			payout: briefing.payout,
-		});
-		if (recomputedHash !== briefing.briefingHash) {
+		if (computeBriefingHash(briefing) !== briefing.briefingHash) {
 			throw new ORPCError("CONFLICT", {
 				message: "briefing_hash_mismatch",
+			});
+		}
+		if (input.requiredAccepts > briefing.recommendedResponderIds.length) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: "required_accepts_exceeds_crew",
 			});
 		}
 
@@ -215,13 +360,24 @@ export const dispatchRouter = {
 				message: `Incident not found: ${briefing.incidentId}`,
 			});
 		}
+		if (incident.status === "resolved" || incident.status === "cancelled") {
+			throw new ORPCError("CONFLICT", { message: "incident_closed" });
+		}
 
-		const dispatchId = randomUUID();
 		const now = new Date();
-		const expiresAt = new Date(now.getTime() + input.expiresInSecs * 1000);
+		const active = await DispatchModel.exists({
+			incidentId: briefing.incidentId,
+			$or: [
+				{ status: "claimed" },
+				{ status: "pending", expiresAt: { $gt: now } },
+			],
+		});
+		if (active) {
+			throw new ORPCError("CONFLICT", { message: "dispatch_already_active" });
+		}
 
-		await DispatchModel.create({
-			_id: dispatchId,
+		const created = await DispatchModel.create({
+			_id: randomUUID(),
 			incidentId: briefing.incidentId,
 			briefingId: briefing._id,
 			decisionMaker: input.decisionMaker,
@@ -229,12 +385,12 @@ export const dispatchRouter = {
 			decidedAt: now,
 			assignedVehicleIds: briefing.recommendedVehicleIds,
 			assignedResponderIds: briefing.recommendedResponderIds,
-			payoutUsdc: briefing.payout.totalUsdc,
 			requiredAccepts: input.requiredAccepts,
 			status: "pending",
 			claimedByResponderIds: [],
-			expiresAt,
+			expiresAt: new Date(now.getTime() + input.expiresInSecs * 1000),
 		});
+		const dispatch = toWire(DispatchSchema, created);
 
 		await IncidentModel.findByIdAndUpdate(briefing.incidentId, {
 			status: "responding",
@@ -245,39 +401,21 @@ export const dispatchRouter = {
 			},
 		});
 
-		const persistedDispatch = await DispatchModel.findById(dispatchId).lean();
-		if (!persistedDispatch) {
-			throw new ORPCError("INTERNAL_SERVER_ERROR", {
-				message: "Dispatch vanished after create",
-			});
-		}
-		const dispatch = serialize(persistedDispatch) as Dispatch;
-
 		notifyDispatchedResponders(context, {
-			dispatchId,
+			dispatchId: dispatch._id,
 			responderIds: briefing.recommendedResponderIds,
 			title: incident.classification?.incidentType ?? "Dispatch",
 			body: briefing.summary,
-			payoutUsdc: briefing.payout.totalUsdc,
 		});
 
-		context.dispatchBroadcaster.broadcast({
-			type: "dispatch.created",
-			dispatch,
-		});
-
-		const eventDeps = {
-			config: context.config,
-			log: context.log,
-			incidentBroadcaster: context.incidentBroadcaster,
-		};
+		const eventDeps = { config: context.config, log: context.log };
 		await Promise.all(
 			briefing.recommendedResponderIds.map((responderId) =>
 				recordIncidentEvent(eventDeps, {
 					incidentId: briefing.incidentId,
 					kind: "dispatched",
 					responderId,
-					payload: { dispatchId, briefingId: briefing._id },
+					payload: { dispatchId: dispatch._id, briefingId: briefing._id },
 					occurredAt: now,
 				}),
 			),
@@ -294,9 +432,8 @@ export const dispatchRouter = {
 					message: `Dispatch not found: ${input.dispatchId}`,
 				});
 			}
-			// On accept, fail loudly *before* asking mobile to fingerprint when the
-			// dispatch is no longer claimable. Decline still proceeds — declining
-			// an expired/claimed dispatch is fine for the audit trail.
+			// Reject an unclaimable accept before mobile asks for a fingerprint.
+			// Declines of expired or claimed dispatches still go on the audit trail.
 			if (input.decision === "accept") {
 				if (dispatch.status !== "pending") {
 					throw new ORPCError("CONFLICT", {
@@ -306,67 +443,38 @@ export const dispatchRouter = {
 				if (dispatch.expiresAt.getTime() < Date.now()) {
 					throw new ORPCError("CONFLICT", { message: "dispatch_expired" });
 				}
-				if (dispatch.claimedByResponderIds.includes(context.user.id)) {
+				const responded =
+					dispatch.claimedByResponderIds.includes(context.user.id) ||
+					(await DispatchResponseModel.exists({
+						dispatchId: input.dispatchId,
+						responderId: context.user.id,
+					}));
+				if (responded) {
 					throw new ORPCError("CONFLICT", { message: "duplicate_response" });
 				}
 			}
 
-			const responder = await ResponderModel.findById(context.user.id).lean();
-			if (!responder?.walletAddress) {
-				throw new ORPCError("UNAUTHORIZED", {
-					message: "wallet_not_bound",
-					data: { error: "wallet_not_bound" as const },
-				});
-			}
-
+			const attestor = await boundWallet(context.user.id);
 			const { connection, operator } = getSolanaContext(context.config);
-
 			const hmacKey = context.config.CHAIN_HMAC_KEY;
-			const incidentId = incidentIdToBytes(dispatch.incidentId, hmacKey);
-			const responderHash = hashResponderId(context.user.id, hmacKey);
-			const payloadHash = dispatchEventPayloadHash({
-				dispatchId: input.dispatchId,
-				decision: input.decision,
-				declineReason: input.declineReason,
-			});
-
-			let attestor: PublicKey;
-			try {
-				attestor = new PublicKey(responder.walletAddress);
-			} catch {
-				throw new ORPCError("UNAUTHORIZED", {
-					message: "wallet_address_invalid",
-				});
-			}
-
-			const occurredAt = Math.floor(Date.now() / 1000);
-			const { transaction } = await buildRecordEventTx(
+			const transaction = await buildRecordEventTx(
 				{
 					connection,
-					incidentId,
+					incidentId: incidentIdToBytes(dispatch.incidentId, hmacKey),
 					kind: input.decision === "accept" ? "accepted" : "rejected",
-					responderIdHash: responderHash,
-					payloadHash,
-					occurredAt,
+					responderIdHash: hashResponderId(context.user.id, hmacKey),
+					payloadHash: dispatchEventPayloadHash({
+						dispatchId: input.dispatchId,
+						decision: input.decision,
+						declineReason: input.declineReason,
+					}),
+					occurredAtSecs: Math.floor(Date.now() / 1000),
 					attestorPubkey: attestor,
 					feePayerPubkey: operator.publicKey,
 				},
 				operator,
 			);
-			partialSignAsFeePayer(transaction, operator);
-
-			const serialized = transaction
-				.serialize({ requireAllSignatures: false, verifySignatures: false })
-				.toString("base64");
-
-			// Devnet blockhash lifetime is ~150 blocks ≈ 90s; report a slightly
-			// conservative 60s so mobile re-prepares cleanly if the user lingers.
-			const expiresAt = new Date(Date.now() + 60_000).toISOString();
-			return {
-				serializedTx: serialized,
-				recentBlockhash: transaction.recentBlockhash ?? "",
-				expiresAt,
-			};
+			return toPreparedTx(transaction, operator);
 		},
 	),
 
@@ -379,81 +487,51 @@ export const dispatchRouter = {
 				});
 			}
 
-			const responder = await ResponderModel.findById(context.user.id).lean();
-			if (!responder?.walletAddress) {
-				throw new ORPCError("UNAUTHORIZED", {
-					message: "wallet_not_bound",
+			const attestor = await boundWallet(context.user.id);
+			const kind = input.decision === "accept" ? "accepted" : "rejected";
+			await assertEventLanded(context, {
+				signature: input.signature,
+				incidentId: existing.incidentId,
+				kind,
+				responderIdHash: hashResponderId(
+					context.user.id,
+					context.config.CHAIN_HMAC_KEY,
+				),
+				attestor,
+			});
+
+			const claimed =
+				input.decision === "accept"
+					? await claimDispatch(input.dispatchId, context.user.id)
+					: null;
+			if (input.decision === "accept" && !claimed) {
+				throw new ORPCError("CONFLICT", {
+					message: "dispatch_already_claimed",
 				});
 			}
 
-			let dispatchAfter: Dispatch;
-			if (input.decision === "accept") {
-				const claimed = await claimDispatch(input.dispatchId, context.user.id);
-				if (!claimed) {
-					throw new ORPCError("CONFLICT", {
-						message: "dispatch_already_claimed",
-					});
-				}
-				dispatchAfter = claimed;
-			} else {
-				dispatchAfter = serialize(existing) as Dispatch;
-			}
-
-			const responseId = randomUUID();
-			const respondedAt = new Date();
-			try {
-				await DispatchResponseModel.create({
-					_id: responseId,
+			const response = await saveResponse(
+				{
 					dispatchId: input.dispatchId,
 					responderId: context.user.id,
 					decision: input.decision,
 					declineReason: input.declineReason,
-					respondedAt,
-					solanaTxSignature: input.signature,
-					attestorPubkey: responder.walletAddress,
-				});
-			} catch (err) {
-				if (isDuplicateKeyError(err)) {
-					if (input.decision === "accept") {
-						await DispatchModel.findByIdAndUpdate(input.dispatchId, {
-							$pull: { claimedByResponderIds: context.user.id },
-						});
-					}
-					throw new ORPCError("CONFLICT", {
-						message: "duplicate_response",
-					});
-				}
-				throw err;
-			}
-
-			const persistedResponse = await DispatchResponseModel.findById(
-				responseId,
-			).lean();
-			if (!persistedResponse) {
-				throw new ORPCError("INTERNAL_SERVER_ERROR", {
-					message: "DispatchResponse vanished after create",
-				});
-			}
-			const response = serialize(persistedResponse) as DispatchResponse;
-
-			context.dispatchBroadcaster.broadcast({
-				type: "dispatch.responded.signed",
-				dispatchId: input.dispatchId,
-				response,
-				dispatch: dispatchAfter,
-			});
-
-			// Mirror the on-chain event off-chain. The signature came from mobile —
-			// no async chain write here.
-			await recordIncidentEventWithSignature(
-				{
-					config: context.config,
-					log: context.log,
-					incidentBroadcaster: context.incidentBroadcaster,
+					signature: input.signature,
+					attestor,
 				},
+				claimed !== null,
+			);
+
+			const dispatch =
+				claimed ??
+				(await withdrawDecliningCrew(existing, context.user.id)) ??
+				toWire(DispatchSchema, existing);
+
+			await recordIncidentEventWithSignature(
+				{ config: context.config, log: context.log },
 				{
 					incidentId: existing.incidentId,
-					kind: input.decision === "accept" ? "accepted" : "rejected",
+					kind,
 					responderId: context.user.id,
 					payload: {
 						dispatchId: input.dispatchId,
@@ -461,12 +539,12 @@ export const dispatchRouter = {
 							? { declineReason: input.declineReason }
 							: {}),
 					},
-					occurredAt: respondedAt,
+					occurredAt: response.respondedAt,
 					solanaTxSignature: input.signature,
 				},
 			);
 
-			return { response, dispatch: dispatchAfter };
+			return { response, dispatch };
 		},
 	),
 
@@ -475,39 +553,17 @@ export const dispatchRouter = {
 		const cleared = await DispatchModel.findOneAndUpdate(
 			{ _id: input.dispatchId, status: "claimed" },
 			{ $set: { status: "cleared" } },
-			{ new: true },
+			{ returnDocument: "after" },
 		).lean();
-
-		if (!cleared) {
-			const existing = await DispatchModel.findById(input.dispatchId).lean();
-			if (!existing) {
-				throw new ORPCError("NOT_FOUND", {
-					message: `Dispatch not found: ${input.dispatchId}`,
-				});
-			}
-			throw new ORPCError("CONFLICT", {
-				message: `dispatch_not_claimable_for_clear: status=${existing.status}`,
-			});
-		}
+		if (!cleared) return rejectUnclearable(input.dispatchId);
 
 		await IncidentModel.findByIdAndUpdate(cleared.incidentId, {
 			status: "resolved",
 			clearedAt: now,
 		});
 
-		const dispatch = serialize(cleared) as Dispatch;
-		context.dispatchBroadcaster.broadcast({
-			type: "dispatch.cleared",
-			dispatch,
-			clearedBy: input.clearedBy,
-		});
-
 		await recordIncidentEvent(
-			{
-				config: context.config,
-				log: context.log,
-				incidentBroadcaster: context.incidentBroadcaster,
-			},
+			{ config: context.config, log: context.log },
 			{
 				incidentId: cleared.incidentId,
 				kind: "cleared",
@@ -518,13 +574,9 @@ export const dispatchRouter = {
 
 		settleDispatchPayment(context, input.dispatchId);
 
-		return dispatch;
+		return toWire(DispatchSchema, cleared);
 	}),
 
-	// SIWS clear ceremony: same prepare/commit split as accept/decline. Mobile
-	// asks for an unsigned record_event tx (kind=cleared, fee_payer pre-signed),
-	// signs as attestor via MWA, sends to chain itself, then calls
-	// commitSignedClear with the resulting signature.
 	prepareClearTx: authed.dispatch.prepareClearTx.handler(
 		async ({ input, context }) => {
 			const dispatch = await DispatchModel.findById(input.dispatchId).lean();
@@ -538,110 +590,83 @@ export const dispatchRouter = {
 					message: `dispatch_not_claimable_for_clear: status=${dispatch.status}`,
 				});
 			}
-			// Only a responder who claimed this dispatch can clear it. Keeps a
-			// random signed-in responder from clearing somebody else's scene.
 			if (!dispatch.claimedByResponderIds.includes(context.user.id)) {
 				throw new ORPCError("FORBIDDEN", {
 					message: "not_claimer_of_dispatch",
 				});
 			}
 
-			const responder = await ResponderModel.findById(context.user.id).lean();
-			if (!responder?.walletAddress) {
-				throw new ORPCError("UNAUTHORIZED", {
-					message: "wallet_not_bound",
-					data: { error: "wallet_not_bound" as const },
-				});
-			}
-
+			const attestor = await boundWallet(context.user.id);
 			const { connection, operator } = getSolanaContext(context.config);
-
-			const hmacKey = context.config.CHAIN_HMAC_KEY;
-			const incidentId = incidentIdToBytes(dispatch.incidentId, hmacKey);
-			const payloadHash = dispatchClearPayloadHash({
-				dispatchId: input.dispatchId,
-			});
-
-			let attestor: PublicKey;
-			try {
-				attestor = new PublicKey(responder.walletAddress);
-			} catch {
-				throw new ORPCError("UNAUTHORIZED", {
-					message: "wallet_address_invalid",
-				});
-			}
-
-			const occurredAt = Math.floor(Date.now() / 1000);
-			const { transaction } = await buildRecordEventTx(
+			const transaction = await buildRecordEventTx(
 				{
 					connection,
-					incidentId,
+					incidentId: incidentIdToBytes(
+						dispatch.incidentId,
+						context.config.CHAIN_HMAC_KEY,
+					),
 					kind: "cleared",
 					responderIdHash: ZERO_RESPONDER_HASH,
-					payloadHash,
-					occurredAt,
+					payloadHash: dispatchClearPayloadHash({
+						dispatchId: input.dispatchId,
+					}),
+					occurredAtSecs: Math.floor(Date.now() / 1000),
 					attestorPubkey: attestor,
 					feePayerPubkey: operator.publicKey,
 				},
 				operator,
 			);
-			partialSignAsFeePayer(transaction, operator);
-
-			const serialized = transaction
-				.serialize({ requireAllSignatures: false, verifySignatures: false })
-				.toString("base64");
-
-			const expiresAt = new Date(Date.now() + 60_000).toISOString();
-			return {
-				serializedTx: serialized,
-				recentBlockhash: transaction.recentBlockhash ?? "",
-				expiresAt,
-			};
+			return toPreparedTx(transaction, operator);
 		},
 	),
 
 	commitSignedClear: authed.dispatch.commitSignedClear.handler(
 		async ({ input, context }) => {
-			const now = new Date();
-			const cleared = await DispatchModel.findOneAndUpdate(
-				{ _id: input.dispatchId, status: "claimed" },
-				{ $set: { status: "cleared" } },
-				{ new: true },
-			).lean();
-
-			if (!cleared) {
-				const existing = await DispatchModel.findById(input.dispatchId).lean();
-				if (!existing) {
-					throw new ORPCError("NOT_FOUND", {
-						message: `Dispatch not found: ${input.dispatchId}`,
-					});
-				}
+			const existing = await DispatchModel.findById(input.dispatchId).lean();
+			if (!existing) {
+				throw new ORPCError("NOT_FOUND", {
+					message: `Dispatch not found: ${input.dispatchId}`,
+				});
+			}
+			if (existing.status !== "claimed") {
 				throw new ORPCError("CONFLICT", {
 					message: `dispatch_not_claimable_for_clear: status=${existing.status}`,
 				});
 			}
+			if (!existing.claimedByResponderIds.includes(context.user.id)) {
+				throw new ORPCError("FORBIDDEN", {
+					message: "not_claimer_of_dispatch",
+				});
+			}
+
+			const attestor = await boundWallet(context.user.id);
+			await assertEventLanded(context, {
+				signature: input.signature,
+				incidentId: existing.incidentId,
+				kind: "cleared",
+				responderIdHash: ZERO_RESPONDER_HASH,
+				attestor,
+			});
+
+			const now = new Date();
+			const cleared = await DispatchModel.findOneAndUpdate(
+				{
+					_id: input.dispatchId,
+					status: "claimed",
+					claimedByResponderIds: context.user.id,
+				},
+				{ $set: { status: "cleared" } },
+				{ returnDocument: "after" },
+			).lean();
+			if (!cleared) return rejectUnclearable(input.dispatchId);
 
 			await IncidentModel.findByIdAndUpdate(cleared.incidentId, {
 				status: "resolved",
 				clearedAt: now,
 			});
 
-			const dispatch = serialize(cleared) as Dispatch;
-			context.dispatchBroadcaster.broadcast({
-				type: "dispatch.cleared",
-				dispatch,
-				clearedBy: context.user.id,
-			});
-
-			// `cleared` is incident-scoped (responderId=null) — the chain row
-			// uses zero responder hash. The mobile-submitted signature still
-			// proves which responder signed off, via the on-chain attestor key.
 			await recordIncidentEventWithSignature(
-				{
-					config: context.config,
-					log: context.log,
-					incidentBroadcaster: context.incidentBroadcaster,
-				},
+				{ config: context.config, log: context.log },
 				{
 					incidentId: cleared.incidentId,
 					kind: "cleared",
@@ -653,8 +678,7 @@ export const dispatchRouter = {
 
 			settleDispatchPayment(context, input.dispatchId);
 
-			return dispatch;
+			return toWire(DispatchSchema, cleared);
 		},
 	),
 };
-

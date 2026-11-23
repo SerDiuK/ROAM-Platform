@@ -5,19 +5,14 @@ import { Image, View } from "react-native";
 import { Button } from "@/components/ui/button";
 import { SheetTitle } from "@/components/ui/sheet";
 import { Text } from "@/components/ui/text";
-import type { DispatchInboxData } from "../use-dispatch-inbox";
 import { vehiclesAtom } from "@/state/vehicles";
+import type { DispatchInboxData } from "../use-dispatch-inbox";
 import { ChainTimeline } from "./chain-timeline";
 import { useIncidentEvents } from "./chain-timeline.hooks";
 import { DispatchSheetLayout } from "./dispatch-sheet";
 import { InfoRow } from "./info-row";
 import { PriorityBadge } from "./priority-badge";
 
-// Post-accept "we're on the call" panel. Shows the same incident header as
-// IncomingBody (so the responder keeps context), the unit/location/crew strip,
-// the on-chain Solana event timeline (live-polled from the backend), and the
-// Clear-incident action that runs the same SIWS chain ceremony as accept/
-// decline — flipping the dispatch to `cleared`.
 export function OnSceneBody({
 	data,
 	clearing,
@@ -31,7 +26,7 @@ export function OnSceneBody({
 }): React.JSX.Element {
 	const { dispatch, incident, briefing, responders } = data;
 	const vehicles = useAtomValue(vehiclesAtom);
-	const events = useIncidentEvents(incident._id);
+	const { events, failed } = useIncidentEvents(incident._id);
 
 	const vehicle = React.useMemo(
 		() =>
@@ -112,7 +107,7 @@ export function OnSceneBody({
 				/>
 			</View>
 
-			<ChainTimeline events={events} responders={responders} />
+			<ChainTimeline events={events} responders={responders} failed={failed} />
 		</DispatchSheetLayout>
 	);
 }

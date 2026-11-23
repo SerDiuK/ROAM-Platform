@@ -7,16 +7,17 @@
 	"types": "./src/index.ts",
 	"scripts": {
 		"typecheck": "tsc --noEmit",
-		"build": "tsc"
+		"build": "tsc",
+		"test": "vitest run"
 	},
 	"dependencies": {
 		"@coral-xyz/anchor": "^0.30.0",
 		"@solana/web3.js": "^1.98.0",
-		"bn.js": "^5.2.1",
-		"bs58": "^6.0.0"
+		"bn.js": "^5.2.1"
 	},
 	"devDependencies": {
 		"@types/bn.js": "^5.1.6",
+		"vitest": "^4.1.5",
 		"typescript": "^5.7.0"
 	}
 }

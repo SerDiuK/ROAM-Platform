@@ -1,35 +1,35 @@
-import { type Coord, haversineKm, type Telemetry, type Vehicle } from "@roam/shared";
+import type { Responder, Vehicle } from "@roam/shared";
 
-// Average response speed used to convert distance into an ETA. Tuned to a
-// loose "lights and sirens through Miami traffic" feel — not a real model.
-const AVG_RESPONSE_KMH = 50;
+type CrewedUnit = {
+	vehicle: Vehicle;
+	crew: string[];
+};
 
-export function rankVehiclesByProximity(
-	scene: Coord,
+export function resolveUnits(
+	vehicleIds: string[],
+	responderIds: string[],
 	vehicles: Vehicle[],
-	positions: Map<string, Telemetry>,
-): { vehicle: Vehicle; distanceKm: number }[] {
-	const ranked: { vehicle: Vehicle; distanceKm: number }[] = [];
-	for (const vehicle of vehicles) {
-		const live = positions.get(vehicle._id);
-		const snapshot = live ?? vehicle.lastTelemetry;
-		if (!snapshot) continue;
-		const distanceKm = haversineKm(scene, {
-			lat: snapshot.lat,
-			lon: snapshot.lon,
-		});
-		ranked.push({ vehicle, distanceKm });
-	}
-	ranked.sort((a, b) => a.distanceKm - b.distanceKm);
-	return ranked;
+	responderMap: Map<string, Responder>,
+): CrewedUnit[] {
+	const crewIds = new Set(responderIds);
+	return vehicleIds.flatMap((id) => {
+		const vehicle = vehicles.find((v) => v._id === id);
+		if (!vehicle) return [];
+		const crew = (vehicle.assignedResponderIds ?? [])
+			.filter((responderId) => crewIds.has(responderId))
+			.map((responderId) => {
+				const responder = responderMap.get(responderId);
+				return responder?.displayName ?? responder?.name;
+			})
+			.filter((name): name is string => name !== undefined);
+		return [{ vehicle, crew }];
+	});
 }
 
-export function formatEta(distanceKm: number): string {
-	const totalSeconds = Math.max(
-		30,
-		Math.round((distanceKm / AVG_RESPONSE_KMH) * 3600),
-	);
-	const minutes = Math.floor(totalSeconds / 60);
-	const seconds = totalSeconds % 60;
-	return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+export function formatUnitsAndCrew(
+	vehicleIds: string[],
+	responderIds: string[],
+): string {
+	const units = vehicleIds.length === 1 ? "Unit" : "Units";
+	return `${vehicleIds.length} ${units} · ${responderIds.length} Crew`;
 }

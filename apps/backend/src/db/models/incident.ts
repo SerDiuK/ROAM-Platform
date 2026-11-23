@@ -1,6 +1,7 @@
 import {
 	INCIDENT_STATUSES,
 	INCIDENT_URGENCIES,
+	type Incident,
 	RESPONDER_CAPABILITIES,
 } from "@roam/shared";
 import mongoose from "mongoose";
@@ -36,10 +37,7 @@ const assignedSchema = new mongoose.Schema(
 	{ _id: false },
 );
 
-// `_id` is a string set explicitly at create time (matches IncidentSchema._id).
-// `createdAt` / `updatedAt` are managed by Mongoose timestamps so the round-trip
-// through Zod (which requires both as dates) succeeds without manual setup.
-const incidentSchema = new mongoose.Schema(
+const incidentSchema = new mongoose.Schema<Incident>(
 	{
 		_id: { type: String, required: true },
 		callStartedAt: { type: Date, required: true },
@@ -55,9 +53,13 @@ const incidentSchema = new mongoose.Schema(
 		dispatchedAt: { type: Date },
 		clearedAt: { type: Date },
 	},
+	// The shared IncidentSchema requires createdAt and updatedAt.
 	{ timestamps: true },
 );
 
 incidentSchema.index({ status: 1, callStartedAt: -1 });
 
-export const IncidentModel = mongoose.model("Incident", incidentSchema);
+export const IncidentModel = mongoose.model<Incident>(
+	"Incident",
+	incidentSchema,
+);

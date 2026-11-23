@@ -1,6 +1,4 @@
-// Google encoded polyline algorithm decoder.
 // https://developers.google.com/maps/documentation/utilities/polylinealgorithm
-// Inlined (~30 lines) instead of pulling in @mapbox/polyline + its untyped surface.
 
 export type LatLng = { latitude: number; longitude: number };
 

@@ -8,16 +8,6 @@ import {
 import { z } from "zod";
 import type { AgentTool } from "./types.js";
 
-// Rule-based fallback for incident classification. The real classifier is the
-// LLM agent loop in AD-6 — this stub exists so AD-5's tool surface is callable
-// end-to-end without keys, and so the smoke script has a deterministic target.
-//
-// Rules are keyword-first because 911 transcripts contain the operative word
-// almost every time ("fire", "stroke", "spill"). Order matters: we walk the
-// rule list in priority order and return the first match. Without a match we
-// return a low-confidence "other" classification at urgency 2 so the agent
-// loop can still proceed and override it.
-
 const InputSchema = z.object({
 	transcript: z.string().min(1),
 });
@@ -30,8 +20,7 @@ interface Rule {
 	requiredCapabilities: ResponderCapability[];
 }
 
-// Fleet is ambulance-only — every responder capability collapses to ["medic"].
-// When we expand to fire/police, this table grows back out.
+// First match wins, so order is priority.
 const RULES: Rule[] = [
 	{
 		pattern: /\b(hazmat|chemical|spill|gas leak|toxic|fumes)\b/i,
@@ -78,18 +67,9 @@ const RULES: Rule[] = [
 	},
 ];
 
-// Captures "at <street> and <street>" — the canonical CAD intersection
-// shorthand. The streets often contain a direction prefix (NE / NW) and a
-// numbered suffix ("36th St"); we keep punctuation out of the captures.
 const INTERSECTION_PATTERN =
 	/\bat\s+([A-Za-z0-9.\- ]+?)\s+and\s+([A-Za-z0-9.\- ]+?)(?:[,.;!?]|\s+(?:in|near|please|hurry|now)\b|$)/i;
 
-// Hardcoded geocode for known demo intersections. The dashboard's
-// RecommendationGroup needs lat/lon to rank vehicles by proximity — without
-// it the panel sits on "Awaiting scene location…". A real geocoder is post-
-// hackathon; for now we recognize the demo scene and any other intersections
-// we plan to stage from. Patterns are forgiving of Deepgram quirks (e.g.
-// "36th" → "30 6").
 const KNOWN_INTERSECTIONS: Array<{
 	matchers: RegExp[];
 	description: string;
@@ -159,11 +139,11 @@ export const classifyIncidentTool: AgentTool<Input, IncidentClassification> = {
 			incidentType,
 			urgency,
 			requiredCapabilities,
-			...(location.description ? { locationDescription: location.description } : {}),
+			...(location.description
+				? { locationDescription: location.description }
+				: {}),
 			...(location.coords ? { location: location.coords } : {}),
 		};
-		// Round-trip through the shared schema so any drift in the schema
-		// surfaces here, not at agent-runner time.
 		return IncidentClassificationSchema.parse(result);
 	},
 };

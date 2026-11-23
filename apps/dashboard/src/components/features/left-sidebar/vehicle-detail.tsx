@@ -2,7 +2,7 @@
 
 import type { Responder, Telemetry, Vehicle } from "@roam/shared";
 import { cn, formatRelative, STATUS_LABEL, STATUS_TONE } from "@roam/ui";
-import { useEffect, useRef } from "react";
+import { useState } from "react";
 import { Button } from "../../ui/button";
 import { DataCell } from "../../ui/data-cell";
 import { Icon } from "../../ui/icon";
@@ -14,11 +14,13 @@ import {
 	SidebarHeader,
 } from "../../ui/sidebar-primitives";
 import { StatusDot, StatusPill } from "../../ui/status-pill";
+import { isLive, TELEMETRY_LIVE_MS } from "./fleet-status.utils";
 
 type VehicleDetailProps = {
 	vehicle: Vehicle | null;
 	positions: Map<string, Telemetry>;
 	responderMap: Map<string, Responder>;
+	now: number;
 	open: boolean;
 	onClose: () => void;
 };
@@ -27,19 +29,20 @@ export function VehicleDetail({
 	vehicle,
 	positions,
 	responderMap,
+	now,
 	open,
 	onClose,
 }: VehicleDetailProps) {
-	const lastVehicleRef = useRef<Vehicle | null>(null);
-	useEffect(() => {
-		if (vehicle) lastVehicleRef.current = vehicle;
-	}, [vehicle]);
+	const [lastVehicle, setLastVehicle] = useState(vehicle);
+	if (vehicle !== null && vehicle !== lastVehicle) setLastVehicle(vehicle);
+	const display = vehicle ?? lastVehicle;
 
-	const display = vehicle ?? lastVehicleRef.current;
-
-	const liveTelemetry = display ? positions.get(display._id) : undefined;
-	const telemetry = liveTelemetry ?? display?.lastTelemetry;
-	const isLive = liveTelemetry !== undefined;
+	const telemetry = display
+		? (positions.get(display._id) ?? display.lastTelemetry)
+		: undefined;
+	const live =
+		telemetry !== undefined &&
+		isLive(telemetry.timestamp, now, TELEMETRY_LIVE_MS);
 
 	return (
 		<aside
@@ -53,7 +56,6 @@ export function VehicleDetail({
 			<SidebarHeader className="justify-between">
 				<Button
 					variant="ghost"
-					size="sm"
 					onClick={onClose}
 					className="-ml-1 px-2 tracking-widest"
 				>
@@ -67,16 +69,14 @@ export function VehicleDetail({
 					<>
 						<SidebarGroup>
 							<SidebarGroupContent className="flex flex-col gap-3">
-								{display.model.imageUrl && (
-									<div className="aspect-video w-full overflow-hidden rounded-md border border-sidebar-border bg-sidebar-accent/30">
-										{/* biome-ignore lint/performance/noImgElement: vehicle spec images come from arbitrary external hosts that can't be enumerated for next/image remotePatterns */}
-										<img
-											src={display.model.imageUrl}
-											alt={`${display.model.manufacturer} ${display.model.name}`}
-											className="h-full w-full object-cover"
-										/>
-									</div>
-								)}
+								<div className="aspect-video w-full overflow-hidden rounded-md border border-sidebar-border bg-sidebar-accent/30">
+									{/* biome-ignore lint/performance/noImgElement: vehicle spec images come from arbitrary external hosts that can't be enumerated for next/image remotePatterns */}
+									<img
+										src={display.model.imageUrl}
+										alt={`${display.model.manufacturer} ${display.model.name}`}
+										className="h-full w-full object-cover"
+									/>
+								</div>
 								<div className="flex flex-col gap-2">
 									<div className="flex items-start justify-between gap-2">
 										<div className="flex flex-col">
@@ -98,11 +98,11 @@ export function VehicleDetail({
 						<SidebarGroup>
 							<SidebarGroupLabel className="flex items-center gap-2">
 								<StatusDot
-									tone={isLive ? "primary" : "muted"}
+									tone={live ? "primary" : "muted"}
 									size="xs"
-									pulse={isLive}
+									pulse={live}
 								/>
-								{isLive ? "Live" : "Last seen"}
+								{live ? "Live" : "Last seen"}
 							</SidebarGroupLabel>
 							<SidebarGroupContent>
 								{telemetry ? (
@@ -125,7 +125,7 @@ export function VehicleDetail({
 										)}
 										<DataCell
 											label="Updated"
-											value={formatRelative(telemetry.timestamp)}
+											value={formatRelative(telemetry.timestamp, now)}
 										/>
 									</div>
 								) : (
@@ -141,7 +141,8 @@ export function VehicleDetail({
 								<SidebarGroupLabel>Responder</SidebarGroupLabel>
 								<SidebarGroupContent>
 									<div className="px-2 py-1 text-sm text-foreground">
-										{responderMap.get(display.currentResponderId)?.displayName ??
+										{responderMap.get(display.currentResponderId)
+											?.displayName ??
 											responderMap.get(display.currentResponderId)?.name ??
 											display.currentResponderId}
 									</div>

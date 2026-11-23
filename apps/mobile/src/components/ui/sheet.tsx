@@ -11,11 +11,6 @@ import Animated, {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Text } from "@/components/ui/text";
 
-// Public surface kept minimal — { open, onOpenChange, children } plus optional
-// Title/Description/Close subcomponents (mirrors shadcn/ui Sheet). Swap to a
-// different driver (e.g. @gorhom/bottom-sheet) by replacing this file; consumers
-// keep the same JSX shape.
-
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 type SheetProps = {

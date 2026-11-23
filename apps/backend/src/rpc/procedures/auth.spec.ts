@@ -1,9 +1,8 @@
 import { call, ORPCError } from "@orpc/server";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
-	makeFakeBroadcaster,
-	makeFakeLogger,
 	makeResponder,
+	makeRpcContext,
 	makeVehicle,
 } from "../../../test/factories.js";
 import {
@@ -16,10 +15,10 @@ import { VehicleModel } from "../../db/models/vehicle.js";
 import type { AuthedUser, RpcContext } from "../context.js";
 import { authRouter } from "./auth.js";
 
-const fakeConfig = {
+const fakeConfig: Partial<Config> = {
 	SOLANA_OPERATOR_KEYPAIR: undefined,
 	SOLANA_CLUSTER: "devnet",
-} as unknown as Config;
+};
 
 const fakeUser: AuthedUser = {
 	id: "test-responder",
@@ -28,19 +27,7 @@ const fakeUser: AuthedUser = {
 };
 
 function buildContext(user: AuthedUser | null = fakeUser): RpcContext {
-	return {
-		config: fakeConfig,
-		incidentBroadcaster:
-			makeFakeBroadcaster() as unknown as RpcContext["incidentBroadcaster"],
-		dispatchBroadcaster:
-			makeFakeBroadcaster() as unknown as RpcContext["dispatchBroadcaster"],
-		walletProvider: {} as RpcContext["walletProvider"],
-		transcriber: {} as RpcContext["transcriber"],
-		anthropic: {} as RpcContext["anthropic"],
-		pushClient: {} as RpcContext["pushClient"],
-		log: makeFakeLogger() as unknown as RpcContext["log"],
-		user,
-	};
+	return makeRpcContext(fakeConfig, { user });
 }
 
 describe("auth.checkin", () => {
@@ -69,8 +56,6 @@ describe("auth.checkin", () => {
 		const updatedResponder = await ResponderModel.findById(responder._id);
 		expect(updatedResponder?.currentVehicleId).toBe(vehicle._id.toHexString());
 
-		// AD-22: checkin must not write to Solana — the on-chain audit is
-		// dispatch-scoped now.
 		expect(mockedWithSolanaProvider).not.toHaveBeenCalled();
 	});
 
@@ -132,11 +117,9 @@ describe("auth.checkin", () => {
 			message: "responder_already_checked_in",
 		});
 
-		// Target vehicle was never touched.
 		const target = await VehicleModel.findById(targetVehicle._id);
 		expect(target?.status).toBe("available");
 
-		// And the existing pairing is intact.
 		const after = await ResponderModel.findById(responder._id);
 		expect(after?.currentVehicleId).toBe("507f1f77bcf86cd799439098");
 	});
@@ -173,10 +156,9 @@ describe("auth.checkin", () => {
 
 		const error = (rejected[0] as PromiseRejectedResult).reason;
 		expect(error).toBeInstanceOf(ORPCError);
-		expect([
-			"vehicle_not_available",
-			"responder_already_checked_in",
-		]).toContain((error as ORPCError<string, unknown>).message);
+		expect(["vehicle_not_available", "responder_already_checked_in"]).toContain(
+			(error as ORPCError<string, unknown>).message,
+		);
 
 		const updatedVehicle = await VehicleModel.findById(vehicle._id);
 		expect(updatedVehicle?.status).toBe("in_use");

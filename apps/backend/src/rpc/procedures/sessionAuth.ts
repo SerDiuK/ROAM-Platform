@@ -1,26 +1,22 @@
 import { ORPCError } from "@orpc/server";
+import {
+	RESPONDER_ALREADY_BOUND,
+	ResponderSchema,
+	WALLET_UNBOUND,
+} from "@roam/shared";
 import { PublicKey } from "@solana/web3.js";
 import { signSessionToken } from "../../auth/jwt.js";
 import {
-	SIWS_DOMAIN,
-	SIWS_STATEMENT,
 	consumeNonce,
 	issueNonce,
 	parseSiwsNonce,
+	SIWS_DOMAIN,
+	SIWS_STATEMENT,
 	verifySiwsSignature,
 } from "../../auth/siws.js";
 import { ResponderModel } from "../../db/models/responder.js";
-import { serializeResponder } from "../../db/serializers/responder.js";
+import { toWire } from "../../db/serializers/wire.js";
 import { authed, os } from "../builder.js";
-
-// Seeker-only auth (SIWS via Mobile Wallet Adapter `sign_in_payload`). The
-// vehicle-pairing `authRouter` (checkin/checkout) lives in the sibling
-// auth.ts; both routers merge under the `auth` namespace in router.ts.
-//
-// Wallet-binding model: a responder's walletAddress is bound on first SIWS
-// sign-in. After that, siwsVerify resolves the responder by walletAddress
-// alone — `name` in the request is ignored on subsequent sign-ins. This lets
-// a re-imaged Seeker re-bind by sending name on its first call.
 
 export const sessionAuthRouter = {
 	siwsChallenge: os.auth.siwsChallenge.handler(async () => {
@@ -57,10 +53,7 @@ export const sessionAuthRouter = {
 			throw new ORPCError("UNAUTHORIZED", { message: "Missing nonce" });
 		}
 
-		// Consume *after* signature check passes — a nonce should not be burned by
-		// a forged-signature probe. (A malicious caller could still burn a nonce by
-		// replaying a genuine message+sig to us first; that's fine, the genuine
-		// holder just re-challenges.)
+		// Consume only after the signature check so forged probes can't burn nonces.
 		if (!consumeNonce(nonce)) {
 			log.info({ address }, "auth.siwsVerify: bad nonce");
 			throw new ORPCError("UNAUTHORIZED", {
@@ -72,26 +65,23 @@ export const sessionAuthRouter = {
 
 		if (!responder) {
 			if (!input.name) {
-				// First-time sign-in for this pubkey; mobile must re-call with the
-				// picked responder name. Surfaced as a typed error so the client can
-				// branch into its picker UI without parsing the message string.
-				throw new ORPCError("UNAUTHORIZED", {
-					message: "WALLET_UNBOUND",
-					data: { error: "wallet_unbound" as const },
-				});
+				throw new ORPCError("UNAUTHORIZED", { message: WALLET_UNBOUND });
 			}
-			responder = await ResponderModel.findOne({ name: input.name });
+			responder = await ResponderModel.findOneAndUpdate(
+				{ name: input.name, walletAddress: null },
+				{ $set: { walletAddress: address } },
+				{ returnDocument: "after" },
+			);
 			if (!responder) {
+				const named = await ResponderModel.exists({ name: input.name });
 				log.info(
-					{ name: input.name, address },
-					"auth.siwsVerify: name not found",
+					{ name: input.name, address, named: Boolean(named) },
+					"auth.siwsVerify: name not bindable",
 				);
-				throw new ORPCError("UNAUTHORIZED", {
-					message: "Unknown responder",
-				});
+				throw named
+					? new ORPCError("CONFLICT", { message: RESPONDER_ALREADY_BOUND })
+					: new ORPCError("UNAUTHORIZED", { message: "Unknown responder" });
 			}
-			responder.walletAddress = address;
-			await responder.save();
 		}
 
 		const token = await signSessionToken(
@@ -104,7 +94,7 @@ export const sessionAuthRouter = {
 			{ responderId: responder._id, name: responder.name, address },
 			"auth.siwsVerify: ok",
 		);
-		return { token, responder: serializeResponder(responder.toObject()) };
+		return { token, responder: toWire(ResponderSchema, responder) };
 	}),
 
 	me: authed.auth.me.handler(async ({ context }) => {
@@ -114,14 +104,9 @@ export const sessionAuthRouter = {
 				message: "Responder no longer exists",
 			});
 		}
-		return { responder: serializeResponder(responder) };
+		return { responder: toWire(ResponderSchema, responder) };
 	}),
 
-	// Issues a fresh JWT against the still-valid current one. Mobile pings this
-	// every ~half-TTL while the app is in the foreground; once the device
-	// backgrounds or locks the renewal stops, and the next cold boot fails
-	// `auth.me()` and falls back to login. Same shape as `siwsVerify` so the
-	// caller can rebind setApiToken without branching on the response type.
 	refresh: authed.auth.refresh.handler(async ({ context }) => {
 		const { config } = context;
 		const responder = await ResponderModel.findById(context.user.id).lean();
@@ -135,6 +120,6 @@ export const sessionAuthRouter = {
 			config.AUTH_SECRET,
 			config.AUTH_TOKEN_TTL_SECS,
 		);
-		return { token, responder: serializeResponder(responder) };
+		return { token, responder: toWire(ResponderSchema, responder) };
 	}),
 };

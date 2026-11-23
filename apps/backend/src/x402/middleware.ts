@@ -1,55 +1,30 @@
 import {
-	Connection,
+	type Connection,
 	PublicKey,
 	SystemProgram,
 	Transaction,
-	clusterApiUrl,
 } from "@solana/web3.js";
 import type { FastifyBaseLogger, FastifyReply, FastifyRequest } from "fastify";
+import { z } from "zod";
 import type { Config } from "../config.js";
 import { DispatchModel } from "../db/models/dispatch.js";
-import { getCluster } from "@roam/solana-client";
-import { SETTLEMENT_SOL } from "./client.js";
+import { PayoutModel } from "../db/models/payout.js";
+import { buildConnection } from "../services/solana.js";
+import { SETTLEMENT_LAMPORTS, X402_VERSION, x402Network } from "./client.js";
 
-const LAMPORTS_PER_SOL = 1_000_000_000n;
-const X402_VERSION = 1;
 const MAX_TIMEOUT_SECONDS = 300;
-// SOL native mint sentinel used as asset identifier in the 402 challenge
+// Native SOL has no mint; the wrapped-SOL mint stands in as its asset id.
 const SOL_ASSET = "So11111111111111111111111111111111111111112";
 
-export interface X402Payment {
-	solanaTxSignature: string;
-	amountSol: number;
-}
+const CompleteRequestSchema = z.object({ dispatchId: z.string().min(1) });
 
-interface ExactSvmPayload {
-	transaction: string;
-}
+const PaymentPayloadSchema = z.object({
+	x402Version: z.literal(X402_VERSION),
+	scheme: z.literal("exact"),
+	network: z.string(),
+	payload: z.object({ transaction: z.string().min(1) }),
+});
 
-interface PaymentPayload {
-	x402Version: number;
-	scheme: "exact";
-	network: string;
-	payload: ExactSvmPayload;
-}
-
-function decodePaymentHeader(raw: string): PaymentPayload {
-	const json = Buffer.from(raw, "base64").toString("utf8");
-	return JSON.parse(json) as PaymentPayload;
-}
-
-function buildConnection(config: Config): Connection {
-	const cluster = getCluster(config.SOLANA_CLUSTER);
-	const url =
-		cluster === "localnet" ? "http://localhost:8899" : clusterApiUrl(cluster);
-	return new Connection(url, "confirmed");
-}
-
-// Verifies a pre-signed native SOL transfer tx:
-//   - Deserializes the transaction
-//   - Checks it contains a SystemProgram.transfer instruction
-//   - Confirms recipient and lamport amount match requirements
-//   - Submits and returns the on-chain signature
 async function verifyAndSettle(
 	connection: Connection,
 	encodedTx: string,
@@ -57,20 +32,16 @@ async function verifyAndSettle(
 	expectedLamports: bigint,
 	log: FastifyBaseLogger,
 ): Promise<string> {
-	const txBuf = Buffer.from(encodedTx, "base64");
-	const tx = Transaction.from(txBuf);
+	const tx = Transaction.from(Buffer.from(encodedTx, "base64"));
 
-	// Find the SystemProgram transfer instruction
-	const systemIx = tx.instructions.find(
-		(ix) => ix.programId.equals(SystemProgram.programId),
+	const systemIx = tx.instructions.find((ix) =>
+		ix.programId.equals(SystemProgram.programId),
 	);
-
 	if (!systemIx) {
 		throw new Error("x402: no SystemProgram instruction in payment tx");
 	}
 
-	// SystemProgram.transfer layout:
-	// data: [2, 0, 0, 0 (instruction index u32 le), lamports (u64 le)]
+	// Transfer data: u32 LE instruction index (2 = Transfer), then u64 LE lamports.
 	const data = systemIx.data;
 	if (data.length < 12) {
 		throw new Error("x402: SystemProgram instruction data too short");
@@ -86,7 +57,6 @@ async function verifyAndSettle(
 		);
 	}
 
-	// accounts[1] is the recipient
 	const recipient = systemIx.keys[1]?.pubkey;
 	if (!recipient) {
 		throw new Error("x402: no recipient account in transfer instruction");
@@ -111,41 +81,45 @@ async function verifyAndSettle(
 	return sig;
 }
 
-export async function x402Prehandler(
-	request: FastifyRequest & { x402Payment?: X402Payment },
+export async function settleX402Payment(
+	request: FastifyRequest,
 	reply: FastifyReply,
 	config: Config,
 	log: FastifyBaseLogger,
-): Promise<void> {
-	const body = request.body as { dispatchId?: string } | undefined;
-	const dispatchId = body?.dispatchId;
+): Promise<{ dispatchId: string; solanaTxSignature: string } | null> {
+	const body = CompleteRequestSchema.safeParse(request.body);
+	if (!body.success) {
+		await reply
+			.status(400)
+			.send({ error: "dispatchId required in request body" });
+		return null;
+	}
+	const { dispatchId } = body.data;
 
-	if (!dispatchId) {
-		await reply.status(400).send({ error: "dispatchId required in request body" });
-		return;
+	if (!(await DispatchModel.exists({ _id: dispatchId, status: "cleared" }))) {
+		await reply
+			.status(404)
+			.send({ error: `no cleared dispatch: ${dispatchId}` });
+		return null;
+	}
+	if (await PayoutModel.exists({ dispatchId })) {
+		await reply
+			.status(409)
+			.send({ error: `dispatch already settled: ${dispatchId}` });
+		return null;
 	}
 
-	const dispatch = await DispatchModel.findById(dispatchId)
-		.select("payoutUsdc")
-		.lean();
-	if (!dispatch) {
-		await reply.status(404).send({ error: `dispatch not found: ${dispatchId}` });
-		return;
-	}
-
-	const lamports = BigInt(Math.round(SETTLEMENT_SOL * Number(LAMPORTS_PER_SOL)));
 	const recipient = new PublicKey(config.X402_RECIPIENT_ADDRESS);
+	const paymentHeader = request.headers["x-payment"];
 
-	const paymentHeader = request.headers["x-payment"] as string | undefined;
-
-	if (!paymentHeader) {
+	if (typeof paymentHeader !== "string") {
 		await reply.status(402).send({
 			x402Version: X402_VERSION,
 			accepts: [
 				{
 					scheme: "exact",
-					network: config.X402_NETWORK,
-					maxAmountRequired: lamports.toString(),
+					network: x402Network(config),
+					maxAmountRequired: SETTLEMENT_LAMPORTS.toString(),
 					resource: `http://localhost:${config.PORT}/api/dispatch/complete`,
 					description: `ROAM dispatch settlement: ${dispatchId}`,
 					mimeType: "application/json",
@@ -157,37 +131,31 @@ export async function x402Prehandler(
 			],
 			error: "payment_required",
 		});
-		return;
+		return null;
 	}
 
 	try {
-		const payload = decodePaymentHeader(paymentHeader);
-
-		if (payload.x402Version !== X402_VERSION) {
-			throw new Error(`unsupported x402 version: ${payload.x402Version}`);
-		}
-		if (payload.scheme !== "exact") {
-			throw new Error(`unsupported scheme: ${payload.scheme}`);
-		}
-
-		const connection = buildConnection(config);
+		const payment = PaymentPayloadSchema.parse(
+			JSON.parse(Buffer.from(paymentHeader, "base64").toString("utf8")),
+		);
 		const sig = await verifyAndSettle(
-			connection,
-			payload.payload.transaction,
+			buildConnection(config),
+			payment.payload.transaction,
 			recipient,
-			lamports,
+			SETTLEMENT_LAMPORTS,
 			log,
 		);
-
-		request.x402Payment = { solanaTxSignature: sig, amountSol: SETTLEMENT_SOL };
-
 		reply.header(
 			"x-payment-response",
-			Buffer.from(JSON.stringify({ success: true, txSignature: sig })).toString("base64"),
+			Buffer.from(JSON.stringify({ success: true, txSignature: sig })).toString(
+				"base64",
+			),
 		);
+		return { dispatchId, solanaTxSignature: sig };
 	} catch (err: unknown) {
 		const message = err instanceof Error ? err.message : String(err);
 		log.error({ err }, "x402 payment verification failed");
 		await reply.status(402).send({ error: "payment_invalid", detail: message });
+		return null;
 	}
 }

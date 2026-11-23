@@ -1,25 +1,16 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseConfig } from "../src/config.js";
 import { createTranscriber } from "../src/agent/transcribe.js";
-
-// Smoke test for the Deepgram file-transcription path. Reads a wav file
-// (default: test/fixtures/sample-call.wav) and prints transcript + confidence
-// so we can verify Nova-3 returns a usable result against a real API key.
-//
-// Run with:
-//   pnpm --filter @roam/backend stt:smoke
-//   STT_SMOKE_FIXTURE=/path/to/other.wav pnpm --filter @roam/backend stt:smoke
-//
-// Acceptance: confidence > 0.8 and a non-empty transcript.
+import { parseConfig } from "../src/config.js";
 
 const DEFAULT_FIXTURE_PATH = path.resolve(
 	path.dirname(fileURLToPath(import.meta.url)),
 	"../test/fixtures/sample-call.wav",
 );
-const FIXTURE_PATH = process.env.STT_SMOKE_FIXTURE
-	? path.resolve(process.env.STT_SMOKE_FIXTURE)
+const fixtureArg = process.argv[2];
+const FIXTURE_PATH = fixtureArg
+	? path.resolve(fixtureArg)
 	: DEFAULT_FIXTURE_PATH;
 const EXPECTED =
 	FIXTURE_PATH === DEFAULT_FIXTURE_PATH
@@ -28,11 +19,6 @@ const EXPECTED =
 
 async function main(): Promise<void> {
 	const config = parseConfig();
-	if (config.STT_PROVIDER !== "deepgram") {
-		throw new Error(
-			`stt-smoke only supports STT_PROVIDER=deepgram (got ${config.STT_PROVIDER})`,
-		);
-	}
 
 	const audio = await readFile(FIXTURE_PATH);
 	console.log(
@@ -52,7 +38,9 @@ async function main(): Promise<void> {
 	}
 
 	if (result.utterances.length > 0) {
-		console.log(`[stt-smoke] conversation (${result.utterances.length} utterances):`);
+		console.log(
+			`[stt-smoke] conversation (${result.utterances.length} utterances):`,
+		);
 		for (const u of result.utterances) {
 			const ts = `${u.start.toFixed(2)}s`.padStart(7);
 			console.log(`  ${ts}  Speaker ${u.speaker}: ${u.transcript}`);

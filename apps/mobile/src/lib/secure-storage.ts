@@ -1,11 +1,5 @@
 import * as SecureStore from "expo-secure-store";
 
-// Keys held in expo-secure-store. Both the JWT and the MWA `auth_token` are
-// long-lived enough to survive reloads + device restarts; caching the
-// auth_token lets `wallet.authorize({ auth_token })` silent-reauthorize on
-// warm boots instead of re-prompting "allow this app". The name is cached so
-// the first-time-bind picker can default to the previously-used responder.
-
 const TOKEN_KEY = "roam.auth.token";
 const NAME_KEY = "roam.auth.name";
 const AUTH_TOKEN_KEY = "roam.mwa.authToken";

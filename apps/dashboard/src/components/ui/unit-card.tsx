@@ -2,22 +2,19 @@
 
 import { cn } from "@roam/ui";
 import type { ReactNode } from "react";
-
-type UnitCardTone = "primary" | "warning" | "danger" | "offline" | "muted";
+import type { Tone } from "./status-pill";
 
 type UnitCardProps = {
 	callsign: ReactNode;
 	meta?: ReactNode;
 	trailingValue?: ReactNode;
-	trailingLabel?: ReactNode;
-	tone?: UnitCardTone;
-	trailingTone?: UnitCardTone;
+	tone?: Tone;
+	trailingTone?: Tone;
 	isActive?: boolean;
 	onClick?: () => void;
-	className?: string;
 };
 
-const dotClasses: Record<UnitCardTone, string> = {
+const dotClasses: Record<Tone, string> = {
 	primary: "bg-primary",
 	warning: "bg-warning",
 	danger: "bg-danger",
@@ -25,7 +22,7 @@ const dotClasses: Record<UnitCardTone, string> = {
 	muted: "bg-muted-foreground",
 };
 
-const valueClasses: Record<UnitCardTone, string> = {
+const valueClasses: Record<Tone, string> = {
 	primary: "text-primary",
 	warning: "text-warning",
 	danger: "text-danger",
@@ -37,24 +34,19 @@ export function UnitCard({
 	callsign,
 	meta,
 	trailingValue,
-	trailingLabel,
 	tone = "muted",
 	trailingTone,
 	isActive,
 	onClick,
-	className,
 }: UnitCardProps) {
 	const baseClasses = cn(
 		"flex w-full items-center gap-2.5 rounded-md border border-sidebar-border bg-sidebar-accent/30 p-2.5 text-left transition-colors",
 		isActive && "border-sidebar-ring bg-sidebar-accent/60",
 		onClick &&
 			"cursor-pointer hover:bg-sidebar-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
-		className,
 	);
 
 	const valueColor = valueClasses[trailingTone ?? tone];
-	const hasTrailing =
-		trailingValue !== undefined || trailingLabel !== undefined;
 
 	const content = (
 		<>
@@ -67,23 +59,14 @@ export function UnitCard({
 					<div className="truncate text-2xs text-muted-foreground">{meta}</div>
 				)}
 			</div>
-			{hasTrailing && (
-				<div className="shrink-0 text-right">
-					{trailingValue !== undefined && (
-						<div
-							className={cn(
-								"font-mono text-sm font-bold tabular-nums",
-								valueColor,
-							)}
-						>
-							{trailingValue}
-						</div>
+			{trailingValue !== undefined && (
+				<div
+					className={cn(
+						"shrink-0 text-right font-mono text-sm font-bold tabular-nums",
+						valueColor,
 					)}
-					{trailingLabel !== undefined && (
-						<div className="text-2xs uppercase tracking-wider text-muted-foreground/70">
-							{trailingLabel}
-						</div>
-					)}
+				>
+					{trailingValue}
 				</div>
 			)}
 		</>
@@ -107,5 +90,3 @@ export function UnitCard({
 		</div>
 	);
 }
-
-export type { UnitCardProps, UnitCardTone };

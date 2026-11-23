@@ -1,3 +1,5 @@
+"use client";
+
 import { cn } from "@roam/ui";
 import type { ReactNode } from "react";
 
@@ -6,7 +8,6 @@ type DataCellProps = {
 	value: ReactNode;
 	leading?: ReactNode;
 	emphasis?: "value" | "metric";
-	className?: string;
 };
 
 export function DataCell({
@@ -14,15 +15,9 @@ export function DataCell({
 	value,
 	leading,
 	emphasis = "value",
-	className,
 }: DataCellProps) {
 	return (
-		<div
-			className={cn(
-				"flex flex-col gap-1 rounded-md border border-sidebar-border bg-sidebar-accent/30 p-2",
-				className,
-			)}
-		>
+		<div className="flex flex-col gap-1 rounded-md border border-sidebar-border bg-sidebar-accent/30 p-2">
 			<div className="flex items-center gap-2">
 				{leading}
 				<span className="text-2xs font-medium uppercase tracking-wider text-muted-foreground">

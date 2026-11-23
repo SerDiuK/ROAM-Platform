@@ -110,8 +110,7 @@ export function RespondersStatus({
 								const vehicle = responder.currentVehicleId
 									? vehicleMap.get(responder.currentVehicleId)
 									: undefined;
-								const primaryLabel =
-									responder.displayName ?? responder.name;
+								const primaryLabel = responder.displayName ?? responder.name;
 								const metaLabel = vehicle?.callsign ?? responder.name;
 								return (
 									<SidebarMenuItem key={responder._id}>

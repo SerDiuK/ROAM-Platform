@@ -1,23 +1,14 @@
-import { PAYOUT_STATUSES } from "@roam/shared";
 import mongoose from "mongoose";
 
-// `_id` is a string set explicitly at create time. The on-chain proof is the
-// SPL transfer tx itself (`solanaTxSignature`); no separate program log is
-// emitted. `error` captures the failure reason when status === "failed".
 const payoutSchema = new mongoose.Schema({
 	_id: { type: String, required: true },
 	dispatchId: { type: String, ref: "Dispatch", required: true },
-	responderId: { type: String, ref: "Responder", required: true },
 	recipientWalletAddress: { type: String, required: true },
-	amountUsdc: { type: Number },
-	amountSol: { type: Number },
-	status: { type: String, enum: PAYOUT_STATUSES, required: true },
-	initiatedAt: { type: Date, required: true },
-	settledAt: { type: Date },
-	solanaTxSignature: { type: String },
-	error: { type: String },
+	amountSol: { type: Number, required: true },
+	settledAt: { type: Date, required: true },
+	solanaTxSignature: { type: String, required: true },
 });
 
-payoutSchema.index({ status: 1, dispatchId: 1 });
+payoutSchema.index({ dispatchId: 1 }, { unique: true });
 
 export const PayoutModel = mongoose.model("Payout", payoutSchema);

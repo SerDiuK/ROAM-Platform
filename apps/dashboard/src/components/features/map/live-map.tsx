@@ -15,6 +15,15 @@ const MapInner = dynamic(
 	},
 );
 
+type LiveMapProps = {
+	vehicles: Vehicle[];
+	positions: Map<string, Telemetry>;
+	incidents: Incident[];
+	rightSidebarOpen: boolean;
+	onSelectVehicle: (id: string) => void;
+	onSelectIncident: (id: string) => void;
+};
+
 export function LiveMap({
 	vehicles,
 	positions,
@@ -22,14 +31,7 @@ export function LiveMap({
 	rightSidebarOpen,
 	onSelectVehicle,
 	onSelectIncident,
-}: {
-	vehicles: Vehicle[];
-	positions: Map<string, Telemetry>;
-	incidents: Incident[];
-	rightSidebarOpen: boolean;
-	onSelectVehicle: (id: string) => void;
-	onSelectIncident: (id: string) => void;
-}) {
+}: LiveMapProps) {
 	return (
 		<MapInner
 			vehicles={vehicles}

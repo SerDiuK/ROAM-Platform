@@ -1,3 +1,5 @@
+import { ORPCError } from "@orpc/client";
+import { RESPONDER_ALREADY_BOUND, WALLET_UNBOUND } from "@roam/shared";
 import { Keypair } from "@solana/web3.js";
 import { createStore } from "jotai";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -20,13 +22,13 @@ vi.mock("@/lib/mwa", () => ({
 			this.name = "SeekerCancelledError";
 		}
 	},
-	SeekerProtocolError: class extends Error {},
 }));
 
 const apiSpy = {
 	auth: {
 		siwsChallenge: vi.fn(),
 		siwsVerify: vi.fn(),
+		refresh: vi.fn(),
 	},
 };
 const setApiTokenSpy = vi.fn();
@@ -50,10 +52,12 @@ vi.mock("@/lib/secure-storage", () => ({
 }));
 
 vi.mock("@/lib/push", () => ({
-	registerPushToken: vi.fn(async () => ({ ok: true })),
+	registerPushToken: vi.fn(async () => {}),
 }));
 
-const { signInWithSeekerAtom } = await import("./wallet-auth.js");
+const { refreshTokenAtom, signInWithSeekerAtom } = await import(
+	"./wallet-auth.js"
+);
 const { authStateAtom } = await import("./responder.js");
 
 const seekerKp = Keypair.generate();
@@ -66,6 +70,7 @@ beforeEach(() => {
 	mwaSpy.signIn.mockReset();
 	apiSpy.auth.siwsChallenge.mockReset();
 	apiSpy.auth.siwsVerify.mockReset();
+	apiSpy.auth.refresh.mockReset();
 	setApiTokenSpy.mockReset();
 	writeAuthTokenSpy.mockReset();
 });
@@ -124,19 +129,30 @@ describe("signInWithSeekerAtom", () => {
 	it("returns wallet-unbound when backend says WALLET_UNBOUND", async () => {
 		mockChallenge();
 		mockSignIn();
-		apiSpy.auth.siwsVerify.mockRejectedValue({
-			code: "UNAUTHORIZED",
-			message: "WALLET_UNBOUND",
-		});
+		apiSpy.auth.siwsVerify.mockRejectedValue(
+			new ORPCError("UNAUTHORIZED", { message: WALLET_UNBOUND }),
+		);
 
 		const store = createStore();
 		const result = await store.set(signInWithSeekerAtom, {});
 
 		expect(result).toEqual({ kind: "wallet-unbound", pubkey: SEEKER_PUBKEY });
 		expect(setApiTokenSpy).not.toHaveBeenCalled();
-		// authToken still cached so the picker re-run is silent.
 		expect(writeAuthTokenSpy).toHaveBeenCalledWith("fresh-auth-token");
 		expect(store.get(authStateAtom).kind).toBe("unknown");
+	});
+
+	it("reports a name that another Seeker already holds", async () => {
+		mockChallenge();
+		mockSignIn();
+		apiSpy.auth.siwsVerify.mockRejectedValue(
+			new ORPCError("CONFLICT", { message: RESPONDER_ALREADY_BOUND }),
+		);
+
+		const store = createStore();
+		const result = await store.set(signInWithSeekerAtom, { name: "RSP-1" });
+
+		expect(result).toEqual({ kind: "responder-already-bound" });
 	});
 
 	it("returns cancelled when the user dismisses the fingerprint prompt", async () => {
@@ -185,9 +201,35 @@ describe("signInWithSeekerAtom", () => {
 		mwaSpy.mwaAvailable = false;
 		const store = createStore();
 		const result = await store.set(signInWithSeekerAtom, {});
-		mwaSpy.mwaAvailable = true; // restore for sibling tests
+		mwaSpy.mwaAvailable = true;
 
 		expect(result.kind).toBe("error");
 		expect(apiSpy.auth.siwsChallenge).not.toHaveBeenCalled();
+	});
+});
+
+describe("refreshTokenAtom", () => {
+	it("rides out a failed refresh and signs out only on UNAUTHORIZED", async () => {
+		vi.spyOn(console, "warn").mockImplementation(() => {});
+		const store = createStore();
+		store.set(authStateAtom, {
+			kind: "signed-in",
+			responder: {
+				_id: "rsp-1",
+				name: "RSP-1",
+				role: "responder",
+				availability: "available",
+			},
+		});
+
+		apiSpy.auth.refresh.mockRejectedValueOnce(
+			new ORPCError("INTERNAL_SERVER_ERROR"),
+		);
+		await store.set(refreshTokenAtom);
+		expect(store.get(authStateAtom).kind).toBe("signed-in");
+
+		apiSpy.auth.refresh.mockRejectedValueOnce(new ORPCError("UNAUTHORIZED"));
+		await store.set(refreshTokenAtom);
+		expect(store.get(authStateAtom).kind).toBe("signed-out");
 	});
 });

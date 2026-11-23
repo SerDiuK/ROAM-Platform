@@ -2,10 +2,7 @@ import { type Telemetry, TelemetrySchema } from "@roam/shared";
 import { useCallback, useState } from "react";
 import { useReconnectingSocket } from "./use-reconnecting-socket";
 
-export function useTelemetrySocket(
-	baseWsUrl: string,
-	token?: string | null,
-): {
+export function useTelemetrySocket(baseWsUrl: string): {
 	positions: Map<string, Telemetry>;
 	connected: boolean;
 } {
@@ -21,15 +18,8 @@ export function useTelemetrySocket(
 		});
 	}, []);
 
-	// Browsers can't set Authorization on WS upgrade; the backend reads the
-	// token from `?token=...`. Treating an empty string as "no token" matches
-	// what the backend does (it won't open the socket).
-	const url = token
-		? `${baseWsUrl}/ws/telemetry?token=${encodeURIComponent(token)}`
-		: `${baseWsUrl}/ws/telemetry`;
-
 	const { connected } = useReconnectingSocket({
-		url,
+		url: `${baseWsUrl}/ws/telemetry`,
 		schema: TelemetrySchema,
 		onMessage: handleMessage,
 	});

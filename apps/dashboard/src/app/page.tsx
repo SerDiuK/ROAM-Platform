@@ -1,7 +1,11 @@
 "use client";
 
 import { useTelemetrySocket } from "@roam/api";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
+import {
+	isLive,
+	TELEMETRY_LIVE_MS,
+} from "@/components/features/left-sidebar/fleet-status.utils";
 import { LeftSidebar } from "@/components/features/left-sidebar/left-sidebar";
 import { LiveMap } from "@/components/features/map/live-map";
 import { RightSidebar } from "@/components/features/right-sidebar/right-sidebar";
@@ -10,7 +14,18 @@ import { MobileWarning } from "@/components/ui/mobile-warning";
 import { SIDEBAR_CSS_VARS } from "@/components/ui/sidebar-primitives";
 import { useFleetData } from "@/hooks/use-fleet-data";
 import { useIncidentsData } from "@/hooks/use-incidents-data";
+import { useNow } from "@/hooks/use-now";
 import { getWsUrl } from "@/lib/config";
+
+let alertTone: HTMLAudioElement | null = null;
+
+function playAlertTone(): void {
+	alertTone ??= new Audio("/911call.wav");
+	alertTone.currentTime = 0;
+	alertTone.play().catch((err: unknown) => {
+		console.warn("[alert-tone] blocked:", err);
+	});
+}
 
 function Page() {
 	const {
@@ -37,39 +52,39 @@ function Page() {
 	const wsUrl = getWsUrl();
 	const { positions, connected: telemetryConnected } =
 		useTelemetrySocket(wsUrl);
+	const now = useNow();
 
-	useEffect(() => {
-		if (
-			selectedVehicleId &&
-			!vehicles.some((v) => v._id === selectedVehicleId)
-		) {
-			setSelectedVehicleId(null);
-		}
-	}, [vehicles, selectedVehicleId]);
-
-	useEffect(() => {
-		if (
-			selectedIncidentId &&
-			!incidents.some((i) => i._id === selectedIncidentId)
-		) {
-			setSelectedIncidentId(null);
-		}
-	}, [incidents, selectedIncidentId]);
+	const transmittingCount = vehicles.filter((vehicle) => {
+		const telemetry = positions.get(vehicle._id) ?? vehicle.lastTelemetry;
+		return (
+			telemetry !== undefined &&
+			isLive(telemetry.timestamp, now, TELEMETRY_LIVE_MS)
+		);
+	}).length;
 
 	const toggleLeft = useCallback(() => setLeftOpen((open) => !open), []);
 	const toggleRight = useCallback(() => setRightOpen((open) => !open), []);
 
-	// Map clicks select + force-open the relevant sidebar so the detail panel
-	// is visible. Sidebar-internal selection (FleetStatus row click etc.) goes
-	// through `setSelectedVehicleId` directly without touching open state.
 	const selectVehicleFromMap = useCallback((id: string) => {
 		setSelectedVehicleId(id);
 		setLeftOpen(true);
 	}, []);
-	const selectIncidentFromMap = useCallback((id: string) => {
-		setSelectedIncidentId(id);
-		setRightOpen(true);
-	}, []);
+	const selectIncident = useCallback(
+		(id: string) => {
+			setSelectedIncidentId(id);
+			setRightOpen(true);
+			if (
+				incidents.some(
+					(i) =>
+						i._id === id && (i.status === "live" || i.status === "pending"),
+				)
+			) {
+				playAlertTone();
+			}
+		},
+		[incidents],
+	);
+	const closeIncident = useCallback(() => setSelectedIncidentId(null), []);
 
 	return (
 		<MobileWarning>
@@ -83,7 +98,7 @@ function Page() {
 					onToggleLeft={toggleLeft}
 					onToggleRight={toggleRight}
 					telemetryConnected={telemetryConnected}
-					transmittingCount={positions.size}
+					transmittingCount={transmittingCount}
 					totalCount={vehicles.length}
 				/>
 
@@ -95,17 +110,18 @@ function Page() {
 							incidents={incidents}
 							rightSidebarOpen={rightOpen}
 							onSelectVehicle={selectVehicleFromMap}
-							onSelectIncident={selectIncidentFromMap}
+							onSelectIncident={selectIncident}
 						/>
 					</main>
 
 					<LeftSidebar
 						open={leftOpen}
-						onOpenChange={setLeftOpen}
 						vehicles={vehicles}
 						responders={responders}
 						positions={positions}
 						responderMap={responderMap}
+						now={now}
+						transmittingCount={transmittingCount}
 						telemetryConnected={telemetryConnected}
 						rosterConnected={rosterConnected}
 						selectedVehicleId={selectedVehicleId}
@@ -114,15 +130,15 @@ function Page() {
 
 					<RightSidebar
 						open={rightOpen}
-						onOpenChange={setRightOpen}
 						vehicles={vehicles}
-						positions={positions}
 						responderMap={responderMap}
 						incidents={incidents}
 						loading={incidentsLoading}
 						connected={incidentsConnected}
+						now={now}
 						selectedIncidentId={selectedIncidentId}
-						onSelectIncident={setSelectedIncidentId}
+						onSelectIncident={selectIncident}
+						onCloseIncident={closeIncident}
 					/>
 				</div>
 			</div>

@@ -1,95 +1,100 @@
 "use client";
 
-import type { Incident, Responder, Telemetry, Vehicle } from "@roam/shared";
-import { Icon } from "../../ui/icon";
+import type { Briefing, Incident, Responder, Vehicle } from "@roam/shared";
+import { useCallback, useState } from "react";
+import { TabBar, tabButtonVariants } from "@/components/ui/tab-bar";
+import { api } from "@/lib/api";
 import {
 	Sidebar,
 	SidebarHeader,
 	SidebarProvider,
-	SidebarTrigger,
 } from "../../ui/sidebar-primitives";
 import { IncidentDetail } from "./incident-detail";
 import { IncidentsList } from "./incidents-list";
-import { TabBar, TabButton } from "@/components/ui/tab-bar";
-import { useCallback, useState } from "react";
-import { api } from "@/lib/api";
+import type { DispatchState } from "./recommendation-group";
+
+const DISPATCH_EXPIRES_SECS = 1_800;
+
+function toDispatchFailure(err: unknown): DispatchState {
+	if (err instanceof Error && err.message === "dispatch_already_active") {
+		return { status: "conflict" };
+	}
+	return {
+		status: "failed",
+		message: err instanceof Error ? err.message : "Unknown error",
+	};
+}
 
 type RightSidebarProps = {
 	open: boolean;
-	onOpenChange: (open: boolean) => void;
 	vehicles: Vehicle[];
-	positions: Map<string, Telemetry>;
 	responderMap: Map<string, Responder>;
 	incidents: Incident[];
 	loading: boolean;
 	connected: boolean;
+	now: number;
 	selectedIncidentId: string | null;
-	onSelectIncident: (id: string | null) => void;
+	onSelectIncident: (id: string) => void;
+	onCloseIncident: () => void;
 };
 
 export function RightSidebar({
 	open,
-	onOpenChange,
 	vehicles,
-	positions,
 	responderMap,
 	incidents,
 	loading,
 	connected,
+	now,
 	selectedIncidentId,
 	onSelectIncident,
+	onCloseIncident,
 }: RightSidebarProps) {
 	const selectedIncident =
 		incidents.find((i) => i._id === selectedIncidentId) ?? null;
 
-    const [tab, setTab] = useState("fleet")
-	const [dispatchingId, setDispatchingId] = useState<string | null>(null);
+	const [dispatchStates, setDispatchStates] = useState<
+		Map<string, DispatchState>
+	>(() => new Map());
 
-	// Pull the briefing for the selected incident, then confirm it. The
-	// dispatcher's responderId is best-effort — if the seed includes a
-	// dispatcher we record them as `decidedBy`, otherwise the call still
-	// goes through as a `human` decision with no recorded operator (the
-	// schema makes decidedBy optional).
 	const handleDispatch = useCallback(
-		async (incident: Incident) => {
-			if (dispatchingId) return;
-			setDispatchingId(incident._id);
-			try {
-				const result = await api.incidents.get({ id: incident._id });
-				if (!result.briefing) {
-					console.error("[dispatch] no briefing yet for", incident._id);
-					return;
-				}
-				const dispatcher = Array.from(responderMap.values()).find(
-					(r) => r.role === "dispatcher",
-				);
-				await api.dispatch.confirm({
-					briefingId: result.briefing._id,
+		(briefing: Briefing): void => {
+			const { incidentId } = briefing;
+			setDispatchStates((prev) =>
+				new Map(prev).set(incidentId, { status: "sending" }),
+			);
+			const dispatcher = Array.from(responderMap.values()).find(
+				(r) => r.role === "dispatcher",
+			);
+			api.dispatch
+				.confirm({
+					briefingId: briefing._id,
 					decisionMaker: "human",
 					decidedBy: dispatcher?._id,
-					requiredAccepts: 1,
-					expiresInSecs: 1800,
+					requiredAccepts: briefing.recommendedResponderIds.length,
+					expiresInSecs: DISPATCH_EXPIRES_SECS,
+				})
+				.then(() => {
+					setDispatchStates((prev) =>
+						new Map(prev).set(incidentId, { status: "sent" }),
+					);
+				})
+				.catch((err: unknown) => {
+					setDispatchStates((prev) =>
+						new Map(prev).set(incidentId, toDispatchFailure(err)),
+					);
 				});
-			} catch (err) {
-				console.error("[dispatch] confirm failed", err);
-			} finally {
-				setDispatchingId(null);
-			}
 		},
-		[responderMap, dispatchingId],
+		[responderMap],
 	);
 
 	return (
-		<SidebarProvider side="right" open={open} onOpenChange={onOpenChange}>
+		<SidebarProvider side="right" open={open}>
 			<Sidebar side="right" collapsible="offcanvas">
 				<div className="relative flex h-full w-full flex-col overflow-hidden">
-                    <SidebarHeader className="h-auto flex-col items-stretch gap-0 border-b-0 p-0">
-                        <TabBar className="w-full">
-							<TabButton
-								active={tab === "fleet"}
-								onClick={() => setTab("fleet")}
-								label="Incidents"
-							/>
+					<SidebarHeader className="h-auto flex-col items-stretch gap-0 border-b-0 p-0">
+						<TabBar>
+							<h2 className={tabButtonVariants({ active: true })}>Incidents</h2>
 						</TabBar>
 					</SidebarHeader>
 
@@ -97,17 +102,23 @@ export function RightSidebar({
 						incidents={incidents}
 						loading={loading}
 						connected={connected}
+						now={now}
 						selectedIncidentId={selectedIncidentId}
-						onSelectIncident={(incident) => onSelectIncident(incident._id)}
+						onSelectIncident={onSelectIncident}
 					/>
 
 					<IncidentDetail
 						incident={selectedIncident}
 						vehicles={vehicles}
-						positions={positions}
 						responderMap={responderMap}
+						now={now}
+						dispatchState={
+							selectedIncident
+								? dispatchStates.get(selectedIncident._id)
+								: undefined
+						}
 						open={selectedIncident !== null}
-						onClose={() => onSelectIncident(null)}
+						onClose={onCloseIncident}
 						onDispatch={handleDispatch}
 					/>
 				</div>

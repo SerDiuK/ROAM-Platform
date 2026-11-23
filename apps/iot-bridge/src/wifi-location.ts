@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import pino from "pino";
+import { z } from "zod";
 import { parseConfig } from "./config.js";
 import type { GpsFix } from "./nmea.js";
 
@@ -12,10 +13,10 @@ interface WifiAp {
 	channel?: number;
 }
 
-interface GoogleGeolocationResponse {
-	location: { lat: number; lng: number };
-	accuracy: number;
-}
+const GeolocationResponseSchema = z.object({
+	location: z.object({ lat: z.number(), lng: z.number() }),
+	accuracy: z.number(),
+});
 
 function toRad(deg: number): number {
 	return (deg * Math.PI) / 180;
@@ -78,6 +79,16 @@ async function scanWifi(iface: string): Promise<WifiAp[]> {
 	return parseIwScan(stdout);
 }
 
+function pushComplete(aps: WifiAp[], ap: Partial<WifiAp>): void {
+	if (ap.macAddress && ap.signalStrength != null) {
+		aps.push({
+			macAddress: ap.macAddress,
+			signalStrength: ap.signalStrength,
+			channel: ap.channel,
+		});
+	}
+}
+
 function parseIwScan(output: string): WifiAp[] {
 	const aps: WifiAp[] = [];
 	let current: Partial<WifiAp> | null = null;
@@ -89,9 +100,7 @@ function parseIwScan(output: string): WifiAp[] {
 	for (const line of output.split("\n")) {
 		const bssMatch = bssRe.exec(line);
 		if (bssMatch) {
-			if (current?.macAddress && current.signalStrength != null) {
-				aps.push(current as WifiAp);
-			}
+			if (current) pushComplete(aps, current);
 			current = { macAddress: bssMatch[1].toUpperCase() };
 			continue;
 		}
@@ -109,9 +118,7 @@ function parseIwScan(output: string): WifiAp[] {
 		}
 	}
 
-	if (current?.macAddress && current.signalStrength != null) {
-		aps.push(current as WifiAp);
-	}
+	if (current) pushComplete(aps, current);
 	return aps;
 }
 
@@ -140,7 +147,7 @@ async function locateFromAps(
 		throw new Error(`Geolocation API ${res.status}: ${body.slice(0, 200)}`);
 	}
 
-	const data = (await res.json()) as GoogleGeolocationResponse;
+	const data = GeolocationResponseSchema.parse(await res.json());
 	return {
 		lat: data.location.lat,
 		lon: data.location.lng,
@@ -218,10 +225,8 @@ export function startWifiLocation(
 		}
 	}
 
-	void tick();
-	const interval = setInterval(() => {
-		void tick();
-	}, intervalMs);
+	tick();
+	const interval = setInterval(tick, intervalMs);
 	process.on("SIGINT", () => clearInterval(interval));
 	process.on("SIGTERM", () => clearInterval(interval));
 }

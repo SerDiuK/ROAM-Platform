@@ -9,10 +9,7 @@ export const EVENT_KIND_LABEL: Record<IncidentEventKind, string> = {
 	cleared: "CLEARED",
 };
 
-// Primary for forward-progress events, red for declines, muted for the early
-// lifecycle steps. Keys directly into Tailwind colour-class branches in the
-// row component.
-export type EventKindTone = "primary" | "red" | "muted";
+type EventKindTone = "primary" | "red" | "muted";
 
 export const EVENT_KIND_TONE: Record<IncidentEventKind, EventKindTone> = {
 	received: "muted",

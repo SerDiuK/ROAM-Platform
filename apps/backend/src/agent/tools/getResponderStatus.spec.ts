@@ -10,7 +10,6 @@ async function makeResp(args: {
 	name: string;
 	availability?: "available" | "occupied" | "off_duty";
 	capabilities?: "medic"[];
-	walletAddress?: string;
 }): Promise<string> {
 	const id = randomUUID();
 	await new ResponderModel({
@@ -19,18 +18,16 @@ async function makeResp(args: {
 		role: "responder",
 		availability: args.availability ?? "available",
 		capabilities: args.capabilities,
-		walletAddress: args.walletAddress,
 	}).save();
 	return id;
 }
 
 describe("getResponderStatusTool", () => {
-	it("returns availability, capabilities, and walletAddress(bool) per known responder", async () => {
+	it("returns availability and capabilities per known responder", async () => {
 		const aliceId = await makeResp({
 			name: "ALICE",
 			availability: "available",
 			capabilities: ["medic"],
-			walletAddress: "11111111111111111111111111111111",
 		});
 		const bobId = await makeResp({
 			name: "BOB",
@@ -50,14 +47,12 @@ describe("getResponderStatusTool", () => {
 			name: "ALICE",
 			availability: "available",
 			capabilities: ["medic"],
-			walletAddress: true,
 		});
 		expect(byId.get(bobId)).toEqual({
 			id: bobId,
 			name: "BOB",
 			availability: "occupied",
 			capabilities: ["medic"],
-			walletAddress: false,
 		});
 	});
 

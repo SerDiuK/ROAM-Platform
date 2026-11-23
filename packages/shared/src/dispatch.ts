@@ -1,15 +1,8 @@
 import { z } from "zod";
 
-// --- Dispatch Decision Maker ---
 export const DISPATCH_DECISION_MAKERS = ["human", "ai-auto"] as const;
-export const DispatchDecisionMakerSchema = z.enum(DISPATCH_DECISION_MAKERS);
-export type DispatchDecisionMaker = z.infer<typeof DispatchDecisionMakerSchema>;
+const DispatchDecisionMakerSchema = z.enum(DISPATCH_DECISION_MAKERS);
 
-// --- Dispatch Status ---
-// Lifecycle: pending → claimed → cleared (terminal). Or pending → expired
-// (nobody accepted in time) / cancelled (manual abort). `cleared` is the
-// "scene cleared, response complete" terminal state — the demo scenario's
-// fourth on-chain event ("Medic 12 cleared scene").
 export const DISPATCH_STATUSES = [
 	"pending",
 	"claimed",
@@ -17,14 +10,10 @@ export const DISPATCH_STATUSES = [
 	"expired",
 	"cancelled",
 ] as const;
-export const DispatchStatusSchema = z.enum(DISPATCH_STATUSES);
-export type DispatchStatus = z.infer<typeof DispatchStatusSchema>;
+const DispatchStatusSchema = z.enum(DISPATCH_STATUSES);
 
-// --- Dispatch ---
-// Created when a briefing is confirmed (by dispatcher or auto-mode). Drives
-// the push fan-out and the on-chain incident event log (one `dispatched`
-// event per assigned responder). `decidedBy` is the dispatcher's responderId
-// for human decisions; absent for ai-auto.
+export const DISPATCH_PUSH_CHANNEL = "dispatch";
+
 export const DispatchSchema = z.object({
 	_id: z.string(),
 	incidentId: z.string(),
@@ -34,7 +23,6 @@ export const DispatchSchema = z.object({
 	decidedAt: z.coerce.date(),
 	assignedVehicleIds: z.array(z.string()),
 	assignedResponderIds: z.array(z.string()),
-	payoutUsdc: z.number(),
 	requiredAccepts: z.number().int().min(1),
 	status: DispatchStatusSchema,
 	claimedByResponderIds: z.array(z.string()),
@@ -42,66 +30,32 @@ export const DispatchSchema = z.object({
 });
 export type Dispatch = z.infer<typeof DispatchSchema>;
 
-// --- Dispatch List Request ---
-// `dispatch.list` defaults to active states (pending + claimed) — the common
-// dispatcher view. When `includeCleared` is true, also returns recently
-// cleared/expired/cancelled dispatches (capped at `limit`) so callers can
-// look up terminal-state dispatches by prefix.
 export const DispatchListRequestSchema = z
 	.object({
 		includeCleared: z.boolean().default(false),
 		limit: z.number().int().min(1).max(200).default(50),
 	})
 	.optional();
-export type DispatchListRequest = z.infer<typeof DispatchListRequestSchema>;
 
-// --- Dispatch Clear Request ---
-// Mark a claimed dispatch as cleared (scene cleared, response complete).
-// Side-effect: flips the linked incident to status='resolved' and stamps
-// `clearedAt`. Reject from any non-claimed status — pending dispatches haven't
-// been picked up; expired/cancelled are terminal already.
 export const DispatchClearRequestSchema = z.object({
 	dispatchId: z.string(),
-	clearedBy: z.string().optional(),
 });
-export type DispatchClearRequest = z.infer<typeof DispatchClearRequestSchema>;
 
-// --- Prepare clear tx (SIWS path) ---
-// Mobile asks the backend to build the unsigned `record_event` tx for kind=
-// cleared, partial-signed as fee_payer. Mirrors prepareResponseTx for accept/
-// decline — the signed-in responder signs as attestor via MWA, sends to chain,
-// then commits via commitSignedClear. Backend validates the dispatch is still
-// claimable-for-clear before asking mobile to fingerprint.
 export const PrepareClearTxRequestSchema = z.object({
 	dispatchId: z.string(),
 });
-export type PrepareClearTxRequest = z.infer<typeof PrepareClearTxRequestSchema>;
 
 export const PrepareClearTxResponseSchema = z.object({
 	serializedTx: z.string(),
 	recentBlockhash: z.string(),
 	expiresAt: z.string(),
 });
-export type PrepareClearTxResponse = z.infer<typeof PrepareClearTxResponseSchema>;
 
-// --- Commit signed clear ---
-// Posted after mobile has sent the cleared tx to chain. Backend flips dispatch
-// status (atomic), resolves the incident, persists the IncidentEvent with the
-// mobile-submitted signature, and broadcasts.
 export const CommitSignedClearRequestSchema = z.object({
 	dispatchId: z.string(),
 	signature: z.string().min(1),
 });
-export type CommitSignedClearRequest = z.infer<
-	typeof CommitSignedClearRequestSchema
->;
 
-// --- Dispatch Confirm Request ---
-// Confirm a briefing → create the Dispatch + fan out push. `decidedBy` is the
-// dispatcher's responderId for human decisions (omit for ai-auto). Defaults
-// give the demo a single-accept, 60-second window if the caller doesn't set
-// them; both are tunable per-request for the AI-auto flow that may want a
-// shorter expiry or multi-accept assignment.
 export const DispatchConfirmRequestSchema = z.object({
 	briefingId: z.string(),
 	decisionMaker: DispatchDecisionMakerSchema,
@@ -109,6 +63,3 @@ export const DispatchConfirmRequestSchema = z.object({
 	requiredAccepts: z.number().int().min(1).default(1),
 	expiresInSecs: z.number().int().min(1).default(60),
 });
-export type DispatchConfirmRequest = z.infer<
-	typeof DispatchConfirmRequestSchema
->;

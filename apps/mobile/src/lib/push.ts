@@ -1,11 +1,10 @@
+import { DISPATCH_PUSH_CHANNEL } from "@roam/shared";
 import Constants from "expo-constants";
 import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 import { api } from "@/lib/api";
 
-// Foreground notifications: surface the alert + play sound. Without this the
-// OS suppresses the banner when the app is open, which makes demoing painful.
 Notifications.setNotificationHandler({
 	handleNotification: async () => ({
 		shouldShowBanner: true,
@@ -17,7 +16,7 @@ Notifications.setNotificationHandler({
 
 async function ensureAndroidChannel(): Promise<void> {
 	if (Platform.OS !== "android") return;
-	await Notifications.setNotificationChannelAsync("dispatch", {
+	await Notifications.setNotificationChannelAsync(DISPATCH_PUSH_CHANNEL, {
 		name: "Dispatches",
 		importance: Notifications.AndroidImportance.MAX,
 		sound: "default",
@@ -40,52 +39,18 @@ function getProjectId(): string | undefined {
 	);
 }
 
-export type RegisterPushTokenResult =
-	| { ok: true; token: string; tokenCount: number }
-	| { ok: false; reason: string };
-
-// Registers this device's Expo push token for the currently signed-in responder.
-// The backend resolves the owning responder from the auth token (so the same
-// device can be reassigned by signing in as someone else). Idempotent — the
-// backend de-dups on equal token. The `responderId` argument is kept for log
-// affinity only; pass the responder id from the auth state.
-export async function registerPushToken(
-	responderId: string,
-): Promise<RegisterPushTokenResult> {
-	if (!Device.isDevice) {
-		return { ok: false, reason: "Push notifications need a physical device" };
-	}
-
-	await ensureAndroidChannel();
-
-	const granted = await ensurePermission();
-	if (!granted) {
-		return { ok: false, reason: "Notification permission denied" };
-	}
-
-	const projectId = getProjectId();
-	if (!projectId) {
-		return { ok: false, reason: "Expo projectId not configured (run `eas init`)" };
-	}
-
-	let token: string;
+export async function registerPushToken(): Promise<void> {
+	if (!Device.isDevice) return;
 	try {
-		const tokenResponse = await Notifications.getExpoPushTokenAsync({ projectId });
-		token = tokenResponse.data;
+		await ensureAndroidChannel();
+		if (!(await ensurePermission())) return;
+		const projectId = getProjectId();
+		if (!projectId) return;
+		const { data: token } = await Notifications.getExpoPushTokenAsync({
+			projectId,
+		});
+		await api.responders.upsertPushToken({ token });
 	} catch (err) {
-		// Expo Go on Android (SDK 53+) no longer supports remote push, and dev
-		// builds without FCM credentials throw here too. Fail soft so the login
-		// flow still completes — the responder can use the app, just won't get
-		// push-driven dispatches until a proper build is in their hands.
-		const reason = err instanceof Error ? err.message : "Failed to get push token";
-		return { ok: false, reason };
+		console.warn("[push] registering the push token failed", err);
 	}
-
-	const { tokenCount } = await api.responders.upsertPushToken({ token });
-
-	// responderId only used as a sanity-check log key; if it ever drifts from
-	// ctx.user.id on the backend that's a sign-out/sign-in race we should see.
-	void responderId;
-
-	return { ok: true, token, tokenCount };
 }

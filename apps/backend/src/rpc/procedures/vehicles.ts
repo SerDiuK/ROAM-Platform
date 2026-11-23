@@ -25,7 +25,6 @@ export const vehiclesRouter = {
 		if (!vehicle) {
 			throw new ORPCError("NOT_FOUND", {
 				message: "vehicle_not_found",
-				data: { error: "vehicle_not_found" as const },
 			});
 		}
 		const responderMap = await activeResponderMap([vehicle._id]);
@@ -44,7 +43,6 @@ export const vehiclesRouter = {
 		if (!spec) {
 			throw new ORPCError("NOT_FOUND", {
 				message: "vehicle_spec_not_found",
-				data: { error: "vehicle_spec_not_found" as const },
 			});
 		}
 

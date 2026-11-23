@@ -3,13 +3,7 @@ import type { FastifyBaseLogger } from "fastify";
 import type { Transcriber } from "../agent/transcribe.js";
 import type { Config } from "../config.js";
 import type { ExpoPushClient } from "../push/expo.js";
-import type { WalletProvider } from "../wallet/index.js";
-import type { DispatchBroadcaster } from "../ws/dispatchBroadcaster.js";
-import type { IncidentBroadcaster } from "../ws/incidentBroadcaster.js";
 
-// The resolved responder behind the current request. `null` for unauthenticated
-// procedures (auth.signIn, health). Authenticated routers pull this through a
-// middleware that throws UNAUTHORIZED if it isn't populated.
 export type AuthedUser = {
 	id: string;
 	name: string;
@@ -18,9 +12,6 @@ export type AuthedUser = {
 
 export interface RpcContext {
 	config: Config;
-	incidentBroadcaster: IncidentBroadcaster;
-	dispatchBroadcaster: DispatchBroadcaster;
-	walletProvider: WalletProvider;
 	transcriber: Transcriber;
 	anthropic: Anthropic;
 	pushClient: ExpoPushClient;

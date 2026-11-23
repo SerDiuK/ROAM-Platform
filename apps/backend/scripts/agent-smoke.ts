@@ -1,8 +1,9 @@
 import { createHash, randomUUID } from "node:crypto";
 import Anthropic from "@anthropic-ai/sdk";
-import dotenv from "dotenv";
+import { computeBriefingHash } from "@roam/shared";
 import mongoose from "mongoose";
-import { computeBriefingHash, brief } from "../src/agent/runner.js";
+import { AGENT_MAX_TOKENS, brief } from "../src/agent/runner.js";
+import { parseConfig } from "../src/config.js";
 import { connectDb } from "../src/db/connection.js";
 import { BriefingModel } from "../src/db/models/briefing.js";
 import { IncidentModel } from "../src/db/models/incident.js";
@@ -10,43 +11,15 @@ import { ResponderModel } from "../src/db/models/responder.js";
 import { VehicleModel } from "../src/db/models/vehicle.js";
 import { VehicleSpecModel } from "../src/db/models/vehicleSpec.js";
 
-// AD-6 smoke: seed an incident + vehicles + responders, run the agent loop
-// against the live Anthropic API, print the Briefing it produces, and verify
-// the briefingHash is stable across re-canonicalization of the payload.
-//
-// Run with:
-//   pnpm --filter @roam/backend agent:smoke
-//
-// Idempotent: every doc gets a `smoke-agent-` prefix that we wipe at the start
-// and end of the run.
-
-dotenv.config({ path: ".env.local" });
-
-const MONGODB_URL = process.env.MONGODB_URL;
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
-const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-6";
-const AGENT_MAX_TURNS = Number(process.env.AGENT_MAX_TURNS ?? 8);
-const AGENT_MAX_TOKENS = Number(process.env.AGENT_MAX_TOKENS ?? 16384);
-
-if (!MONGODB_URL) {
-	console.error("MONGODB_URL is required (set it in apps/backend/.env.local)");
-	process.exit(1);
-}
-if (!ANTHROPIC_API_KEY) {
-	console.error(
-		"ANTHROPIC_API_KEY is required (set it in apps/backend/.env.local)",
-	);
-	process.exit(1);
-}
+const config = parseConfig();
 
 const PREFIX = "smoke-agent-";
-const ORIGIN = { lat: 25.7617, lon: -80.1918 }; // downtown Miami — vehicle seed origin
-const SCENE = { lat: 25.808, lon: -80.19 }; // Biscayne Blvd & NE 36th St — incident location
+const SCENE = { lat: 25.808, lon: -80.19 };
 
 const RESPONDERS = [
-	{ id: randomUUID(), name: `${PREFIX}MEDIC-1`, withWallet: true },
-	{ id: randomUUID(), name: `${PREFIX}MEDIC-2`, withWallet: true },
-	{ id: randomUUID(), name: `${PREFIX}MEDIC-3`, withWallet: true },
+	{ id: randomUUID(), name: `${PREFIX}MEDIC-1` },
+	{ id: randomUUID(), name: `${PREFIX}MEDIC-2` },
+	{ id: randomUUID(), name: `${PREFIX}MEDIC-3` },
 ] as const;
 
 const VEHICLES = [
@@ -101,9 +74,6 @@ async function seed(): Promise<void> {
 			role: "responder",
 			availability: "available",
 			capabilities: ["medic"],
-			...(r.withWallet
-				? { walletAddress: "11111111111111111111111111111111" }
-				: {}),
 		}).save();
 	}
 
@@ -141,29 +111,24 @@ async function seed(): Promise<void> {
 }
 
 async function main(): Promise<void> {
-	if (!MONGODB_URL) throw new Error("MONGODB_URL missing");
-	await connectDb(MONGODB_URL, console);
+	await connectDb(config.MONGODB_URL, console);
 	try {
 		await cleanup();
 		await seed();
 		await mongoose.connection.syncIndexes();
 
-		const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
+		const client = new Anthropic({ apiKey: config.ANTHROPIC_API_KEY });
 
 		console.log(
-			`Running brief() against ${ANTHROPIC_MODEL} (maxTurns=${AGENT_MAX_TURNS}, maxTokens=${AGENT_MAX_TOKENS}, effort=low)…`,
+			`Running brief() against ${config.ANTHROPIC_MODEL} (maxTurns=${config.AGENT_MAX_TURNS}, maxTokens=${AGENT_MAX_TOKENS}, effort=low)…`,
 		);
 		const start = Date.now();
 		const briefing = await brief(SMOKE_INCIDENT_ID, {
 			client,
-			model: ANTHROPIC_MODEL,
+			model: config.ANTHROPIC_MODEL,
 			maxTokens: AGENT_MAX_TOKENS,
-			maxTurns: AGENT_MAX_TURNS,
+			maxTurns: config.AGENT_MAX_TURNS,
 			log: console,
-			// Sonnet 4.6 defaults to effort: "high" — too much for routine tool
-			// routing once classification is pre-filled. "low" is safe here:
-			// the agent has 4 read-only tools and a deterministic payout
-			// formula, no genuinely novel reasoning needed.
 			effort: "low",
 			onTurn: ({ turn, ms, toolUseCount, usage }) => {
 				const cacheRead = usage.cache_read_input_tokens ?? 0;
@@ -179,14 +144,10 @@ async function main(): Promise<void> {
 		console.log(`\nBriefing produced in ${elapsed}ms:\n`);
 		console.log(JSON.stringify(briefing, null, 2));
 
-		// Hash determinism check: re-canonicalize the same payload and confirm
-		// the hash matches. This guards the on-chain commit against canonical-
-		// ization drift between draft time and confirm time.
 		const recomputed = computeBriefingHash({
 			summary: briefing.summary,
 			recommendedVehicleIds: briefing.recommendedVehicleIds,
 			recommendedResponderIds: briefing.recommendedResponderIds,
-			payout: briefing.payout,
 		});
 		if (recomputed !== briefing.briefingHash) {
 			throw new Error(

@@ -1,16 +1,13 @@
 import { readFileSync } from "node:fs";
 import {
 	DEMO_FLEET,
-	type DemoFleetVehicle,
 	DemoFleetSchema,
+	type DemoFleetVehicle,
 } from "@roam/shared";
 
-// Sim-fleet operates on the canonical demo fleet defined in @roam/shared so
-// the backend's `fleet:seed` and this runtime always agree on callsigns,
-// responders, and starting state.
 export type FleetVehicle = DemoFleetVehicle;
 
-export const DEFAULT_FLEET: FleetVehicle[] = DEMO_FLEET;
+const DEFAULT_FLEET: FleetVehicle[] = DEMO_FLEET;
 
 export function loadFleet(fleetConfigPath?: string): FleetVehicle[] {
 	if (!fleetConfigPath) {

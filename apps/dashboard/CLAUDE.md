@@ -8,8 +8,9 @@ UI.
 
 - Next.js 15 App Router (`src/app/page.tsx` is the only route — single-page
   command center, no nested routes by design)
-- React 19 with `"use client"` on every component file (the dashboard renders
-  entirely client-side — server components have no role here)
+- React 19, rendered client-side: every component file starts with
+  `"use client"` except `app/layout.tsx`, which stays a server component
+  because it exports `metadata`
 - Tailwind v4 + `@roam/ui` design tokens
 - oRPC client + WebSockets via `@roam/api` (no React Query, no Jotai today)
 - `react-leaflet` for the map; loaded via `next/dynamic({ ssr: false })`
@@ -24,7 +25,6 @@ src/
 │   │   ├── left-sidebar/  Fleet panel + vehicle detail
 │   │   ├── right-sidebar/ Incidents panel + incident detail
 │   │   ├── map/           Live map + dynamic-loaded inner
-│   │   ├── sessions/      On-chain session feed
 │   │   └── top-bar.tsx    Header strip
 │   └── ui/                App-local primitives (sidebar shell, buttons, icon,
 │                          status pill, etc). Cross-app primitives live in
@@ -45,13 +45,20 @@ We use plain `useState` + custom hooks. No Jotai, no Redux, no Zustand. If
 state needs to span more than two sibling components, extract a hook that
 encapsulates the data + the setter.
 
-- **Polling data**: use `usePollingResource(loader, initial, intervalMs)` from
-  `hooks/use-polling-resource.ts`. It handles cancellation, retry, and the
-  loading/connected/data triple. Wrap per-resource hooks on top
-  (`useFleetData`, `useIncidentsData`).
+- **Polling data**: use `usePollingResource(loader, initial, intervalMs,
+  stopWhen?)` from `hooks/use-polling-resource.ts`. It handles cancellation,
+  retry, and the loading/connected/data triple; `stopWhen` ends polling once
+  the data satisfies it (the briefing card stops once the briefing exists).
+  `loader` and `stopWhen` are effect dependencies: pass a module-level
+  function or a `useCallback`, never an inline arrow, or polling restarts on
+  every render. Wrap per-resource hooks on top (`useFleetData`,
+  `useIncidentsData`).
 - **Streaming data**: use the WS hooks from `@roam/api`
-  (`useTelemetrySocket`, `useSessionSocket`). They reconnect automatically and
-  return `{ data, connected }`.
+  (`useTelemetrySocket`, built on `useReconnectingSocket`). They reconnect
+  automatically and report `connected`.
+- **Current time**: `page.tsx` owns one ticking `now` (`useNow`, 1 s) and
+  passes it down. Render code and pure helpers take `now` as a parameter
+  instead of calling `Date.now()`.
 - **UI state** (selection, sidebar open/close): keep in `page.tsx` as the
   single owner. Pass setters down — React guarantees setter identity, so
   passing `setSelectedX` directly is fine and doesn't need `useCallback`.
@@ -78,19 +85,20 @@ props stable.
 
 ## Components
 
-- **Named exports only**, never `export default`. The one exception is
-  `page.tsx` (Next App Router needs a default), and we use the
-  `export { Page as default }` form to keep the function name searchable.
-- **Prop types** declared as `type FooProps = { ... }` at the top of the
-  file; not interfaces, not inline. Pull props that get reused into a named
-  type.
+- **Named exports only**, never `export default`. The exceptions are
+  `page.tsx` and `layout.tsx` (Next App Router needs a default), and we use
+  the `export { Page as default }` form to keep the function name searchable.
+- **Prop types** declared as a named `type FooProps = { ... }` above the
+  component; not interfaces, not inline. Pull props that get reused into a
+  named type.
 - **No `React.FC`**. Just `function Foo(props: FooProps) { ... }`.
-- **`"use client"`** at the top of every component file. The dashboard has no
-  server components.
+- **`"use client"`** at the top of every component file. The one server
+  component is `app/layout.tsx`, which must stay one to export `metadata`.
 - **Slide-in detail panels** (`incident-detail.tsx`, `vehicle-detail.tsx`)
-  hold a `lastFooRef` so content stays visible during the slide-out
-  animation. If you add a third panel, extract a shared `SlidePanel`
-  primitive rather than copying the pattern.
+  keep the last non-null item in state, updated during render (React's
+  "storing information from previous renders" pattern), so content stays
+  visible during the slide-out animation. If you add a third panel, extract
+  a shared `SlidePanel` primitive rather than copying the pattern.
 - **Compound components**: prefer one component per file. If a sub-component
   is private to its parent and under ~30 lines with no own state, inlining
   is fine; otherwise split it out.
@@ -101,16 +109,18 @@ All colors, status mappings, and label dictionaries live in `@roam/ui`. Never
 hardcode hex values or duplicate label maps in app code.
 
 - `STATUS_HEX` / `STATUS_LABEL` / `STATUS_TONE` — vehicle status
-- `URGENCY_HEX` / `URGENCY_LABEL` / `URGENCY_TONE` — incident urgency
-- `formatRelative`, `formatDistance`, `formatHHMM`, `formatDuration` — date/
-  number formatting
+- `URGENCY_HEX` / `URGENCY_LABEL` — incident urgency
+- `AVAILABILITY_LABEL` / `AVAILABILITY_TONE` — responder availability
+- `formatRelative(date, now)`, `formatHHMM`, `formatTime`, `formatDistance` —
+  date/number formatting
+- `solanaExplorerTxUrl` — Solana Explorer links on the demo cluster
 
 If you need a new token, add it to `packages/ui/src/` and re-export from
 `packages/ui/src/index.ts`. Don't fork tokens into app-local files.
 
 Tailwind class strings *are* allowed to live near the component — e.g. the
-`URGENCY_TINT` map in `urgency-badge.tsx` and `incident-tags.tsx` keeps
-`bg-danger/15 text-danger` close to where it's used. The principle: tokens
+`URGENCY_TINT` map in `urgency-badge.tsx` (also used by `incident-tags.tsx`)
+keeps `bg-danger/15 text-danger` close to where it's used. The principle: tokens
 (values, tones, labels) are shared; visual variants (Tailwind class strings)
 are local.
 
@@ -123,7 +133,8 @@ Every data-dependent surface must handle four states. The current minimum:
 - **Empty**: icon + message centered in the container.
 - **Error**: a `connected: boolean` pill in the footer of the relevant panel.
   We do **not** silently swallow errors — `usePollingResource` flips
-  `connected` to false and keeps the last good data.
+  `connected` to false and keeps the last good data. `connected` starts
+  `false`, so show the error only once `loading` is false.
 - **Success**: the actual content.
 
 Wrap async-heavy subtrees in an `<ErrorBoundary>` once one is added (P2).

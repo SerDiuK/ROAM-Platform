@@ -1,12 +1,9 @@
 import { call } from "@orpc/server";
+import { RESPONDER_ALREADY_BOUND } from "@roam/shared";
 import { Keypair } from "@solana/web3.js";
 import nacl from "tweetnacl";
 import { afterEach, describe, expect, it } from "vitest";
-import {
-	makeFakeBroadcaster,
-	makeFakeLogger,
-	makeResponder,
-} from "../../../test/factories.js";
+import { makeResponder, makeRpcContext } from "../../../test/factories.js";
 import { __resetNonceStoreForTests } from "../../auth/siws.js";
 import type { Config } from "../../config.js";
 import { ResponderModel } from "../../db/models/responder.js";
@@ -16,26 +13,14 @@ import { sessionAuthRouter } from "./sessionAuth.js";
 const SECRET = "0".repeat(64);
 const TTL = 3600;
 
-const fakeConfig = {
+const fakeConfig: Partial<Config> = {
 	AUTH_SECRET: SECRET,
 	AUTH_TOKEN_TTL_SECS: TTL,
 	SOLANA_CLUSTER: "devnet",
-} as unknown as Config;
+};
 
 function buildContext(user: AuthedUser | null = null): RpcContext {
-	return {
-		config: fakeConfig,
-		incidentBroadcaster:
-			makeFakeBroadcaster() as unknown as RpcContext["incidentBroadcaster"],
-		dispatchBroadcaster:
-			makeFakeBroadcaster() as unknown as RpcContext["dispatchBroadcaster"],
-		walletProvider: {} as RpcContext["walletProvider"],
-		transcriber: {} as RpcContext["transcriber"],
-		anthropic: {} as RpcContext["anthropic"],
-		pushClient: {} as RpcContext["pushClient"],
-		log: makeFakeLogger() as unknown as RpcContext["log"],
-		user,
-	};
+	return makeRpcContext(fakeConfig, { user });
 }
 
 async function challenge(): Promise<{
@@ -46,9 +31,6 @@ async function challenge(): Promise<{
 	return call(sessionAuthRouter.siwsChallenge, {}, { context: buildContext() });
 }
 
-// Helper that builds the canonical SIWS body the wallet would produce from a
-// `sign_in_payload`, signs it, and returns the base64-encoded triple ready to
-// post to siwsVerify.
 function signSiws(args: {
 	kp: Keypair;
 	nonce: string;
@@ -65,9 +47,9 @@ function signSiws(args: {
 	const rawMessage = [
 		`${args.domain} wants you to sign in with your Solana account:`,
 		pubkey,
-		``,
+		"",
 		args.statement,
-		``,
+		"",
 		`Nonce: ${args.nonce}`,
 	].join("\n");
 	const messageBytes = new TextEncoder().encode(rawMessage);
@@ -185,6 +167,36 @@ describe("auth.siwsVerify", () => {
 		).rejects.toMatchObject({ code: "UNAUTHORIZED" });
 	});
 
+	it("refuses to rebind a responder already bound to another wallet", async () => {
+		const op = await makeResponder({ name: "ALPHA-3" });
+		const original = Keypair.generate().publicKey.toBase58();
+		await ResponderModel.findByIdAndUpdate(op._id, {
+			walletAddress: original,
+		});
+
+		const kp = Keypair.generate();
+		const c = await challenge();
+		const { signedMessage, signature, address } = signSiws({
+			kp,
+			nonce: c.nonce,
+			domain: c.domain,
+			statement: c.statement,
+		});
+
+		await expect(
+			call(
+				sessionAuthRouter.siwsVerify,
+				{ signedMessage, signature, address, name: "ALPHA-3" },
+				{ context: buildContext() },
+			),
+		).rejects.toMatchObject({
+			code: "CONFLICT",
+			message: RESPONDER_ALREADY_BOUND,
+		});
+		const fresh = await ResponderModel.findById(op._id).lean();
+		expect(fresh?.walletAddress).toBe(original);
+	});
+
 	it("rejects a tampered message (signature no longer valid)", async () => {
 		const kp = Keypair.generate();
 		const c = await challenge();
@@ -248,8 +260,6 @@ describe("auth.siwsVerify", () => {
 		const claimed = Keypair.generate();
 		const actual = Keypair.generate();
 		const c = await challenge();
-		// Sign with `actual` but post `claimed`'s address — verify reads address
-		// from the request, so the signature won't match.
 		const signed = signSiws({
 			kp: actual,
 			nonce: c.nonce,

@@ -5,8 +5,6 @@ import { BaseCommand } from "../../base-command.js";
 import { shortId } from "../../lib/format.js";
 import { seedBriefing } from "../../lib/seed.js";
 
-// 30-minute default. Long enough to walk a dashboard demo and pull out a
-// phone, short enough that stale dispatches don't accumulate during testing.
 const DEFAULT_EXPIRES_SECS = 1800;
 
 export default class DispatchCreate extends BaseCommand {
@@ -43,7 +41,8 @@ export default class DispatchCreate extends BaseCommand {
 			default: DEFAULT_EXPIRES_SECS,
 		}),
 		required: Flags.integer({
-			description: "Number of accepts required to flip the dispatch to claimed.",
+			description:
+				"Number of accepts required to flip the dispatch to claimed.",
 			default: 1,
 		}),
 		summary: Flags.string({
@@ -51,9 +50,6 @@ export default class DispatchCreate extends BaseCommand {
 		}),
 		"incident-type": Flags.string({
 			description: "Override the incident classification type.",
-		}),
-		payout: Flags.integer({
-			description: "Override the briefing payout total (USDC).",
 		}),
 		responders: Flags.integer({
 			description: "How many responders to recommend in the briefing.",
@@ -82,12 +78,9 @@ export default class DispatchCreate extends BaseCommand {
 			if (incidentId) {
 				const result = await this.api.incidents.get({ id: incidentId });
 				if (!result.briefing) {
-					spinner.fail(
-						chalk.red(
-							`Incident ${shortId(incidentId)} has no briefing yet. Wait for the agent or re-run \`roam incident ingest\`.`,
-						),
+					throw new Error(
+						`Incident ${shortId(incidentId)} has no briefing yet. Wait for the agent or re-run \`roam incident ingest\`.`,
 					);
-					this.exit(1);
 				}
 				briefingId = result.briefing._id;
 				spinner.succeed(
@@ -98,7 +91,6 @@ export default class DispatchCreate extends BaseCommand {
 				const seeded = await seedBriefing({
 					summary: flags.summary,
 					incidentType: flags["incident-type"],
-					totalUsdc: flags.payout,
 					responderCount: flags.responders,
 					responderName: flags["responder-name"],
 					vehicleCount: flags.vehicles,
@@ -133,7 +125,6 @@ export default class DispatchCreate extends BaseCommand {
 			this.log(
 				`  mode        ${dispatch.decisionMaker}${dispatch.decidedBy ? ` (by ${shortId(dispatch.decidedBy)})` : ""}`,
 			);
-			this.log(`  payoutUsdc  ${dispatch.payoutUsdc}`);
 			this.log(
 				`  required    ${dispatch.requiredAccepts} of ${dispatch.assignedResponderIds.length}`,
 			);
@@ -143,18 +134,6 @@ export default class DispatchCreate extends BaseCommand {
 			for (const id of dispatch.assignedResponderIds) {
 				this.log(`  ${id}`);
 			}
-			this.log("");
-			this.log(chalk.dim("Next:"));
-			this.log(
-				chalk.dim(
-					`  roam dispatch accept ${dispatch._id} --responder <id>`,
-				),
-			);
-			this.log(
-				chalk.dim(
-					`  roam dispatch decline ${dispatch._id} --responder <id> --reason 'too far'`,
-				),
-			);
 		} catch (err) {
 			spinner.fail(chalk.red(err instanceof Error ? err.message : String(err)));
 			this.exit(1);

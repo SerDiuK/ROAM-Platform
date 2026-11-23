@@ -1,7 +1,9 @@
 import type { VehicleSpec } from "@roam/shared";
 import mongoose from "mongoose";
 
-const vehicleSpecSchema = new mongoose.Schema<VehicleSpec>({
+type VehicleSpecDoc = Omit<VehicleSpec, "_id">;
+
+const vehicleSpecSchema = new mongoose.Schema<VehicleSpecDoc>({
 	slug: { type: String, required: true, unique: true },
 	manufacturer: { type: String, required: true },
 	name: { type: String, required: true },
@@ -17,7 +19,7 @@ const vehicleSpecSchema = new mongoose.Schema<VehicleSpec>({
 	productUrl: { type: String },
 });
 
-export const VehicleSpecModel = mongoose.model<VehicleSpec>(
+export const VehicleSpecModel = mongoose.model<VehicleSpecDoc>(
 	"VehicleSpec",
 	vehicleSpecSchema,
 );

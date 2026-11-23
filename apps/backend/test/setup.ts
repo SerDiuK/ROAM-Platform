@@ -2,10 +2,6 @@ import { MongoMemoryServer } from "mongodb-memory-server";
 import mongoose from "mongoose";
 import { afterAll, afterEach, beforeAll, vi } from "vitest";
 
-// Keep the real `getSolanaContext` (no network — only in-memory keypair +
-// Connection construction; the mocked solana-client helpers don't touch it).
-// `withSolanaProvider` stays mocked to a no-op so backend-only chain writes
-// (dispatch.confirm, recordIncidentEvent's async path) don't try to dial out.
 vi.mock("../src/services/solana.js", async (importOriginal) => {
 	const actual =
 		await importOriginal<typeof import("../src/services/solana.js")>();

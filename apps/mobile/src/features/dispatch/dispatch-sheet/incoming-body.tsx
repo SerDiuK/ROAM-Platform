@@ -7,20 +7,16 @@ import { Image, View } from "react-native";
 import { Button } from "@/components/ui/button";
 import { SheetTitle } from "@/components/ui/sheet";
 import { Text } from "@/components/ui/text";
+import { vehiclesAtom } from "@/state/vehicles";
 import type { DispatchInboxData } from "../use-dispatch-inbox";
-import { telemetryAtom, vehiclesAtom } from "@/state/vehicles";
 import { DispatchSheetLayout } from "./dispatch-sheet";
 import { InfoRow } from "./info-row";
 import { PriorityBadge } from "./priority-badge";
 import { ResponseTimer } from "./response-timer";
 
-// First view a responder sees when a dispatch lands: incident header (priority
-// + type + summary), unit/location/distance/crew strip, countdown, and the
-// accept/decline pair. Distance is best-effort — recomputed from the live
-// telemetry atom and falls back to the vehicle's last-known position when the
-// stream hasn't ticked yet.
 export function IncomingBody({
 	data,
+	positions,
 	submittingDecision,
 	disabled,
 	onAccept,
@@ -28,6 +24,7 @@ export function IncomingBody({
 	onDismiss,
 }: {
 	data: DispatchInboxData;
+	positions: Map<string, Telemetry>;
 	submittingDecision: "accept" | "decline" | null;
 	disabled: boolean;
 	onAccept: () => void;
@@ -36,7 +33,6 @@ export function IncomingBody({
 }): React.JSX.Element {
 	const { dispatch, incident, briefing, responders } = data;
 	const vehicles = useAtomValue(vehiclesAtom);
-	const telemetry = useAtomValue(telemetryAtom);
 
 	const vehicle = React.useMemo(
 		() =>
@@ -49,10 +45,10 @@ export function IncomingBody({
 	const distanceKm = React.useMemo(() => {
 		const sceneCoord = incident.classification?.location;
 		if (!sceneCoord || !vehicle) return null;
-		const t = telemetry.get(vehicle._id) ?? toCoord(vehicle.lastTelemetry);
+		const t = positions.get(vehicle._id) ?? toCoord(vehicle.lastTelemetry);
 		if (!t) return null;
 		return haversineKm({ lat: t.lat, lon: t.lon }, sceneCoord);
-	}, [incident.classification?.location, vehicle, telemetry]);
+	}, [incident.classification?.location, vehicle, positions]);
 
 	const crewNames = responders.map((r) => r.displayName ?? r.name);
 	const urgency = incident.classification?.urgency;

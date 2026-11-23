@@ -1,56 +1,36 @@
 import { randomUUID } from "node:crypto";
 import { ORPCError } from "@orpc/server";
+import { ResponderSchema } from "@roam/shared";
 import { ResponderModel } from "../../db/models/responder.js";
-import { serializeResponder } from "../../db/serializers/responder.js";
+import { toWire } from "../../db/serializers/wire.js";
 import { authed, os } from "../builder.js";
 
 export const respondersRouter = {
 	list: os.responders.list.handler(async () => {
 		const responders = await ResponderModel.find().lean();
-		return responders.map(serializeResponder);
+		return responders.map((r) => toWire(ResponderSchema, r));
 	}),
 
-	// Public for the demo. Mobile no longer self-enrols; new responders come in
-	// via `pnpm --filter @roam/backend responders:seed`. Locking this down with
-	// dispatcher-role auth is a future hardening step (see plan 32).
-	enrol: os.responders.enrol.handler(async ({ input, context }) => {
+	enrol: os.responders.enrol.handler(async ({ input }) => {
 		const { name, role, availability } = input;
-		const { walletProvider, log } = context;
 
-		const upserted = await ResponderModel.findOneAndUpdate(
+		const responder = await ResponderModel.findOneAndUpdate(
 			{ name },
 			{
 				$set: { role, availability },
 				$setOnInsert: { _id: randomUUID(), name },
 			},
 			{ upsert: true, returnDocument: "after" },
-		);
-
-		try {
-			await walletProvider.createWallet(upserted._id);
-		} catch (err) {
-			log.error(
-				{ err, responderId: upserted._id },
-				"enrol: walletProvider.createWallet failed",
-			);
-			throw new ORPCError("INTERNAL_SERVER_ERROR", {
-				message: "Failed to provision responder wallet",
-			});
-		}
-
-		const responder = await ResponderModel.findById(upserted._id).lean();
+		).lean();
 		if (!responder) {
 			throw new ORPCError("INTERNAL_SERVER_ERROR", {
 				message: "Responder vanished after enrol",
 			});
 		}
 
-		return { responder: serializeResponder(responder) };
+		return { responder: toWire(ResponderSchema, responder) };
 	}),
 
-	// The single authenticated procedure: device-to-responder binding for push
-	// notifications. The responder id is resolved from ctx.user, so a device can
-	// only register tokens against the responder it is signed in as.
 	upsertPushToken: authed.responders.upsertPushToken.handler(
 		async ({ input, context }) => {
 			const { token } = input;

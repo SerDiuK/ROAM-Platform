@@ -1,11 +1,8 @@
 export const CHARS_PER_SECOND = 25;
 
-export type Speaker = "dispatcher" | "caller";
-export type Turn = { speaker: Speaker; text: string };
+type Speaker = "dispatcher" | "caller";
+type Turn = { speaker: Speaker; text: string };
 
-// Seed transcripts open with the dispatcher ("911, what's your emergency?")
-// and use em-dash to break turns. Alternate from there. Real Deepgram speaker
-// labels arrive in AD-7.
 export function parseTurns(transcript: string): Turn[] {
 	const trimmed = transcript.trim();
 	if (!trimmed) return [];
@@ -33,4 +30,12 @@ export function sliceTurns(turns: Turn[], revealed: number): Turn[] {
 		if (slice.length < turn.text.length) break;
 	}
 	return out;
+}
+
+export function formatCallDuration(callStartedAt: Date, now: number): string {
+	const elapsed = Math.max(
+		0,
+		Math.floor((now - callStartedAt.getTime()) / 1000),
+	);
+	return `${Math.floor(elapsed / 60)}:${(elapsed % 60).toString().padStart(2, "0")}`;
 }

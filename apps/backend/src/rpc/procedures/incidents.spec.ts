@@ -1,66 +1,37 @@
 import { createHash, randomUUID } from "node:crypto";
 import { call } from "@orpc/server";
-import type { Briefing, Incident } from "@roam/shared";
+import { type Briefing, type Incident, IncidentSchema } from "@roam/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
-	makeFakeBroadcaster,
 	makeFakeLogger,
 	makeFakeTranscriber,
+	makeRpcContext,
 } from "../../../test/factories.js";
 import { brief } from "../../agent/runner.js";
 import type { Config } from "../../config.js";
 import { BriefingModel } from "../../db/models/briefing.js";
 import { IncidentModel } from "../../db/models/incident.js";
+import { IncidentEventModel } from "../../db/models/incidentEvent.js";
+import { toWire } from "../../db/serializers/wire.js";
 import type { RpcContext } from "../context.js";
 import { incidentsRouter } from "./incidents.js";
 
-// `brief` is the agent's tool-use loop and lives behind a real Anthropic
-// client. Mocking the whole module keeps these tests deterministic and lets us
-// assert that ingest fires brief() and broadcasts on resolve/reject without
-// needing a fake LLM transcript.
-vi.mock("../../agent/runner.js", () => ({
+vi.mock("../../agent/runner.js", async (importOriginal) => ({
+	...(await importOriginal<typeof import("../../agent/runner.js")>()),
 	brief: vi.fn(),
 }));
 
-// Vitest doesn't clear mock call history between tests by default, so the
-// `brief` spy accumulates calls across the file. Reset before every test so
-// `toHaveBeenCalledTimes(N)` and `not.toHaveBeenCalled()` mean what they say.
 beforeEach(() => {
 	vi.mocked(brief).mockReset();
 });
 
-const fakeConfig = {
+const fakeConfig: Partial<Config> = {
 	ANTHROPIC_MODEL: "claude-sonnet-4-6",
 	AGENT_MAX_TURNS: 8,
-} as unknown as Config;
+};
 
-interface ContextOverrides {
-	transcriber?: ReturnType<typeof makeFakeTranscriber>;
-	incidentBroadcaster?: ReturnType<typeof makeFakeBroadcaster>;
-}
-
-function buildContext(
-	overrides: ContextOverrides = {},
-): RpcContext & {
-	incidentBroadcaster: ReturnType<typeof makeFakeBroadcaster>;
-	transcriber: ReturnType<typeof makeFakeTranscriber>;
-} {
-	const incidentBroadcaster =
-		overrides.incidentBroadcaster ?? makeFakeBroadcaster();
-	const transcriber = overrides.transcriber ?? makeFakeTranscriber();
-	return {
-		config: fakeConfig,
-		incidentBroadcaster:
-			incidentBroadcaster as unknown as RpcContext["incidentBroadcaster"],
-		walletProvider: {} as RpcContext["walletProvider"],
-		transcriber: transcriber as unknown as RpcContext["transcriber"],
-		anthropic: {} as RpcContext["anthropic"],
-		log: makeFakeLogger() as unknown as RpcContext["log"],
-		user: null,
-	} as RpcContext & {
-		incidentBroadcaster: ReturnType<typeof makeFakeBroadcaster>;
-		transcriber: ReturnType<typeof makeFakeTranscriber>;
-	};
+function buildContext(overrides: Partial<RpcContext> = {}): RpcContext {
+	return makeRpcContext(fakeConfig, overrides);
 }
 
 function makeFakeBriefing(incidentId: string): Briefing {
@@ -72,26 +43,17 @@ function makeFakeBriefing(incidentId: string): Briefing {
 		summary: "test briefing",
 		recommendedVehicleIds: ["vehicle-1"],
 		recommendedResponderIds: ["responder-1"],
-		payout: {
-			baseUsdc: 10,
-			urgencyMultiplier: 1,
-			hazmatMultiplier: 1,
-			distanceMultiplier: 1,
-			totalUsdc: 10,
-		},
 		briefingHash: "deadbeef",
 	};
 }
 
 describe("incidents.ingest — transcript path", () => {
 	it("creates an Incident with status='live' and the correct sha256 transcriptHash", async () => {
-		// brief() must not be allowed to run synchronously to completion in this
-		// test — we want to verify the *response* without waiting for the agent.
-		// A pending promise keeps the .then() from firing before our assertions.
 		vi.mocked(brief).mockReturnValue(new Promise(() => {}));
 
 		const ctx = buildContext();
-		const transcript = "Crash at Biscayne and 36th, two cars, injuries reported.";
+		const transcript =
+			"Crash at Biscayne and 36th, two cars, injuries reported.";
 
 		const incident = await call(
 			incidentsRouter.ingest,
@@ -112,11 +74,7 @@ describe("incidents.ingest — transcript path", () => {
 		expect(persisted?.status).toBe("live");
 	});
 
-	it("broadcasts incident.created and kicks off brief() without awaiting it", async () => {
-		// Pending promise: brief() never resolves during this test, so any
-		// briefing.ready broadcast that fires must come from a bug. Asserting
-		// that .broadcast was called exactly once (with incident.created)
-		// proves the response path doesn't await brief().
+	it("records the received event and kicks off brief() without awaiting it", async () => {
 		vi.mocked(brief).mockReturnValue(new Promise(() => {}));
 
 		const ctx = buildContext();
@@ -135,23 +93,12 @@ describe("incidents.ingest — transcript path", () => {
 				maxTurns: 8,
 			}),
 		);
-		// Two synchronous broadcasts: `incident.created` and the `received`
-		// event from the on-chain event log helper.
-		expect(ctx.incidentBroadcaster.broadcast).toHaveBeenCalledWith(
-			expect.objectContaining({
-				type: "incident.created",
-				incident: expect.objectContaining({ _id: incident._id }),
+		expect(
+			await IncidentEventModel.exists({
+				incidentId: incident._id,
+				kind: "received",
 			}),
-		);
-		expect(ctx.incidentBroadcaster.broadcast).toHaveBeenCalledWith(
-			expect.objectContaining({
-				type: "incident.event",
-				event: expect.objectContaining({
-					incidentId: incident._id,
-					kind: "received",
-				}),
-			}),
-		);
+		).toBeTruthy();
 	});
 });
 
@@ -171,8 +118,6 @@ describe("incidents.ingest — audio path", () => {
 
 		expect(transcriber.transcribeAudioFile).toHaveBeenCalledTimes(1);
 		const [bufferArg, mimeArg] = transcriber.transcribeAudioFile.mock.calls[0];
-		// The decoded buffer must match the original bytes exactly — base64
-		// round-trip is the only thing the handler does to the audio payload.
 		expect(Buffer.isBuffer(bufferArg)).toBe(true);
 		expect((bufferArg as Buffer).equals(audioBytes)).toBe(true);
 		expect(mimeArg).toBe("audio/wav");
@@ -191,7 +136,6 @@ describe("incidents.ingest — input validation", () => {
 			call(incidentsRouter.ingest, {}, { context: ctx }),
 		).rejects.toThrow();
 		expect(brief).not.toHaveBeenCalled();
-		expect(ctx.incidentBroadcaster.broadcast).not.toHaveBeenCalled();
 	});
 
 	it("rejects when both audio and transcript are provided", async () => {
@@ -208,7 +152,6 @@ describe("incidents.ingest — input validation", () => {
 			),
 		).rejects.toThrow();
 		expect(brief).not.toHaveBeenCalled();
-		expect(ctx.incidentBroadcaster.broadcast).not.toHaveBeenCalled();
 	});
 
 	it("rejects when audio is provided without mimeType", async () => {
@@ -223,67 +166,30 @@ describe("incidents.ingest — input validation", () => {
 	});
 });
 
-describe("incidents.ingest — async briefing broadcast", () => {
-	it("broadcasts briefing.ready after brief() resolves, with the briefing payload", async () => {
-		const ctx = buildContext();
-
-		// Resolve brief() with a fake briefing whose incidentId is set after the
-		// handler creates the Incident — we capture the id from the resolved
-		// response and craft the briefing on demand. Mocking with a thunk lets
-		// us read `incidentId` from the call args at resolve time.
-		vi.mocked(brief).mockImplementation(async (incidentId) =>
-			makeFakeBriefing(incidentId),
-		);
-
-		const incident = await call(
-			incidentsRouter.ingest,
-			{ transcript: "broadcast test" },
-			{ context: ctx },
-		);
-
-		// vi.waitFor flushes microtasks until the assertion passes — covers the
-		// .then() handler that fires *after* the procedure returns.
-		await vi.waitFor(() => {
-			expect(ctx.incidentBroadcaster.broadcast).toHaveBeenCalledWith(
-				expect.objectContaining({
-					type: "briefing.ready",
-					incidentId: incident._id,
-					briefing: expect.objectContaining({
-						incidentId: incident._id,
-						summary: "test briefing",
-					}),
-				}),
-			);
-		});
-		// Three synchronous broadcasts: incident.created + the `received`
-		// event row + briefing.ready (after the async brief resolves).
-		expect(ctx.incidentBroadcaster.broadcast).toHaveBeenCalledTimes(3);
-	});
-
-	it("broadcasts briefing.failed when brief() rejects, and does not crash", async () => {
-		const ctx = buildContext();
+describe("incidents.ingest — briefing failure", () => {
+	it("logs a rejected brief() instead of crashing", async () => {
+		const log = makeFakeLogger();
 		vi.mocked(brief).mockRejectedValue(new Error("anthropic exploded"));
 
 		const incident = await call(
 			incidentsRouter.ingest,
 			{ transcript: "failure test" },
-			{ context: ctx },
+			{ context: buildContext({ log }) },
 		);
 
 		await vi.waitFor(() => {
-			expect(ctx.incidentBroadcaster.broadcast).toHaveBeenCalledWith(
-				expect.objectContaining({
-					type: "briefing.failed",
-					incidentId: incident._id,
-					error: "anthropic exploded",
-				}),
+			expect(log.error).toHaveBeenCalledWith(
+				expect.objectContaining({ incidentId: incident._id }),
+				expect.any(String),
 			);
 		});
 	});
 });
 
 describe("incidents.list / incidents.get round-trip", () => {
-	async function seedIncident(transcript = "seed transcript"): Promise<Incident> {
+	async function seedIncident(
+		transcript = "seed transcript",
+	): Promise<Incident> {
 		const id = randomUUID();
 		const transcriptHash = createHash("sha256")
 			.update(transcript)
@@ -296,23 +202,19 @@ describe("incidents.list / incidents.get round-trip", () => {
 			status: "live",
 			assigned: { vehicles: [], responders: [] },
 		});
-		const found = await IncidentModel.findById(id).lean();
-		return JSON.parse(JSON.stringify(found)) as Incident;
+		return toWire(IncidentSchema, await IncidentModel.findById(id).lean());
 	}
 
 	it("list returns the most recent incidents (newest first)", async () => {
 		const older = await seedIncident("older");
-		// Force a clear ordering — the list query sorts by callStartedAt desc.
 		await IncidentModel.findByIdAndUpdate(older._id, {
 			callStartedAt: new Date(Date.now() - 60_000),
 		});
 		const newer = await seedIncident("newer");
 
-		const list = await call(
-			incidentsRouter.list,
-			undefined as never,
-			{ context: buildContext() },
-		);
+		const list = await call(incidentsRouter.list, undefined as never, {
+			context: buildContext(),
+		});
 
 		expect(list.length).toBe(2);
 		expect(list[0]._id).toBe(newer._id);

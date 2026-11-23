@@ -1,7 +1,6 @@
 "use client";
 
-import type { Incident, Telemetry, Vehicle } from "@roam/shared";
-import { Button } from "../../ui/button";
+import type { Briefing, Incident, Responder, Vehicle } from "@roam/shared";
 import { DataCell } from "../../ui/data-cell";
 import { Icon } from "../../ui/icon";
 import {
@@ -10,44 +9,46 @@ import {
 	SidebarGroupLabel,
 } from "../../ui/sidebar-primitives";
 import { CapabilityChip, UrgencyTag } from "./incident-tags";
-import { RecommendationGroup } from "./recommendation-group";
+import {
+	type DispatchState,
+	RecommendationGroup,
+} from "./recommendation-group";
 import { TranscriptCard } from "./transcript-card";
 import { UrgencyBadge } from "./urgency-badge";
 
 type IncidentPendingBodyProps = {
 	incident: Incident;
 	vehicles: Vehicle[];
-	positions: Map<string, Telemetry>;
+	responderMap: Map<string, Responder>;
+	now: number;
 	panelOpen: boolean;
-	onDispatch?: (incident: Incident) => void;
+	dispatchState: DispatchState | undefined;
+	onDispatch: (briefing: Briefing) => void;
 };
 
-// Body for incidents that have NOT been dispatched yet (status=live, pending,
-// cancelled). Shows the live transcript + classification + agent
-// recommendation. The responding/resolved-with-units path lives in
-// `incident-assigned-body.tsx`.
 export function IncidentPendingBody({
 	incident,
 	vehicles,
-	positions,
+	responderMap,
+	now,
 	panelOpen,
+	dispatchState,
 	onDispatch,
 }: IncidentPendingBodyProps) {
-	const showTranscript =
-		incident.status === "live" || incident.status === "pending";
-	const showActions =
+	const awaitingDispatch =
 		incident.status === "live" || incident.status === "pending";
 	const classification = incident.classification;
 
 	return (
 		<>
-			{showTranscript && (
+			{awaitingDispatch && (
 				<TranscriptCard
+					key={`transcript-${incident._id}`}
 					transcript={incident.transcript}
 					callStartedAt={incident.callStartedAt}
 					isLive={incident.status === "live"}
 					panelOpen={panelOpen}
-					resetKey={incident._id}
+					now={now}
 				/>
 			)}
 
@@ -87,31 +88,18 @@ export function IncidentPendingBody({
 				</SidebarGroup>
 			)}
 
-			{showActions && (
-				<>
-					<RecommendationGroup
-						scene={classification?.location}
-						vehicles={vehicles}
-						positions={positions}
-					/>
-
-					<div className="flex gap-2 px-2 pt-1">
-						<Button variant="outline" size="sm" className="flex-1">
-							Edit
-						</Button>
-						<Button
-							variant="destructive"
-							size="sm"
-							className="flex-[2]"
-							onClick={() => onDispatch?.(incident)}
-						>
-							Dispatch
-						</Button>
-					</div>
-				</>
+			{awaitingDispatch && panelOpen && (
+				<RecommendationGroup
+					key={`recommendation-${incident._id}`}
+					incidentId={incident._id}
+					vehicles={vehicles}
+					responderMap={responderMap}
+					dispatchState={dispatchState}
+					onDispatch={onDispatch}
+				/>
 			)}
 
-			{!showActions && (
+			{!awaitingDispatch && (
 				<SidebarGroup>
 					<SidebarGroupLabel>Status</SidebarGroupLabel>
 					<SidebarGroupContent>

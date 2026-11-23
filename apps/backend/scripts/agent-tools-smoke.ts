@@ -1,42 +1,24 @@
 import { createHash, randomUUID } from "node:crypto";
-import dotenv from "dotenv";
 import mongoose from "mongoose";
+import type { AgentToolContext } from "../src/agent/tools/index.js";
+import { agentTools, dispatchToolCall } from "../src/agent/tools/index.js";
+import { parseConfig } from "../src/config.js";
 import { connectDb } from "../src/db/connection.js";
 import { IncidentModel } from "../src/db/models/incident.js";
 import { ResponderModel } from "../src/db/models/responder.js";
 import { VehicleModel } from "../src/db/models/vehicle.js";
 import { VehicleSpecModel } from "../src/db/models/vehicleSpec.js";
-import {
-	agentTools,
-	dispatchToolCall,
-} from "../src/agent/tools/index.js";
-import type { AgentToolContext } from "../src/agent/tools/index.js";
 
-// AD-5 smoke: seed three vehicles + responders around Miami, then call every
-// agent tool once and pretty-print the result. Demo-purpose only — does not
-// hit Anthropic. Run with:
-//   pnpm --filter @roam/backend agent:smoke
-//
-// Idempotent: every doc gets a `smoke-agent-tools-` prefix that we wipe at the
-// start and end of the run.
-
-dotenv.config({ path: ".env.local" });
-const MONGODB_URL = process.env.MONGODB_URL;
-if (!MONGODB_URL) {
-	console.error("MONGODB_URL is required (set it in apps/backend/.env.local)");
-	process.exit(1);
-}
+const config = parseConfig();
 
 const PREFIX = "smoke-agent-tools-";
 
-// Miami origin point used as the dispatch query target.
 const ORIGIN = { lat: 25.7617, lon: -80.1918 };
 
 interface SeededResponder {
 	id: string;
 	name: string;
 	capabilities: "medic"[];
-	withWallet: boolean;
 }
 
 interface SeededVehicle {
@@ -47,17 +29,43 @@ interface SeededVehicle {
 }
 
 const RESPONDER_SEEDS: SeededResponder[] = [
-	{ id: randomUUID(), name: `${PREFIX}MEDIC-1`, capabilities: ["medic"], withWallet: true },
-	{ id: randomUUID(), name: `${PREFIX}MEDIC-2`, capabilities: ["medic"], withWallet: true },
-	{ id: randomUUID(), name: `${PREFIX}MEDIC-3`, capabilities: ["medic"], withWallet: false },
+	{
+		id: randomUUID(),
+		name: `${PREFIX}MEDIC-1`,
+		capabilities: ["medic"],
+	},
+	{
+		id: randomUUID(),
+		name: `${PREFIX}MEDIC-2`,
+		capabilities: ["medic"],
+	},
+	{
+		id: randomUUID(),
+		name: `${PREFIX}MEDIC-3`,
+		capabilities: ["medic"],
+	},
 ];
 
 function vehicleSeeds(responders: SeededResponder[]): SeededVehicle[] {
-	// Three points fanning out from ORIGIN at roughly 0.5km, 1.2km, 3km.
 	return [
-		{ callsign: `${PREFIX}V-NEAR`, lat: 25.7660, lon: -80.1930, responderId: responders[0].id },
-		{ callsign: `${PREFIX}V-MID`, lat: 25.7720, lon: -80.1820, responderId: responders[1].id },
-		{ callsign: `${PREFIX}V-FAR`, lat: 25.7880, lon: -80.1700, responderId: responders[2].id },
+		{
+			callsign: `${PREFIX}V-NEAR`,
+			lat: 25.766,
+			lon: -80.193,
+			responderId: responders[0].id,
+		},
+		{
+			callsign: `${PREFIX}V-MID`,
+			lat: 25.772,
+			lon: -80.182,
+			responderId: responders[1].id,
+		},
+		{
+			callsign: `${PREFIX}V-FAR`,
+			lat: 25.788,
+			lon: -80.17,
+			responderId: responders[2].id,
+		},
 	];
 }
 
@@ -87,9 +95,6 @@ async function seed(): Promise<void> {
 			role: "responder",
 			availability: "available",
 			capabilities: op.capabilities,
-			...(op.withWallet
-				? { walletAddress: "11111111111111111111111111111111" }
-				: {}),
 		}).save();
 	}
 
@@ -137,8 +142,7 @@ function pretty(label: string, value: unknown): void {
 }
 
 async function main(): Promise<void> {
-	if (!MONGODB_URL) throw new Error("MONGODB_URL missing");
-	await connectDb(MONGODB_URL, console);
+	await connectDb(config.MONGODB_URL, console);
 	try {
 		await cleanup();
 		await seed();

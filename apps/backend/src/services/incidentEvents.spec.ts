@@ -1,17 +1,13 @@
 import { randomUUID } from "node:crypto";
-import type { FastifyBaseLogger } from "fastify";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-	makeFakeBroadcaster,
-	makeFakeLogger,
-} from "../../test/factories.js";
+import { makeFakeLogger } from "../../test/factories.js";
 import {
 	makeSolanaSucceed,
+	mockedWithSolanaProvider,
 	resetSolanaMock,
 } from "../../test/mocks/solana.js";
 import type { Config } from "../config.js";
 import { IncidentEventModel } from "../db/models/incidentEvent.js";
-import type { IncidentBroadcaster } from "../ws/incidentBroadcaster.js";
 import {
 	incidentIdToBytes,
 	recordIncidentEvent,
@@ -19,37 +15,17 @@ import {
 	responderIdHash,
 } from "./incidentEvents.js";
 
-// 32-byte hex (matches Config.CHAIN_HMAC_KEY shape).
 const HMAC_KEY = `${"0".repeat(63)}1`;
 const ALT_HMAC_KEY = `${"0".repeat(62)}12`;
 
-const fakeConfig = {
-	CHAIN_HMAC_KEY: HMAC_KEY,
-} as unknown as Config;
+// The event service reads only CHAIN_HMAC_KEY from the config.
+const config = { CHAIN_HMAC_KEY: HMAC_KEY } as Config;
 
 function buildDeps(): {
 	config: Config;
 	log: ReturnType<typeof makeFakeLogger>;
-	incidentBroadcaster: ReturnType<typeof makeFakeBroadcaster>;
-	asServiceDeps: () => {
-		config: Config;
-		log: FastifyBaseLogger;
-		incidentBroadcaster: IncidentBroadcaster;
-	};
 } {
-	const log = makeFakeLogger();
-	const incidentBroadcaster = makeFakeBroadcaster();
-	return {
-		config: fakeConfig,
-		log,
-		incidentBroadcaster,
-		asServiceDeps: () => ({
-			config: fakeConfig,
-			log: log as unknown as FastifyBaseLogger,
-			incidentBroadcaster:
-				incidentBroadcaster as unknown as IncidentBroadcaster,
-		}),
-	};
+	return { config, log: makeFakeLogger() };
 }
 
 beforeEach(() => {
@@ -97,58 +73,26 @@ describe("responderIdHash", () => {
 });
 
 describe("recordIncidentEvent", () => {
-	it("persists, broadcasts incident.event once, and returns the wire shape when chain returns null", async () => {
-		const deps = buildDeps();
+	it("persists the event without a signature when the chain write is skipped", async () => {
 		const incidentId = randomUUID();
 
-		const event = await recordIncidentEvent(deps.asServiceDeps(), {
-			incidentId,
-			kind: "received",
-		});
-
-		expect(event.incidentId).toBe(incidentId);
-		expect(event.kind).toBe("received");
-		expect(event.solanaTxSignature).toBeUndefined();
+		await recordIncidentEvent(buildDeps(), { incidentId, kind: "received" });
 
 		const persisted = await IncidentEventModel.findOne({ incidentId }).lean();
-		expect(persisted).not.toBeNull();
+		expect(persisted?.kind).toBe("received");
 		expect(persisted?.solanaTxSignature).toBeUndefined();
-
-		expect(deps.incidentBroadcaster.broadcast).toHaveBeenCalledTimes(1);
-		const first = deps.incidentBroadcaster.broadcast.mock.calls[0][0] as {
-			type: string;
-		};
-		expect(first.type).toBe("incident.event");
 	});
 
-	it("patches solanaTxSignature and broadcasts incident.event.chain when chain returns a signature", async () => {
+	it("patches in the chain signature once the write lands", async () => {
 		makeSolanaSucceed("test-tx-sig");
-		const deps = buildDeps();
 		const incidentId = randomUUID();
 
-		const event = await recordIncidentEvent(deps.asServiceDeps(), {
-			incidentId,
-			kind: "received",
-		});
-
-		// Synchronous return is before the signature patch — sig appears later.
-		expect(event.solanaTxSignature).toBeUndefined();
+		await recordIncidentEvent(buildDeps(), { incidentId, kind: "received" });
 
 		await vi.waitFor(async () => {
-			const fresh = await IncidentEventModel.findById(event._id).lean();
+			const fresh = await IncidentEventModel.findOne({ incidentId }).lean();
 			expect(fresh?.solanaTxSignature).toBe("test-tx-sig");
 		});
-
-		expect(deps.incidentBroadcaster.broadcast).toHaveBeenCalledTimes(2);
-		const types = deps.incidentBroadcaster.broadcast.mock.calls.map(
-			(c) => (c[0] as { type: string }).type,
-		);
-		expect(types).toEqual(["incident.event", "incident.event.chain"]);
-
-		expect(deps.log.info).toHaveBeenCalledWith(
-			expect.objectContaining({ sig: "test-tx-sig", incidentId }),
-			"Incident event recorded on chain",
-		);
 	});
 
 	it("logs an error and does not produce an unhandled rejection when the post-chain Mongo update throws", async () => {
@@ -162,22 +106,19 @@ describe("recordIncidentEvent", () => {
 		};
 		process.on("unhandledRejection", handler);
 
-		const updateSpy = vi.spyOn(IncidentEventModel, "findByIdAndUpdate");
-		updateSpy.mockReturnValueOnce({
-			lean: () => Promise.reject(new Error("simulated mongo failure")),
-		} as never);
+		const updateSpy = vi
+			.spyOn(IncidentEventModel, "findByIdAndUpdate")
+			.mockImplementationOnce(() => {
+				throw new Error("simulated mongo failure");
+			});
 
 		try {
-			const event = await recordIncidentEvent(deps.asServiceDeps(), {
-				incidentId,
-				kind: "received",
-			});
-			expect(event.incidentId).toBe(incidentId);
+			await recordIncidentEvent(deps, { incidentId, kind: "received" });
 
 			await vi.waitFor(() => {
 				expect(deps.log.error).toHaveBeenCalled();
 			});
-			// Drain the microtask queue once more in case the rejection is delayed.
+			// Give a late unhandledRejection a chance to fire before asserting.
 			await new Promise((r) => setImmediate(r));
 
 			expect(unhandled).toBeNull();
@@ -187,7 +128,7 @@ describe("recordIncidentEvent", () => {
 					incidentId,
 					kind: "received",
 				}),
-				"recordChainSignatureFollowUp failed (non-blocking)",
+				expect.any(String),
 			);
 		} finally {
 			process.off("unhandledRejection", handler);
@@ -195,75 +136,44 @@ describe("recordIncidentEvent", () => {
 		}
 	});
 
-	it("is idempotent on duplicate (incidentId, kind, responderId) — returns existing row, broadcasts once", async () => {
-		const deps = buildDeps();
+	it("stores and writes a duplicate (incidentId, kind, responderId) only once", async () => {
 		const incidentId = randomUUID();
 		const responderId = randomUUID();
+		const args = { incidentId, kind: "dispatched" as const, responderId };
 
-		const first = await recordIncidentEvent(deps.asServiceDeps(), {
-			incidentId,
-			kind: "dispatched",
-			responderId,
-		});
-		const second = await recordIncidentEvent(deps.asServiceDeps(), {
-			incidentId,
-			kind: "dispatched",
-			responderId,
-		});
+		await recordIncidentEvent(buildDeps(), args);
+		await recordIncidentEvent(buildDeps(), args);
 
-		expect(first._id).toBe(second._id);
-
-		const docs = await IncidentEventModel.find({
-			incidentId,
-			kind: "dispatched",
-			responderId,
-		});
-		expect(docs).toHaveLength(1);
-
-		// Only the first call's persist path broadcast — the duplicate is a no-op.
-		expect(deps.incidentBroadcaster.broadcast).toHaveBeenCalledTimes(1);
+		expect(await IncidentEventModel.countDocuments(args)).toBe(1);
+		expect(mockedWithSolanaProvider).toHaveBeenCalledTimes(1);
 	});
 });
 
 describe("recordIncidentEventWithSignature", () => {
-	it("persists with the supplied signature and broadcasts incident.event once", async () => {
-		const deps = buildDeps();
+	it("persists the supplied signature", async () => {
 		const incidentId = randomUUID();
 
-		const event = await recordIncidentEventWithSignature(deps.asServiceDeps(), {
+		await recordIncidentEventWithSignature(buildDeps(), {
 			incidentId,
 			kind: "cleared",
 			solanaTxSignature: "mobile-tx-sig",
 		});
-
-		expect(event.solanaTxSignature).toBe("mobile-tx-sig");
 
 		const persisted = await IncidentEventModel.findOne({ incidentId }).lean();
 		expect(persisted?.solanaTxSignature).toBe("mobile-tx-sig");
-
-		expect(deps.incidentBroadcaster.broadcast).toHaveBeenCalledTimes(1);
-		const first = deps.incidentBroadcaster.broadcast.mock.calls[0][0] as {
-			type: string;
-		};
-		expect(first.type).toBe("incident.event");
 	});
 
-	it("returns the existing event without re-broadcasting on duplicate", async () => {
-		const deps = buildDeps();
-		const incidentId = randomUUID();
-
-		const first = await recordIncidentEventWithSignature(deps.asServiceDeps(), {
-			incidentId,
-			kind: "cleared",
+	it("absorbs a duplicate without throwing", async () => {
+		const args = {
+			incidentId: randomUUID(),
+			kind: "cleared" as const,
 			solanaTxSignature: "mobile-tx-sig",
-		});
-		const second = await recordIncidentEventWithSignature(deps.asServiceDeps(), {
-			incidentId,
-			kind: "cleared",
-			solanaTxSignature: "mobile-tx-sig",
-		});
+		};
 
-		expect(first._id).toBe(second._id);
-		expect(deps.incidentBroadcaster.broadcast).toHaveBeenCalledTimes(1);
+		await recordIncidentEventWithSignature(buildDeps(), args);
+
+		await expect(
+			recordIncidentEventWithSignature(buildDeps(), args),
+		).resolves.toBeUndefined();
 	});
 });
