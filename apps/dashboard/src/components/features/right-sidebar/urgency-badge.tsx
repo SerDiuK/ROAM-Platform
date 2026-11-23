@@ -11,18 +11,14 @@ export const URGENCY_TINT: Record<IncidentUrgency, string> = {
 
 type UrgencyBadgeProps = {
 	urgency: IncidentUrgency;
-	inverted?: boolean;
 };
 
-export function UrgencyBadge({ urgency, inverted = false }: UrgencyBadgeProps) {
-	const tint = inverted
-		? "bg-primary-foreground/20 text-primary-foreground"
-		: URGENCY_TINT[urgency];
+export function UrgencyBadge({ urgency }: UrgencyBadgeProps) {
 	return (
 		<span
 			className={cn(
 				"inline-flex h-4 w-7 shrink-0 items-center justify-center rounded text-2xs font-bold tracking-wider uppercase",
-				tint,
+				URGENCY_TINT[urgency],
 			)}
 		>
 			P{urgency}

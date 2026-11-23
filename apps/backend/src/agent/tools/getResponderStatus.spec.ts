@@ -4,7 +4,10 @@ import { ResponderModel } from "../../db/models/responder.js";
 import { getResponderStatusTool } from "./getResponderStatus.js";
 import type { AgentToolContext } from "./types.js";
 
-const ctx = { log: {} as AgentToolContext["log"] } satisfies AgentToolContext;
+const ctx = {
+	log: {} as AgentToolContext["log"],
+	incidentId: "inc-being-briefed",
+} satisfies AgentToolContext;
 
 async function makeResp(args: {
 	name: string;

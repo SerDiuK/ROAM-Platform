@@ -6,7 +6,10 @@ import {
 } from "./index.js";
 import type { AgentToolContext } from "./types.js";
 
-const ctx = { log: {} as AgentToolContext["log"] } satisfies AgentToolContext;
+const ctx = {
+	log: {} as AgentToolContext["log"],
+	incidentId: "inc-being-briefed",
+} satisfies AgentToolContext;
 
 describe("dispatchToolCall", () => {
 	it("throws UnknownToolError for an unregistered tool name", async () => {

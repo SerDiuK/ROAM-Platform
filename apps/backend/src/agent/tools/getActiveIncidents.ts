@@ -31,10 +31,11 @@ type OutputItem = z.infer<typeof OutputItemSchema>;
 export const getActiveIncidentsTool: AgentTool<Input, OutputItem[]> = {
 	name: "get_active_incidents",
 	description:
-		"Return every incident currently in flight (status = live, pending, or responding). Use this before recommending a vehicle to avoid double-dispatching a unit that is already assigned to another scene. Terminal incidents (resolved/cancelled) are excluded.",
+		"Return every other incident currently in flight (status = live, pending, or responding); the incident being briefed is left out. Use this before recommending a vehicle to avoid double-dispatching a unit that is already assigned to another scene. Terminal incidents (resolved/cancelled) are excluded.",
 	inputSchema: InputSchema,
-	handler: async () => {
+	handler: async (_input, { incidentId }) => {
 		const docs = await IncidentModel.find({
+			_id: { $ne: incidentId },
 			status: { $in: ACTIVE_STATUSES },
 		})
 			.sort({ callStartedAt: -1 })

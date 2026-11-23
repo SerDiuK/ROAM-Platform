@@ -12,7 +12,6 @@ const PREFIX = "demo-";
 type DemoIncidentSeed = {
 	suffix: string;
 	minutesAgo: number;
-	status: "responding" | "arrived" | "resolved";
 	urgency: 1 | 2 | 3;
 	incidentType: string;
 	locationDescription: string;
@@ -21,15 +20,14 @@ type DemoIncidentSeed = {
 	transcript: string;
 	assignVehicleCount: number;
 	assignResponderCount: number;
-	dispatchedAfterMin?: number;
-	clearedAfterMin?: number;
+	dispatchedAfterMin: number;
+	clearedAfterMin: number;
 };
 
 const SEEDS: DemoIncidentSeed[] = [
 	{
-		suffix: "responding-overtown",
-		minutesAgo: 6,
-		status: "responding",
+		suffix: "overtown",
+		minutesAgo: 92,
 		urgency: 1,
 		incidentType: "Structure fire — occupants",
 		locationDescription: "NW 3rd Ave & 14th St, Overtown",
@@ -40,11 +38,11 @@ const SEEDS: DemoIncidentSeed[] = [
 		assignVehicleCount: 2,
 		assignResponderCount: 2,
 		dispatchedAfterMin: 1,
+		clearedAfterMin: 48,
 	},
 	{
-		suffix: "arrived-edgewater",
+		suffix: "edgewater",
 		minutesAgo: 18,
-		status: "arrived",
 		urgency: 2,
 		incidentType: "Fall — elderly",
 		locationDescription: "NE 2nd Ave & 30th St, Edgewater",
@@ -55,11 +53,11 @@ const SEEDS: DemoIncidentSeed[] = [
 		assignVehicleCount: 1,
 		assignResponderCount: 1,
 		dispatchedAfterMin: 2,
+		clearedAfterMin: 14,
 	},
 	{
-		suffix: "resolved-grove",
+		suffix: "grove",
 		minutesAgo: 47,
-		status: "resolved",
 		urgency: 3,
 		incidentType: "Vehicle stuck — non-injury",
 		locationDescription: "S Bayshore Dr, Coconut Grove",
@@ -115,14 +113,12 @@ async function seed(): Promise<void> {
 		for (const seed of SEEDS) {
 			const _id = `${PREFIX}incident-${seed.suffix}`;
 			const callStartedAt = new Date(now - seed.minutesAgo * 60_000);
-			const dispatchedAt =
-				seed.dispatchedAfterMin !== undefined
-					? new Date(callStartedAt.getTime() + seed.dispatchedAfterMin * 60_000)
-					: undefined;
-			const clearedAt =
-				seed.clearedAfterMin !== undefined
-					? new Date(callStartedAt.getTime() + seed.clearedAfterMin * 60_000)
-					: undefined;
+			const dispatchedAt = new Date(
+				callStartedAt.getTime() + seed.dispatchedAfterMin * 60_000,
+			);
+			const clearedAt = new Date(
+				callStartedAt.getTime() + seed.clearedAfterMin * 60_000,
+			);
 			const assigned = {
 				vehicles: vehicleIds.slice(0, seed.assignVehicleCount),
 				responders: responderIds.slice(0, seed.assignResponderCount),
@@ -139,7 +135,7 @@ async function seed(): Promise<void> {
 					locationDescription: seed.locationDescription,
 					requiredCapabilities: seed.requiredCapabilities,
 				},
-				status: seed.status,
+				status: "resolved",
 				assigned,
 				dispatchedAt,
 				clearedAt,
@@ -150,7 +146,7 @@ async function seed(): Promise<void> {
 				updatedAt: callStartedAt,
 			});
 			await IncidentModel.create(doc);
-			console.log(`  + ${seed.status.padEnd(10)} P${seed.urgency} ${_id}`);
+			console.log(`  + P${seed.urgency} ${_id}`);
 		}
 
 		console.log(`\nSeeded ${SEEDS.length} demo incidents`);

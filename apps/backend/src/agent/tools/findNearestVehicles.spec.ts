@@ -7,7 +7,10 @@ import { VehicleModel } from "../../db/models/vehicle.js";
 import { findNearestVehiclesTool } from "./findNearestVehicles.js";
 import type { AgentToolContext } from "./types.js";
 
-const ctx = { log: {} as AgentToolContext["log"] } satisfies AgentToolContext;
+const ctx = {
+	log: {} as AgentToolContext["log"],
+	incidentId: "inc-being-briefed",
+} satisfies AgentToolContext;
 
 const ORIGIN = { lat: 25.7617, lon: -80.1918 };
 

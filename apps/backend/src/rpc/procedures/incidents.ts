@@ -48,7 +48,7 @@ export const incidentsRouter = {
 		// agent skips classify_incident when it's already set.
 		const classification = await classifyIncidentTool.handler(
 			{ transcript },
-			{ log: context.log },
+			{ log: context.log, incidentId },
 		);
 
 		const created = await IncidentModel.create({

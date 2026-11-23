@@ -5,7 +5,10 @@ import { IncidentModel } from "../../db/models/incident.js";
 import { getActiveIncidentsTool } from "./getActiveIncidents.js";
 import type { AgentToolContext } from "./types.js";
 
-const ctx = { log: {} as AgentToolContext["log"] } satisfies AgentToolContext;
+const ctx = {
+	log: {} as AgentToolContext["log"],
+	incidentId: "inc-being-briefed",
+} satisfies AgentToolContext;
 
 async function makeIncident(args: {
 	id: string;
@@ -74,6 +77,23 @@ describe("getActiveIncidentsTool", () => {
 		for (const r of result) {
 			expect(["live", "pending", "responding"]).toContain(r.status);
 		}
+	});
+
+	it("leaves out the incident being briefed", async () => {
+		await makeIncident({
+			id: ctx.incidentId,
+			status: "live",
+			callStartedAt: new Date(),
+		});
+		await makeIncident({
+			id: "inc-other",
+			status: "live",
+			callStartedAt: new Date(),
+		});
+
+		const result = await getActiveIncidentsTool.handler({}, ctx);
+
+		expect(result.map((r) => r.id)).toEqual(["inc-other"]);
 	});
 
 	it("orders results by callStartedAt descending (newest first)", async () => {
