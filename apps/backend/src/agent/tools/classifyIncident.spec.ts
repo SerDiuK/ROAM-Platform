@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import { classifyIncidentTool } from "./classifyIncident.js";
 import type { AgentToolContext } from "./types.js";
 
-const ctx = { log: {} as AgentToolContext["log"] } satisfies AgentToolContext;
+const ctx = {
+	log: {} as AgentToolContext["log"],
+	incidentId: "inc-being-briefed",
+} satisfies AgentToolContext;
 
 async function classify(transcript: string) {
 	return classifyIncidentTool.handler({ transcript }, ctx);
@@ -68,6 +71,10 @@ describe("classifyIncidentTool", () => {
 			"Crash at Biscayne And 30 6. Two cars. Someone's not moving.",
 		);
 		expect(result.location).toEqual({ lat: 25.81189, lon: -80.18889 });
+		const withSuffix = await classify(
+			"There's been a bad crash at Biscayne And 30 6th. Two cars.",
+		);
+		expect(withSuffix.location).toEqual({ lat: 25.81189, lon: -80.18889 });
 	});
 
 	it("classifies + extracts location in the same pass", async () => {

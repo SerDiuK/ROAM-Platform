@@ -3,6 +3,7 @@ import type { MinimalLogger } from "../../db/connection.js";
 
 export interface AgentToolContext {
 	log: MinimalLogger;
+	incidentId: string;
 }
 
 export interface AgentTool<TInput, TOutput> {

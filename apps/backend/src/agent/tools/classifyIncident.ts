@@ -77,8 +77,8 @@ const KNOWN_INTERSECTIONS: Array<{
 }> = [
 	{
 		matchers: [
-			/\bbiscayne\b[^.]*\b(?:36(?:th)?|30\s*6)\b/i,
-			/\b(?:36(?:th)?|30\s*6)\b[^.]*\bbiscayne\b/i,
+			/\bbiscayne\b[^.]*\b(?:36|30\s*6)(?:th)?\b/i,
+			/\b(?:36|30\s*6)(?:th)?\b[^.]*\bbiscayne\b/i,
 		],
 		description: "Biscayne Blvd & NE 36th St, Miami",
 		coords: { lat: 25.81189, lon: -80.18889 },

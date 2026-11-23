@@ -133,7 +133,7 @@ async function seed(): Promise<void> {
 }
 
 function makeCtx(): AgentToolContext {
-	return { log: console };
+	return { log: console, incidentId: `${PREFIX}incident-briefed` };
 }
 
 function pretty(label: string, value: unknown): void {

@@ -88,7 +88,10 @@ export async function brief(
 					draftPayload = draftBriefingTool.handler(input);
 					result = { ok: true };
 				} else {
-					result = await dispatchToolCall(name, input, { log: ctx.log });
+					result = await dispatchToolCall(name, input, {
+						log: ctx.log,
+						incidentId,
+					});
 				}
 				ctx.log.info(
 					`brief[${incidentId}] tool← ${name} ${Date.now() - toolStart}ms ${snippet(result)}`,

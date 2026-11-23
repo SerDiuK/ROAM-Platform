@@ -26,7 +26,6 @@ export function IncidentRow({
 		[onSelect, incident._id],
 	);
 
-	const isResolved = incident.status === "resolved";
 	const isCancelled = incident.status === "cancelled";
 
 	const incidentType = incident.classification?.incidentType ?? "Unclassified";
@@ -40,65 +39,37 @@ export function IncidentRow({
 			onClick={handleSelect}
 			className={cn(
 				"cursor-pointer gap-1.5 outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
-				isResolved &&
-					"border-primary/40 bg-primary text-primary-foreground hover:bg-primary/90",
 				isCancelled && "opacity-60",
 				isActive &&
-					!isResolved &&
 					"border-sidebar-ring bg-sidebar-accent/60 hover:bg-sidebar-accent/60",
 			)}
 		>
 			<div className="flex items-center gap-2">
-				{!isResolved && (
-					<StatusDot
-						tone={statusToneFor(incident.status)}
-						pulse={incident.status === "live"}
-					/>
-				)}
-				{urgency !== undefined && (
-					<UrgencyBadge urgency={urgency} inverted={isResolved} />
-				)}
+				<StatusDot
+					tone={statusToneFor(incident.status)}
+					pulse={incident.status === "live"}
+				/>
+				{urgency !== undefined && <UrgencyBadge urgency={urgency} />}
 				<span
 					className={cn(
 						"min-w-0 flex-1 truncate text-xs font-medium",
-						isResolved
-							? "text-primary-foreground"
-							: isCancelled
-								? "text-muted-foreground"
-								: "text-foreground",
+						isCancelled ? "text-muted-foreground" : "text-foreground",
 					)}
 				>
 					{incidentType}
 				</span>
-				<span
-					className={cn(
-						"shrink-0 text-2xs tabular-nums",
-						isResolved ? "text-primary-foreground/70" : "text-muted-foreground",
-					)}
-				>
+				<span className="shrink-0 text-2xs tabular-nums text-muted-foreground">
 					{formatRelative(incident.callStartedAt, now)}
 				</span>
 			</div>
 
 			{locationDescription && (
-				<div
-					className={cn(
-						"truncate pl-4 text-2xs",
-						isResolved ? "text-primary-foreground/80" : "text-muted-foreground",
-					)}
-				>
+				<div className="truncate pl-4 text-2xs text-muted-foreground">
 					{locationDescription}
 				</div>
 			)}
 
-			<div
-				className={cn(
-					"flex items-center justify-between pl-4 text-2xs",
-					isResolved
-						? "text-primary-foreground/80"
-						: "text-muted-foreground/70",
-				)}
-			>
+			<div className="flex items-center justify-between pl-4 text-2xs text-muted-foreground/70">
 				<span>{assignedSummary}</span>
 				<span className="uppercase tracking-wider">{incident.status}</span>
 			</div>
