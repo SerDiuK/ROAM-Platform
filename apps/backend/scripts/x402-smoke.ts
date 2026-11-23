@@ -5,7 +5,11 @@ import mongoose from "mongoose";
 import { parseConfig } from "../src/config.js";
 import { connectDb } from "../src/db/connection.js";
 import { DispatchModel } from "../src/db/models/dispatch.js";
-import { SETTLEMENT_SOL, triggerX402Payment } from "../src/x402/client.js";
+import {
+	SETTLEMENT_SOL,
+	triggerX402Payment,
+	x402Network,
+} from "../src/x402/client.js";
 
 async function main(): Promise<void> {
 	const config = parseConfig();
@@ -21,7 +25,6 @@ async function main(): Promise<void> {
 		decidedAt: now,
 		assignedVehicleIds: [],
 		assignedResponderIds: [],
-		payoutUsdc: 0,
 		requiredAccepts: 1,
 		status: "cleared",
 		claimedByResponderIds: [],
@@ -32,7 +35,7 @@ async function main(): Promise<void> {
 	console.log(
 		`  Amount: ${SETTLEMENT_SOL} SOL → ${config.X402_RECIPIENT_ADDRESS}`,
 	);
-	console.log(`  Network: ${config.X402_NETWORK}\n`);
+	console.log(`  Network: ${x402Network(config)}\n`);
 	console.log("Triggering x402 payment...\n");
 
 	const log: Parameters<typeof triggerX402Payment>[1] = {

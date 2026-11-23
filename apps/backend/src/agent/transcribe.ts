@@ -10,7 +10,7 @@ export class TranscribeError extends Error {
 	}
 }
 
-export interface TranscribeUtterance {
+interface TranscribeUtterance {
 	speaker: number;
 	transcript: string;
 	start: number;
@@ -18,13 +18,13 @@ export interface TranscribeUtterance {
 	confidence: number;
 }
 
-export interface TranscribeResult {
+interface TranscribeResult {
 	transcript: string;
 	confidence: number;
 	utterances: TranscribeUtterance[];
 }
 
-export interface TranscriberConfig {
+interface TranscriberConfig {
 	apiKey: string;
 }
 

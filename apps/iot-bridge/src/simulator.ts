@@ -1,16 +1,15 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import pino from "pino";
+import { z } from "zod";
 import { parseConfig } from "./config.js";
 import type { GpsFix } from "./nmea.js";
 
 const logger = pino({ name: "simulator" });
 
-interface Waypoint {
-	lat: number;
-	lon: number;
-	holdMs: number;
-}
+const RouteSchema = z
+	.array(z.object({ lat: z.number(), lon: z.number(), holdMs: z.number() }))
+	.min(2, "Route file must contain at least 2 waypoints");
 
 const EARTH_RADIUS_M = 6_371_000;
 
@@ -55,12 +54,9 @@ function startRouteMode(
 	routeFile: string,
 	onFix: (fix: GpsFix) => void,
 ): void {
-	const raw = readFileSync(resolve(routeFile), "utf-8");
-	const waypoints: Waypoint[] = JSON.parse(raw) as Waypoint[];
-
-	if (waypoints.length < 2) {
-		throw new Error("Route file must contain at least 2 waypoints");
-	}
+	const waypoints = RouteSchema.parse(
+		JSON.parse(readFileSync(resolve(routeFile), "utf-8")),
+	);
 
 	let currentIdx = 0;
 	let nextIdx = 1;
@@ -69,8 +65,7 @@ function startRouteMode(
 	let lastLat = waypoints[0].lat;
 	let lastLon = waypoints[0].lon;
 
-	// Metres per second (~30 km/h), not milliseconds.
-	const TARGET_SPEED_MS = 8.33;
+	const TARGET_SPEED_MPS = 8.33;
 	const TICK_MS = 1000;
 
 	const interval = setInterval(() => {
@@ -98,7 +93,7 @@ function startRouteMode(
 		const from = waypoints[currentIdx];
 		const to = waypoints[nextIdx];
 		const segmentDist = haversineDistance(from.lat, from.lon, to.lat, to.lon);
-		const progressStep = segmentDist > 0 ? TARGET_SPEED_MS / segmentDist : 1;
+		const progressStep = segmentDist > 0 ? TARGET_SPEED_MPS / segmentDist : 1;
 		progress += progressStep;
 
 		if (progress >= 1) {

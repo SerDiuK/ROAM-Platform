@@ -5,17 +5,14 @@ import { getActiveIncidentsTool } from "./getActiveIncidents.js";
 import { getResponderStatusTool } from "./getResponderStatus.js";
 import type { AgentTool, AgentToolContext } from "./types.js";
 
-// biome-ignore lint/suspicious/noExplicitAny: registry needs to hold heterogeneous tools
-type AnyAgentTool = AgentTool<any, unknown>;
-
-const TOOLS: AnyAgentTool[] = [
+const TOOLS: AgentTool<unknown, unknown>[] = [
 	classifyIncidentTool,
 	findNearestVehiclesTool,
 	getResponderStatusTool,
 	getActiveIncidentsTool,
 ];
 
-const TOOLS_BY_NAME = new Map<string, AnyAgentTool>(
+const TOOLS_BY_NAME = new Map<string, AgentTool<unknown, unknown>>(
 	TOOLS.map((t) => [t.name, t]),
 );
 
@@ -28,7 +25,7 @@ export interface AgentToolDefinition {
 export const agentTools: AgentToolDefinition[] = TOOLS.map((t) => ({
 	name: t.name,
 	description: t.description,
-	input_schema: zodToJsonSchema(t.inputSchema) as Record<string, unknown>,
+	input_schema: zodToJsonSchema(t.inputSchema),
 }));
 
 export class UnknownToolError extends Error {

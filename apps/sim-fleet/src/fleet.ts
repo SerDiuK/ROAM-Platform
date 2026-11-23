@@ -7,7 +7,7 @@ import {
 
 export type FleetVehicle = DemoFleetVehicle;
 
-export const DEFAULT_FLEET: FleetVehicle[] = DEMO_FLEET;
+const DEFAULT_FLEET: FleetVehicle[] = DEMO_FLEET;
 
 export function loadFleet(fleetConfigPath?: string): FleetVehicle[] {
 	if (!fleetConfigPath) {

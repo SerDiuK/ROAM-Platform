@@ -1,12 +1,14 @@
 "use client";
 
-import type {
-	Incident,
-	IncidentUrgency,
-	Telemetry,
-	TelemetrySnapshot,
-	Vehicle,
-	VehicleStatus,
+import {
+	INCIDENT_URGENCIES,
+	type Incident,
+	type IncidentUrgency,
+	type Telemetry,
+	type TelemetrySnapshot,
+	VEHICLE_STATUSES,
+	type Vehicle,
+	type VehicleStatus,
 } from "@roam/shared";
 import {
 	cn,
@@ -16,7 +18,7 @@ import {
 	URGENCY_LABEL,
 } from "@roam/ui";
 import { DivIcon } from "leaflet";
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MapContainer, Marker, TileLayer } from "react-leaflet";
 import { Icon } from "../../ui/icon";
@@ -25,7 +27,11 @@ type MapLayer = "street" | "satellite";
 
 const ACTIVE_INCIDENT_STATUSES = new Set(["live", "pending", "responding"]);
 
-function StatusMarker({ color }: { color: string }): React.ReactElement {
+type StatusMarkerProps = {
+	color: string;
+};
+
+function StatusMarker({ color }: StatusMarkerProps) {
 	return (
 		<div className="flex size-8 cursor-pointer items-center justify-center">
 			<div
@@ -54,33 +60,32 @@ function getStatusIcon(status: VehicleStatus): DivIcon {
 	return icon;
 }
 
-function VehicleMarker({
-	vehicle,
-	telemetry,
-	onSelect,
-}: {
+type VehicleMarkerProps = {
 	vehicle: Vehicle;
-	telemetry: Telemetry | TelemetrySnapshot;
+	telemetry: TelemetrySnapshot;
 	onSelect: (id: string) => void;
-}): React.ReactElement {
+};
+
+function VehicleMarker({ vehicle, telemetry, onSelect }: VehicleMarkerProps) {
+	const eventHandlers = useMemo(
+		() => ({ click: () => onSelect(vehicle._id) }),
+		[onSelect, vehicle._id],
+	);
 	return (
 		<Marker
 			position={[telemetry.lat, telemetry.lon]}
 			icon={getStatusIcon(vehicle.status)}
-			eventHandlers={{
-				click: () => onSelect(vehicle._id),
-			}}
+			eventHandlers={eventHandlers}
 		/>
 	);
 }
 
-function IncidentMarkerVisual({
-	color,
-	pulse,
-}: {
+type IncidentMarkerVisualProps = {
 	color: string;
 	pulse: boolean;
-}): React.ReactElement {
+};
+
+function IncidentMarkerVisual({ color, pulse }: IncidentMarkerVisualProps) {
 	return (
 		<div className="relative flex size-12 cursor-pointer items-center justify-center">
 			{pulse && (
@@ -96,10 +101,7 @@ function IncidentMarkerVisual({
 					boxShadow: `0 0 0 2px ${color}80, 0 0 14px ${color}99`,
 				}}
 			>
-				<span
-					className="material-symbols-outlined leading-none text-background"
-					style={{ fontSize: "14px" }}
-				>
+				<span className="material-symbols-outlined text-sm leading-none text-background">
 					emergency
 				</span>
 			</div>
@@ -125,13 +127,16 @@ function getIncidentIcon(color: string, pulse: boolean): DivIcon {
 	return icon;
 }
 
-function IncidentMarker({
-	incident,
-	onSelect,
-}: {
+type IncidentMarkerProps = {
 	incident: Incident;
 	onSelect: (id: string) => void;
-}): React.ReactElement | null {
+};
+
+function IncidentMarker({ incident, onSelect }: IncidentMarkerProps) {
+	const eventHandlers = useMemo(
+		() => ({ click: () => onSelect(incident._id) }),
+		[onSelect, incident._id],
+	);
 	const location = incident.classification?.location;
 	if (!location) return null;
 	const urgency: IncidentUrgency = incident.classification?.urgency ?? 2;
@@ -142,12 +147,19 @@ function IncidentMarker({
 			position={[location.lat, location.lon]}
 			icon={getIncidentIcon(color, pulse)}
 			zIndexOffset={1000}
-			eventHandlers={{
-				click: () => onSelect(incident._id),
-			}}
+			eventHandlers={eventHandlers}
 		/>
 	);
 }
+
+type MapInnerProps = {
+	vehicles: Vehicle[];
+	positions: Map<string, Telemetry>;
+	incidents: Incident[];
+	rightSidebarOpen: boolean;
+	onSelectVehicle: (id: string) => void;
+	onSelectIncident: (id: string) => void;
+};
 
 export function MapInner({
 	vehicles,
@@ -156,15 +168,10 @@ export function MapInner({
 	rightSidebarOpen,
 	onSelectVehicle,
 	onSelectIncident,
-}: {
-	vehicles: Vehicle[];
-	positions: Map<string, Telemetry>;
-	incidents: Incident[];
-	rightSidebarOpen: boolean;
-	onSelectVehicle: (id: string) => void;
-	onSelectIncident: (id: string) => void;
-}) {
+}: MapInnerProps) {
 	const [layer, setLayer] = useState<MapLayer>("street");
+	const showStreet = useCallback(() => setLayer("street"), []);
+	const showSatellite = useCallback(() => setLayer("satellite"), []);
 
 	const controlPositionStyle = {
 		right: rightSidebarOpen ? "calc(var(--sidebar-width) + 0.5rem)" : "0.5rem",
@@ -212,17 +219,17 @@ export function MapInner({
 
 			<div
 				style={controlPositionStyle}
-				className="absolute top-2 z-[1000] flex items-center gap-1 rounded-md border border-sidebar-border bg-background/90 p-1 shadow-md backdrop-blur transition-[right] duration-200 ease-linear"
+				className="absolute top-2 z-1000 flex items-center gap-1 rounded-md border border-sidebar-border bg-background/90 p-1 shadow-md backdrop-blur transition-[right] duration-200 ease-linear"
 			>
 				<LayerButton
 					active={layer === "street"}
-					onClick={() => setLayer("street")}
+					onClick={showStreet}
 					icon={<Icon name="map" />}
 					label="Map"
 				/>
 				<LayerButton
 					active={layer === "satellite"}
-					onClick={() => setLayer("satellite")}
+					onClick={showSatellite}
 					icon={<Icon name="satellite_alt" />}
 					label="Satellite"
 				/>
@@ -230,12 +237,12 @@ export function MapInner({
 
 			<div
 				style={controlPositionStyle}
-				className="absolute bottom-5 z-[1000] flex flex-col gap-1 rounded-lg border border-sidebar-border bg-sidebar/90 px-3 py-2 shadow-md backdrop-blur transition-[right] duration-200 ease-linear"
+				className="absolute bottom-5 z-1000 flex flex-col gap-1 rounded-lg border border-sidebar-border bg-sidebar/90 px-3 py-2 shadow-md backdrop-blur transition-[right] duration-200 ease-linear"
 			>
 				<div className="pb-1 text-2xs font-semibold uppercase tracking-wider text-muted-foreground/80">
 					Fleet
 				</div>
-				{(Object.keys(STATUS_HEX) as VehicleStatus[]).map((status) => (
+				{VEHICLE_STATUSES.map((status) => (
 					<div
 						key={status}
 						className="flex items-center gap-2 text-xs text-muted-foreground"
@@ -250,7 +257,7 @@ export function MapInner({
 				<div className="mt-1 border-sidebar-border border-t pt-1.5 pb-1 text-2xs font-semibold uppercase tracking-wider text-muted-foreground/80">
 					Incidents
 				</div>
-				{([1, 2, 3] as IncidentUrgency[]).map((urgency) => (
+				{INCIDENT_URGENCIES.map((urgency) => (
 					<div
 						key={urgency}
 						className="flex items-center gap-2 text-xs text-muted-foreground"
@@ -267,17 +274,14 @@ export function MapInner({
 	);
 }
 
-function LayerButton({
-	active,
-	onClick,
-	icon,
-	label,
-}: {
+type LayerButtonProps = {
 	active: boolean;
 	onClick: () => void;
 	icon: React.ReactNode;
 	label: string;
-}): React.ReactElement {
+};
+
+function LayerButton({ active, onClick, icon, label }: LayerButtonProps) {
 	return (
 		<button
 			type="button"

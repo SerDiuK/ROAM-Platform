@@ -48,7 +48,7 @@ pnpm roam                             # admin CLI
 ## Code conventions
 
 - TypeScript strict mode everywhere — no `any`, no type assertions without a comment explaining why
-- Named exports only — no default exports anywhere (Next.js `page.tsx`/`layout.tsx` use `export { Foo as default }` to keep the function name)
+- Named exports only — no default exports except where a framework needs one: Next.js `page.tsx`/`layout.tsx` (`export { Foo as default }` keeps the function name) and oclif commands
 - All Zod schemas live in `packages/shared/src` — never redefine types in app code, always import from `@roam/shared`
 - Env vars are validated with Zod in each app's `src/config.ts` — never access `process.env` directly anywhere else in the codebase
 - Errors are typed — no throwing raw strings, no silent `catch {}` blocks (surface failures via a typed result, a connection flag, or a thrown typed error)
@@ -59,9 +59,9 @@ App-specific frontend conventions (file layout, state, memoization, design token
 
 ## Architecture rules
 
-- MQTT topics: `vehicles/{vehicleId}/telemetry` (IoT bridge → backend), `vehicles/{vehicleId}/commands` (backend → IoT bridge)
+- MQTT topic: `vehicles/{callsign}/telemetry` (IoT bridge → backend)
 - All dates stored as MongoDB `Date`, transmitted as ISO strings over HTTP API, converted to `BN` (big number) for Solana
-- Backend Solana writes are non-blocking — API calls must succeed even if Solana is slow or down
+- Backend Solana writes are non-blocking: the events the backend records itself (received, dispatched, a CLI clear) go to the chain in the background, so those calls succeed even if Solana is slow or down. The Seeker-signed accept, decline and clear need the chain
 - Domain vocabulary: emergency-services. **Responders** (medics) sign in with their Seeker (Sign-in-with-Solana) and are bound to a responder **name** on first sign-in. **Dispatchers** approve briefings. **Vehicles** keep callsigns (e.g., `MEDIC-1`); **responders** use names. Fleet is ambulance-only — only responder capability is `medic`.
 
 ## Key files
@@ -83,6 +83,7 @@ App-specific frontend conventions (file layout, state, memoization, design token
 - Anchor 0.31.1, Solana CLI 3.x (Agave)
 - Build: `anchor build` (IDL only) + `cargo build-sbf --manifest-path programs/roam/Cargo.toml --sbf-out-dir target/deploy`
 - Deploy: `anchor deploy --provider.cluster <cluster>`
+- Test: `anchor test --skip-build` (local validator; `Anchor.toml` defaults to localnet)
 - Keypair: `~/.config/solana/roam-operator.json` (Solana fee-payer; named "operator" in Solana network terminology, unrelated to in-app responder/dispatcher roles)
 
 ## Environment setup

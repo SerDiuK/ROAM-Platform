@@ -1,7 +1,8 @@
 import { ORPCError } from "@orpc/server";
-import type { Vehicle } from "@roam/shared";
+import { type Vehicle, VehicleSchema } from "@roam/shared";
 import type { Types } from "mongoose";
 import { ResponderModel } from "../models/responder.js";
+import { toWire } from "./wire.js";
 
 export async function activeResponderMap(
 	vehicleIds: Types.ObjectId[],
@@ -32,12 +33,5 @@ export function serializeVehicle(
 			message: `Vehicle ${v.callsign ?? v._id.toHexString()} references a missing VehicleSpec — restart backend to re-seed specs`,
 		});
 	}
-	// populate() swaps the FK for the VehicleSpec doc at runtime, which TS can't see.
-	const model = v.model as { _id: Types.ObjectId } & Record<string, unknown>;
-	return {
-		...v,
-		_id: v._id.toHexString(),
-		model: { ...model, _id: model._id.toHexString() },
-		currentResponderId,
-	} as unknown as Vehicle;
+	return toWire(VehicleSchema, { ...v, currentResponderId });
 }

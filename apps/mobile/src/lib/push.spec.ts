@@ -60,7 +60,7 @@ describe("registerPushToken", () => {
 		projectId.value = "test-project";
 	});
 
-	it("registers the Expo token against the responder and returns ok with the new tokenCount", async () => {
+	it("registers the Expo token against the responder", async () => {
 		getPermissionsAsync.mockResolvedValue({
 			granted: true,
 			canAskAgain: false,
@@ -68,15 +68,9 @@ describe("registerPushToken", () => {
 		getExpoPushTokenAsync.mockResolvedValue({
 			data: "ExponentPushToken[abc-123]",
 		});
-		upsertPushToken.mockResolvedValue({ tokenCount: 2 });
 
-		const result = await registerPushToken();
+		await registerPushToken();
 
-		expect(result).toEqual({
-			ok: true,
-			token: "ExponentPushToken[abc-123]",
-			tokenCount: 2,
-		});
 		expect(upsertPushToken).toHaveBeenCalledTimes(1);
 		expect(upsertPushToken).toHaveBeenCalledWith({
 			token: "ExponentPushToken[abc-123]",
@@ -93,89 +87,75 @@ describe("registerPushToken", () => {
 			data: "ExponentPushToken[after-prompt]",
 		});
 
-		const result = await registerPushToken();
+		await registerPushToken();
 
 		expect(requestPermissionsAsync).toHaveBeenCalledTimes(1);
-		expect(result.ok).toBe(true);
 		expect(upsertPushToken).toHaveBeenCalledTimes(1);
 	});
 
-	it("returns ok=false silently and does not hit the backend when permission is denied", async () => {
+	it("does not hit the backend when permission is denied", async () => {
 		getPermissionsAsync.mockResolvedValue({
 			granted: false,
 			canAskAgain: true,
 		});
 		requestPermissionsAsync.mockResolvedValue({ granted: false });
 
-		const result = await registerPushToken();
+		await registerPushToken();
 
-		expect(result).toEqual({
-			ok: false,
-			reason: "Notification permission denied",
-		});
 		expect(upsertPushToken).not.toHaveBeenCalled();
 		expect(getExpoPushTokenAsync).not.toHaveBeenCalled();
 	});
 
-	it("returns ok=false silently when permission was previously denied and cannot be asked again", async () => {
+	it("does not ask again when permission was previously denied and cannot be asked again", async () => {
 		getPermissionsAsync.mockResolvedValue({
 			granted: false,
 			canAskAgain: false,
 		});
 
-		const result = await registerPushToken();
+		await registerPushToken();
 
-		expect(result).toEqual({
-			ok: false,
-			reason: "Notification permission denied",
-		});
 		expect(requestPermissionsAsync).not.toHaveBeenCalled();
 		expect(upsertPushToken).not.toHaveBeenCalled();
 	});
 
-	it("returns ok=false when not running on a physical device (simulator/emulator)", async () => {
+	it("skips registration when not running on a physical device (simulator/emulator)", async () => {
 		isDevice.value = false;
 
-		const result = await registerPushToken();
+		await registerPushToken();
 
-		expect(result.ok).toBe(false);
 		expect(getPermissionsAsync).not.toHaveBeenCalled();
 		expect(upsertPushToken).not.toHaveBeenCalled();
 	});
 
-	it("propagates errors from the backend so the boot atom can surface them", async () => {
+	it("resolves when the backend rejects the token", async () => {
+		vi.spyOn(console, "warn").mockImplementation(() => {});
 		getPermissionsAsync.mockResolvedValue({ granted: true });
 		getExpoPushTokenAsync.mockResolvedValue({
 			data: "ExponentPushToken[ok]",
 		});
 		upsertPushToken.mockRejectedValue(new Error("network down"));
 
-		await expect(registerPushToken()).rejects.toThrow("network down");
+		await expect(registerPushToken()).resolves.toBeUndefined();
 	});
 
-	it("returns ok=false when the Expo project id has not been configured", async () => {
+	it("skips registration when the Expo project id has not been configured", async () => {
 		projectId.value = undefined;
 		getPermissionsAsync.mockResolvedValue({ granted: true });
 
-		const result = await registerPushToken();
+		await registerPushToken();
 
-		expect(result.ok).toBe(false);
 		expect(getExpoPushTokenAsync).not.toHaveBeenCalled();
 		expect(upsertPushToken).not.toHaveBeenCalled();
 	});
 
-	it("returns ok=false silently when getExpoPushTokenAsync throws (Expo Go Android / missing FCM)", async () => {
+	it("resolves without the backend when getExpoPushTokenAsync throws (Expo Go Android / missing FCM)", async () => {
+		vi.spyOn(console, "warn").mockImplementation(() => {});
 		getPermissionsAsync.mockResolvedValue({ granted: true });
 		getExpoPushTokenAsync.mockRejectedValue(
 			new Error("Android Push notifications removed from Expo Go"),
 		);
 
-		const result = await registerPushToken();
-
-		expect(result).toEqual({
-			ok: false,
-			reason: "Android Push notifications removed from Expo Go",
-		});
+		await expect(registerPushToken()).resolves.toBeUndefined();
 		expect(upsertPushToken).not.toHaveBeenCalled();
 	});
 });

@@ -9,5 +9,5 @@ export interface AgentTool<TInput, TOutput> {
 	name: string;
 	description: string;
 	inputSchema: z.ZodType<TInput>;
-	handler: (input: TInput, ctx: AgentToolContext) => Promise<TOutput>;
+	handler(input: TInput, ctx: AgentToolContext): Promise<TOutput>;
 }

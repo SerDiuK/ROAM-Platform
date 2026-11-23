@@ -1,11 +1,10 @@
 import type { IncidentEvent, IncidentEventKind } from "@roam/shared";
-import { formatTime } from "@roam/ui";
+import { formatTime, solanaExplorerTxUrl } from "@roam/ui";
 import * as React from "react";
 import { Linking, Pressable, ScrollView, View } from "react-native";
 import { Sheet, SheetTitle } from "@/components/ui/sheet";
 import { Text } from "@/components/ui/text";
 import { api } from "@/lib/api";
-import { solanaExplorerTxUrl } from "@/lib/solana-explorer";
 
 type Props = {
 	open: boolean;
@@ -51,8 +50,8 @@ function Body(): React.JSX.Element {
 				if (!cancelled) setLoading(false);
 			}
 		};
-		void load();
-		const interval = setInterval(() => void load(), 5000);
+		load();
+		const interval = setInterval(load, 5000);
 		return () => {
 			cancelled = true;
 			clearInterval(interval);
@@ -111,15 +110,7 @@ function EventRow({ event }: { event: IncidentEvent }): React.JSX.Element {
 				</Text>
 			</View>
 			{sig ? (
-				<Pressable
-					onPress={() => void Linking.openURL(solanaExplorerTxUrl(sig))}
-					className="rounded border border-solana/40 bg-solana/10 px-2 py-1"
-					accessibilityLabel="Open transaction in Solana explorer"
-				>
-					<Text className="text-2xs font-semibold uppercase tracking-wider text-solana">
-						⬡ TX
-					</Text>
-				</Pressable>
+				<TransactionLink signature={sig} />
 			) : (
 				<View className="rounded border border-sidebar-border bg-sidebar-accent/40 px-2 py-1">
 					<Text className="text-2xs uppercase tracking-wider text-muted-foreground">
@@ -128,6 +119,32 @@ function EventRow({ event }: { event: IncidentEvent }): React.JSX.Element {
 				</View>
 			)}
 		</View>
+	);
+}
+
+function TransactionLink({
+	signature,
+}: {
+	signature: string;
+}): React.JSX.Element {
+	const openExplorer = React.useCallback(async (): Promise<void> => {
+		try {
+			await Linking.openURL(solanaExplorerTxUrl(signature));
+		} catch (err) {
+			console.warn("[explorer]", err);
+		}
+	}, [signature]);
+
+	return (
+		<Pressable
+			onPress={openExplorer}
+			className="rounded border border-solana/40 bg-solana/10 px-2 py-1"
+			accessibilityLabel="Open transaction in Solana explorer"
+		>
+			<Text className="text-2xs font-semibold uppercase tracking-wider text-solana">
+				⬡ TX
+			</Text>
+		</Pressable>
 	);
 }
 

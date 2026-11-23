@@ -1,14 +1,21 @@
 import { AnchorProvider, Wallet } from "@coral-xyz/anchor";
-import { getCluster } from "@roam/solana-client";
 import { Connection, clusterApiUrl, Keypair } from "@solana/web3.js";
 import bs58 from "bs58";
 import type { FastifyBaseLogger } from "fastify";
 import type { Config } from "../config.js";
 
-export type SolanaContext = {
+type SolanaContext = {
 	connection: Connection;
 	operator: Keypair;
 };
+
+export function buildConnection(config: Config): Connection {
+	const url =
+		config.SOLANA_CLUSTER === "localnet"
+			? "http://localhost:8899"
+			: clusterApiUrl(config.SOLANA_CLUSTER);
+	return new Connection(url, "confirmed");
+}
 
 export function getSolanaContext(config: Config): SolanaContext {
 	if (!config.SOLANA_OPERATOR_KEYPAIR) {
@@ -16,11 +23,7 @@ export function getSolanaContext(config: Config): SolanaContext {
 	}
 	const secretKey = bs58.decode(config.SOLANA_OPERATOR_KEYPAIR);
 	const operator = Keypair.fromSecretKey(secretKey);
-	const cluster = getCluster(config.SOLANA_CLUSTER);
-	const connection = new Connection(
-		cluster === "localnet" ? "http://localhost:8899" : clusterApiUrl(cluster),
-	);
-	return { connection, operator };
+	return { connection: buildConnection(config), operator };
 }
 
 export async function withSolanaProvider<T>(

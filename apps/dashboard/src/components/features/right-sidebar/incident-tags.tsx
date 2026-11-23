@@ -1,13 +1,14 @@
+"use client";
+
 import type { IncidentUrgency } from "@roam/shared";
 import { cn, URGENCY_LABEL } from "@roam/ui";
+import { URGENCY_TINT } from "./urgency-badge";
 
-const URGENCY_TINT: Record<IncidentUrgency, string> = {
-	1: "bg-danger/15 text-danger",
-	2: "bg-warning/15 text-warning",
-	3: "bg-muted-foreground/15 text-muted-foreground",
+type UrgencyTagProps = {
+	urgency: IncidentUrgency;
 };
 
-export function UrgencyTag({ urgency }: { urgency: IncidentUrgency }) {
+export function UrgencyTag({ urgency }: UrgencyTagProps) {
 	return (
 		<span
 			className={cn(
@@ -20,7 +21,11 @@ export function UrgencyTag({ urgency }: { urgency: IncidentUrgency }) {
 	);
 }
 
-export function CapabilityChip({ label }: { label: string }) {
+type CapabilityChipProps = {
+	label: string;
+};
+
+export function CapabilityChip({ label }: CapabilityChipProps) {
 	return (
 		<span className="inline-flex items-center rounded-md border border-sidebar-border bg-sidebar-accent/40 px-2 py-1 text-2xs font-medium uppercase tracking-wider text-muted-foreground">
 			{label}

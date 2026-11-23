@@ -6,71 +6,67 @@ vi.mock("react-native", () => ({
 	Platform: { OS: "ios" },
 }));
 
-const { SeekerCancelledError, SeekerProtocolError, createMwa } = await import(
-	"./mwa.js"
-);
+const {
+	SeekerAuthorizationError,
+	SeekerCancelledError,
+	SeekerSigningError,
+	createMwa,
+} = await import("./mwa.js");
 
-type FakeWallet = {
-	authorize: ReturnType<typeof vi.fn>;
-	signAndSendTransactions: ReturnType<typeof vi.fn>;
-};
+type Transact = NonNullable<Parameters<typeof createMwa>[0]>;
+type Wallet = Parameters<Parameters<Transact>[0]>[0];
 
-function makeFakeWallet(kp: Keypair): FakeWallet {
+function transactWith(wallet: Wallet): Transact {
+	return async (callback) => callback(wallet);
+}
+
+function authorization(authToken: string) {
+	return {
+		accounts: [{ address: "AAAAAA" }],
+		auth_token: authToken,
+		wallet_uri_base: "https://wallet.example",
+	};
+}
+
+function makeFakeWallet(kp: Keypair) {
 	const addressB64 = Buffer.from(kp.publicKey.toBytes()).toString("base64");
 	return {
-		authorize: vi.fn(
-			async (params: {
-				sign_in_payload?: {
-					domain: string;
-					nonce?: string;
-					statement?: string;
-				};
-			}) => {
-				const result: {
-					accounts: { address: string }[];
-					auth_token: string;
-					sign_in_result?: {
-						address: string;
-						signed_message: string;
-						signature: string;
-					};
-				} = {
-					accounts: [{ address: addressB64 }],
-					auth_token: "auth-token-1",
-				};
-				if (params.sign_in_payload) {
-					const body = [
-						`${params.sign_in_payload.domain} wants you to sign in with your Solana account:`,
-						kp.publicKey.toBase58(),
-						"",
-						params.sign_in_payload.statement ?? "",
-						"",
-						`Nonce: ${params.sign_in_payload.nonce ?? ""}`,
-					].join("\n");
-					const bytes = new TextEncoder().encode(body);
-					const sig = nacl.sign.detached(bytes, kp.secretKey);
-					result.sign_in_result = {
-						address: addressB64,
-						signed_message: Buffer.from(bytes).toString("base64"),
-						signature: Buffer.from(sig).toString("base64"),
-					};
-				}
-				return result;
-			},
-		),
+		authorize: vi.fn(async (params: Parameters<Wallet["authorize"]>[0]) => {
+			if (!params.sign_in_payload) return authorization("auth-token-1");
+			const body = [
+				`${params.sign_in_payload.domain} wants you to sign in with your Solana account:`,
+				kp.publicKey.toBase58(),
+				"",
+				params.sign_in_payload.statement ?? "",
+				"",
+				`Nonce: ${params.sign_in_payload.nonce ?? ""}`,
+			].join("\n");
+			const bytes = new TextEncoder().encode(body);
+			const sig = nacl.sign.detached(bytes, kp.secretKey);
+			return {
+				...authorization("auth-token-1"),
+				sign_in_result: {
+					address: addressB64,
+					signed_message: Buffer.from(bytes).toString("base64"),
+					signature: Buffer.from(sig).toString("base64"),
+				},
+			};
+		}),
 		signAndSendTransactions: vi.fn(async () => ["sig-base58-1"]),
 	};
 }
 
-type TransactCb<T> = (wallet: FakeWallet) => Promise<T>;
+function makeTx(): Transaction {
+	return new Transaction({
+		feePayer: Keypair.generate().publicKey,
+		recentBlockhash: "11111111111111111111111111111111",
+	});
+}
 
 describe("mwa.signIn", () => {
 	it("returns the sign_in_result triple decoded + the auth_token", async () => {
 		const kp = Keypair.generate();
-		const wallet = makeFakeWallet(kp);
-		const transact = async <T>(cb: TransactCb<T>): Promise<T> => cb(wallet);
-
-		const mwa = createMwa(transact as never);
+		const mwa = createMwa(transactWith(makeFakeWallet(kp)));
 		const result = await mwa.signIn({
 			domain: "roam.dispatch",
 			statement: "Sign in.",
@@ -88,11 +84,8 @@ describe("mwa.signIn", () => {
 	});
 
 	it("passes the cached authToken to authorize when supplied", async () => {
-		const kp = Keypair.generate();
-		const wallet = makeFakeWallet(kp);
-		const transact = async <T>(cb: TransactCb<T>): Promise<T> => cb(wallet);
-
-		const mwa = createMwa(transact as never);
+		const wallet = makeFakeWallet(Keypair.generate());
+		const mwa = createMwa(transactWith(wallet));
 		await mwa.signIn(
 			{ domain: "roam.dispatch", nonce: "n" },
 			{ authToken: "cached-token" },
@@ -103,19 +96,16 @@ describe("mwa.signIn", () => {
 		);
 	});
 
-	it("throws SeekerProtocolError when the wallet returns no sign_in_result", async () => {
-		const transact = async <T>(cb: TransactCb<T>): Promise<T> =>
-			cb({
-				authorize: vi.fn(async () => ({
-					accounts: [{ address: "AAAAAA" }],
-					auth_token: "t",
-				})),
+	it("throws SeekerAuthorizationError when the wallet returns no sign_in_result", async () => {
+		const mwa = createMwa(
+			transactWith({
+				authorize: vi.fn(async () => authorization("t")),
 				signAndSendTransactions: vi.fn(),
-			});
-		const mwa = createMwa(transact as never);
+			}),
+		);
 		await expect(
 			mwa.signIn({ domain: "roam.dispatch", nonce: "n" }),
-		).rejects.toBeInstanceOf(SeekerProtocolError);
+		).rejects.toBeInstanceOf(SeekerAuthorizationError);
 	});
 
 	it("throws SeekerCancelledError when the wallet reports a cancellation", async () => {
@@ -124,37 +114,34 @@ describe("mwa.signIn", () => {
 				code: "ERROR_ASSOCIATION_CANCELLED",
 			});
 		};
-		const mwa = createMwa(transact as never);
+		const mwa = createMwa(transact);
 		await expect(
 			mwa.signIn({ domain: "roam.dispatch", nonce: "n" }),
 		).rejects.toBeInstanceOf(SeekerCancelledError);
 	});
 
-	it("throws SeekerProtocolError when transact is null (web/iOS)", async () => {
+	it("throws SeekerAuthorizationError when transact is null (web/iOS)", async () => {
 		const mwa = createMwa(null);
 		expect(mwa.mwaAvailable).toBe(false);
 		await expect(
 			mwa.signIn({ domain: "roam.dispatch", nonce: "n" }),
-		).rejects.toBeInstanceOf(SeekerProtocolError);
+		).rejects.toBeInstanceOf(SeekerAuthorizationError);
 	});
 });
 
 describe("mwa.signAndSendTransaction", () => {
-	it("authorizes silently with the supplied authToken and returns the base58 sig", async () => {
-		const kp = Keypair.generate();
-		const wallet = makeFakeWallet(kp);
-		const transact = async <T>(cb: TransactCb<T>): Promise<T> => cb(wallet);
-
-		const mwa = createMwa(transact as never);
-		const tx = new Transaction({
-			feePayer: kp.publicKey,
-			recentBlockhash: "11111111111111111111111111111111",
-		});
-		const sig = await mwa.signAndSendTransaction(tx, {
+	it("authorizes silently with the supplied authToken and returns the sig with the wallet's auth token", async () => {
+		const wallet = makeFakeWallet(Keypair.generate());
+		const mwa = createMwa(transactWith(wallet));
+		const tx = makeTx();
+		const signed = await mwa.signAndSendTransaction(tx, {
 			authToken: "stored-token",
 		});
 
-		expect(sig).toBe("sig-base58-1");
+		expect(signed).toEqual({
+			signature: "sig-base58-1",
+			authToken: "auth-token-1",
+		});
 		expect(wallet.authorize).toHaveBeenCalledWith(
 			expect.objectContaining({ auth_token: "stored-token" }),
 		);
@@ -163,24 +150,56 @@ describe("mwa.signAndSendTransaction", () => {
 		});
 	});
 
-	it("throws SeekerProtocolError when the wallet returns no signature", async () => {
-		const kp = Keypair.generate();
-		const transact = async <T>(cb: TransactCb<T>): Promise<T> =>
-			cb({
-				authorize: vi.fn(async () => ({
-					accounts: [{ address: "x" }],
-					auth_token: "t",
-				})),
-				signAndSendTransactions: vi.fn(async () => []),
-			} as never);
+	it("re-authorizes a stale authToken, but not a cancelled one", async () => {
+		const stale = makeFakeWallet(Keypair.generate());
+		stale.authorize.mockRejectedValueOnce(new Error("auth_token not valid"));
+		const signed = await createMwa(transactWith(stale)).signAndSendTransaction(
+			makeTx(),
+			{ authToken: "stale-token" },
+		);
 
-		const mwa = createMwa(transact as never);
-		const tx = new Transaction({
-			feePayer: kp.publicKey,
-			recentBlockhash: "11111111111111111111111111111111",
-		});
+		expect(signed.authToken).toBe("auth-token-1");
+		expect(stale.authorize).toHaveBeenCalledTimes(2);
+
+		const cancelled = makeFakeWallet(Keypair.generate());
+		cancelled.authorize.mockRejectedValueOnce(new Error("User cancelled"));
 		await expect(
-			mwa.signAndSendTransaction(tx, { authToken: "t" }),
-		).rejects.toBeInstanceOf(SeekerProtocolError);
+			createMwa(transactWith(cancelled)).signAndSendTransaction(makeTx(), {
+				authToken: "stored-token",
+			}),
+		).rejects.toBeInstanceOf(SeekerCancelledError);
+		expect(cancelled.authorize).toHaveBeenCalledTimes(1);
+	});
+
+	it("raises SeekerAuthorizationError only when the wallet refuses to authorize", async () => {
+		const declined = makeFakeWallet(Keypair.generate());
+		declined.signAndSendTransactions.mockRejectedValueOnce(
+			new Error("Transaction declined"),
+		);
+		await expect(
+			createMwa(transactWith(declined)).signAndSendTransaction(makeTx(), {
+				authToken: "stored-token",
+			}),
+		).rejects.toBeInstanceOf(SeekerSigningError);
+
+		const refused = makeFakeWallet(Keypair.generate());
+		refused.authorize.mockRejectedValue(new Error("Authorization failed"));
+		await expect(
+			createMwa(transactWith(refused)).signAndSendTransaction(makeTx(), {
+				authToken: "stored-token",
+			}),
+		).rejects.toBeInstanceOf(SeekerAuthorizationError);
+	});
+
+	it("throws SeekerSigningError when the wallet returns no signature", async () => {
+		const mwa = createMwa(
+			transactWith({
+				authorize: vi.fn(async () => authorization("t")),
+				signAndSendTransactions: vi.fn(async () => []),
+			}),
+		);
+		await expect(
+			mwa.signAndSendTransaction(makeTx(), { authToken: "t" }),
+		).rejects.toBeInstanceOf(SeekerSigningError);
 	});
 });

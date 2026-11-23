@@ -7,7 +7,6 @@ export * from "./dispatchResponse";
 export * from "./geo";
 export * from "./incident";
 export * from "./incidentEvent";
-export * from "./payout";
 export * from "./responder";
 export * from "./telemetry";
 export * from "./vehicle";

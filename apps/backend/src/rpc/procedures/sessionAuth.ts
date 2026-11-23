@@ -1,4 +1,9 @@
 import { ORPCError } from "@orpc/server";
+import {
+	RESPONDER_ALREADY_BOUND,
+	ResponderSchema,
+	WALLET_UNBOUND,
+} from "@roam/shared";
 import { PublicKey } from "@solana/web3.js";
 import { signSessionToken } from "../../auth/jwt.js";
 import {
@@ -10,7 +15,7 @@ import {
 	verifySiwsSignature,
 } from "../../auth/siws.js";
 import { ResponderModel } from "../../db/models/responder.js";
-import { serializeResponder } from "../../db/serializers/responder.js";
+import { toWire } from "../../db/serializers/wire.js";
 import { authed, os } from "../builder.js";
 
 export const sessionAuthRouter = {
@@ -60,24 +65,23 @@ export const sessionAuthRouter = {
 
 		if (!responder) {
 			if (!input.name) {
-				// Mobile matches this exact message to show its name picker.
-				throw new ORPCError("UNAUTHORIZED", {
-					message: "WALLET_UNBOUND",
-					data: { error: "wallet_unbound" as const },
-				});
+				throw new ORPCError("UNAUTHORIZED", { message: WALLET_UNBOUND });
 			}
-			responder = await ResponderModel.findOne({ name: input.name });
+			responder = await ResponderModel.findOneAndUpdate(
+				{ name: input.name, walletAddress: null },
+				{ $set: { walletAddress: address } },
+				{ returnDocument: "after" },
+			);
 			if (!responder) {
+				const named = await ResponderModel.exists({ name: input.name });
 				log.info(
-					{ name: input.name, address },
-					"auth.siwsVerify: name not found",
+					{ name: input.name, address, named: Boolean(named) },
+					"auth.siwsVerify: name not bindable",
 				);
-				throw new ORPCError("UNAUTHORIZED", {
-					message: "Unknown responder",
-				});
+				throw named
+					? new ORPCError("CONFLICT", { message: RESPONDER_ALREADY_BOUND })
+					: new ORPCError("UNAUTHORIZED", { message: "Unknown responder" });
 			}
-			responder.walletAddress = address;
-			await responder.save();
 		}
 
 		const token = await signSessionToken(
@@ -90,7 +94,7 @@ export const sessionAuthRouter = {
 			{ responderId: responder._id, name: responder.name, address },
 			"auth.siwsVerify: ok",
 		);
-		return { token, responder: serializeResponder(responder.toObject()) };
+		return { token, responder: toWire(ResponderSchema, responder) };
 	}),
 
 	me: authed.auth.me.handler(async ({ context }) => {
@@ -100,7 +104,7 @@ export const sessionAuthRouter = {
 				message: "Responder no longer exists",
 			});
 		}
-		return { responder: serializeResponder(responder) };
+		return { responder: toWire(ResponderSchema, responder) };
 	}),
 
 	refresh: authed.auth.refresh.handler(async ({ context }) => {
@@ -116,6 +120,6 @@ export const sessionAuthRouter = {
 			config.AUTH_SECRET,
 			config.AUTH_TOKEN_TTL_SECS,
 		);
-		return { token, responder: serializeResponder(responder) };
+		return { token, responder: toWire(ResponderSchema, responder) };
 	}),
 };

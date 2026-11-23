@@ -1,11 +1,5 @@
 import type { IncidentUrgency } from "@roam/shared";
-import type { StatusTone } from "./status";
-
-export const URGENCY_TONE: Record<IncidentUrgency, StatusTone | "muted"> = {
-	1: "danger",
-	2: "warning",
-	3: "muted",
-};
+import { color } from "./tokens";
 
 export const URGENCY_LABEL: Record<IncidentUrgency, string> = {
 	1: "P1 · Lights & sirens",
@@ -14,7 +8,7 @@ export const URGENCY_LABEL: Record<IncidentUrgency, string> = {
 };
 
 export const URGENCY_HEX: Record<IncidentUrgency, string> = {
-	1: "#ef4444",
-	2: "#f59e0b",
-	3: "#6b7280",
+	1: color("danger"),
+	2: color("warning"),
+	3: color("mutedForeground"),
 };

@@ -14,7 +14,6 @@ const dispatchSchema = new mongoose.Schema({
 	decidedAt: { type: Date, required: true },
 	assignedVehicleIds: { type: [String], required: true, default: [] },
 	assignedResponderIds: { type: [String], required: true, default: [] },
-	payoutUsdc: { type: Number, required: true },
 	requiredAccepts: { type: Number, required: true, min: 1 },
 	status: { type: String, enum: DISPATCH_STATUSES, required: true },
 	claimedByResponderIds: { type: [String], required: true, default: [] },

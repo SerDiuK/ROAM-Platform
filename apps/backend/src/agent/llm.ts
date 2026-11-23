@@ -6,7 +6,7 @@ export interface AgentToolDefinition {
 	input_schema: Record<string, unknown>;
 }
 
-export interface AgentToolCall {
+interface AgentToolCall {
 	name: string;
 	input: unknown;
 	result?: unknown;
@@ -14,11 +14,11 @@ export interface AgentToolCall {
 	isError: boolean;
 }
 
-export type OnTool = (name: string, input: unknown) => Promise<unknown>;
+type OnTool = (name: string, input: unknown) => Promise<unknown>;
 
 export type AgentEffort = "low" | "medium" | "high" | "max" | "xhigh";
 
-export interface RunAgentArgs {
+interface RunAgentArgs {
 	client: Anthropic;
 	model: string;
 	maxTokens: number;
@@ -38,7 +38,7 @@ export interface RunAgentArgs {
 	}) => void;
 }
 
-export interface RunAgentResult {
+interface RunAgentResult {
 	finalMessage: Anthropic.Message;
 	toolCalls: AgentToolCall[];
 	turns: number;
@@ -72,6 +72,7 @@ export async function runAgent(args: RunAgentArgs): Promise<RunAgentResult> {
 					cache_control: { type: "ephemeral" },
 				},
 			],
+			// zod-to-json-schema types its output wider than the SDK's InputSchema; every tool input is a z.object.
 			tools: args.tools as unknown as Anthropic.ToolUnion[],
 			messages: messagesWithCache,
 			...(args.thinking ? { thinking: args.thinking } : {}),

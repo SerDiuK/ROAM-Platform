@@ -3,11 +3,12 @@
 import type {
 	Responder,
 	Telemetry,
+	TelemetrySnapshot,
 	Vehicle,
 	VehicleStatus,
 } from "@roam/shared";
 import { STATUS_LABEL, STATUS_TONE } from "@roam/ui";
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { DataCell } from "../../ui/data-cell";
 import {
 	SidebarContent,
@@ -15,22 +16,22 @@ import {
 	SidebarGroup,
 	SidebarGroupContent,
 	SidebarGroupLabel,
-	SidebarHeader,
 	SidebarMenu,
 	SidebarMenuItem,
-	SidebarTrigger,
 } from "../../ui/sidebar-primitives";
 import { StatusDot } from "../../ui/status-pill";
 import { UnitCard } from "../../ui/unit-card";
+import { isLive, TELEMETRY_LIVE_MS } from "./fleet-status.utils";
 
 type FleetStatusProps = {
 	vehicles: Vehicle[];
 	positions: Map<string, Telemetry>;
 	responderMap: Map<string, Responder>;
+	now: number;
+	transmittingCount: number;
 	telemetryConnected: boolean;
 	selectedVehicleId: string | null;
 	onSelectVehicle: (id: string) => void;
-	showHeader?: boolean;
 };
 
 const SORT_ORDER: VehicleStatus[] = [
@@ -44,10 +45,11 @@ export function FleetStatus({
 	vehicles,
 	positions,
 	responderMap,
+	now,
+	transmittingCount,
 	telemetryConnected,
 	selectedVehicleId,
 	onSelectVehicle,
-	showHeader = true,
 }: FleetStatusProps) {
 	const counts = useMemo<Record<VehicleStatus, number>>(() => {
 		const acc: Record<VehicleStatus, number> = {
@@ -73,18 +75,6 @@ export function FleetStatus({
 
 	return (
 		<>
-			{showHeader && (
-				<SidebarHeader className="justify-between">
-					<div className="flex items-center gap-2">
-						<span className="size-1.5 rounded-full bg-primary" />
-						<span className="text-xs font-semibold uppercase tracking-widest text-foreground">
-							Fleet Status
-						</span>
-					</div>
-					<SidebarTrigger className="-mr-1" />
-				</SidebarHeader>
-			)}
-
 			<SidebarContent>
 				<SidebarGroup>
 					<SidebarGroupLabel>Roster</SidebarGroupLabel>
@@ -126,33 +116,23 @@ export function FleetStatus({
 									No vehicles yet
 								</li>
 							)}
-							{sorted.map((vehicle) => {
-								const telemetry =
-									positions.get(vehicle._id) ?? vehicle.lastTelemetry;
-								const responder = vehicle.currentResponderId
-									? responderMap.get(vehicle.currentResponderId)
-									: undefined;
-								const primaryLabel =
-									responder?.displayName ?? responder?.name ?? vehicle.callsign;
-								const metaLabel = responder ? vehicle.callsign : undefined;
-								return (
-									<SidebarMenuItem key={vehicle._id}>
-										<UnitCard
-											tone={STATUS_TONE[vehicle.status]}
-											trailingTone="muted"
-											callsign={primaryLabel}
-											meta={metaLabel}
-											trailingValue={
-												telemetry
-													? `${telemetry.speed.toFixed(0)} km/h`
-													: STATUS_LABEL[vehicle.status]
-											}
-											isActive={vehicle._id === selectedVehicleId}
-											onClick={() => onSelectVehicle(vehicle._id)}
-										/>
-									</SidebarMenuItem>
-								);
-							})}
+							{sorted.map((vehicle) => (
+								<FleetRow
+									key={vehicle._id}
+									vehicle={vehicle}
+									telemetry={
+										positions.get(vehicle._id) ?? vehicle.lastTelemetry
+									}
+									responder={
+										vehicle.currentResponderId
+											? responderMap.get(vehicle.currentResponderId)
+											: undefined
+									}
+									now={now}
+									isActive={vehicle._id === selectedVehicleId}
+									onSelect={onSelectVehicle}
+								/>
+							))}
 						</SidebarMenu>
 					</SidebarGroupContent>
 				</SidebarGroup>
@@ -165,10 +145,51 @@ export function FleetStatus({
 						{telemetryConnected ? "Telemetry live" : "Telemetry offline"}
 					</span>
 					<span className="tabular-nums text-muted-foreground">
-						{positions.size}/{vehicles.length}
+						{transmittingCount}/{vehicles.length}
 					</span>
 				</div>
 			</SidebarFooter>
 		</>
+	);
+}
+
+type FleetRowProps = {
+	vehicle: Vehicle;
+	telemetry: TelemetrySnapshot | undefined;
+	responder: Responder | undefined;
+	now: number;
+	isActive: boolean;
+	onSelect: (id: string) => void;
+};
+
+function FleetRow({
+	vehicle,
+	telemetry,
+	responder,
+	now,
+	isActive,
+	onSelect,
+}: FleetRowProps) {
+	const handleSelect = useCallback(
+		() => onSelect(vehicle._id),
+		[onSelect, vehicle._id],
+	);
+
+	return (
+		<SidebarMenuItem>
+			<UnitCard
+				tone={STATUS_TONE[vehicle.status]}
+				trailingTone="muted"
+				callsign={responder?.displayName ?? responder?.name ?? vehicle.callsign}
+				meta={responder ? vehicle.callsign : undefined}
+				trailingValue={
+					telemetry && isLive(telemetry.timestamp, now, TELEMETRY_LIVE_MS)
+						? `${telemetry.speed.toFixed(0)} km/h`
+						: STATUS_LABEL[vehicle.status]
+				}
+				isActive={isActive}
+				onClick={handleSelect}
+			/>
+		</SidebarMenuItem>
 	);
 }

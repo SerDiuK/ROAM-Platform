@@ -6,22 +6,22 @@ import {
 } from "@coral-xyz/anchor";
 import {
 	type Connection,
+	type GetVersionedTransactionConfig,
 	type Keypair,
 	PublicKey,
 	Transaction,
+	type VersionedTransactionResponse,
 } from "@solana/web3.js";
 import BN from "bn.js";
 import idlJson from "./idl.json";
 
+// A JSON import types its strings as `string`, wider than Anchor's literal unions.
 const idl = idlJson as Idl;
 const PROGRAM_ID = new PublicKey(idl.address);
 
-export { idl as ROAM_IDL };
-export const ROAM_PROGRAM_ID = PROGRAM_ID;
+type SolanaErrorCode = "TRANSACTION_FAILED" | "PDA_DERIVATION_FAILED";
 
-export type SolanaErrorCode = "TRANSACTION_FAILED" | "PDA_DERIVATION_FAILED";
-
-export class SolanaError extends Error {
+class SolanaError extends Error {
 	public readonly code: SolanaErrorCode;
 	public override readonly cause: unknown;
 
@@ -33,21 +33,8 @@ export class SolanaError extends Error {
 	}
 }
 
-export function getCluster(
-	cluster: string,
-): "devnet" | "mainnet-beta" | "localnet" {
-	if (
-		cluster === "devnet" ||
-		cluster === "mainnet-beta" ||
-		cluster === "localnet"
-	) {
-		return cluster;
-	}
-	return "devnet";
-}
-
 // On-chain event_kind bytes (PDA seed and stored field): never renumber.
-export const INCIDENT_EVENT_KIND_INDEX = {
+const INCIDENT_EVENT_KIND_INDEX = {
 	received: 0,
 	dispatched: 1,
 	accepted: 2,
@@ -55,21 +42,15 @@ export const INCIDENT_EVENT_KIND_INDEX = {
 	arrived: 4,
 	cleared: 5,
 } as const;
-export type IncidentEventKindName = keyof typeof INCIDENT_EVENT_KIND_INDEX;
+type IncidentEventKindName = keyof typeof INCIDENT_EVENT_KIND_INDEX;
 
 const ZERO_RESPONDER_HASH = new Uint8Array(32);
 
-export type RecordIncidentEventArgs = {
-	incidentId: Uint8Array;
-	kind: IncidentEventKindName;
-	responderIdHash: Uint8Array | null;
-	payloadHash: Uint8Array;
-	// Unix seconds.
-	occurredAt: number;
-	attestor?: Keypair;
-};
+const LANDING_TIMEOUT_MS = 30_000;
+const LANDING_POLL_MS = 1_000;
+const SIGNATURE_PATTERN = /^[1-9A-HJ-NP-Za-km-z]{64,88}$/;
 
-export function deriveEventPda(
+function deriveEventPda(
 	incidentId: Uint8Array,
 	kindIndex: number,
 	responderIdHash: Uint8Array,
@@ -120,26 +101,22 @@ class ReadOnlyWallet implements Wallet {
 	}
 }
 
-export type BuildRecordEventTxArgs = {
-	connection: Connection;
+type EventKey = {
 	incidentId: Uint8Array;
 	kind: IncidentEventKindName;
 	responderIdHash: Uint8Array;
-	payloadHash: Uint8Array;
-	occurredAt: number;
-	attestorPubkey: PublicKey;
-	feePayerPubkey: PublicKey;
-};
-
-export type BuildRecordEventTxResult = {
-	transaction: Transaction;
-	eventPda: PublicKey;
 };
 
 export async function buildRecordEventTx(
-	args: BuildRecordEventTxArgs,
+	args: EventKey & {
+		connection: Connection;
+		payloadHash: Uint8Array;
+		occurredAtSecs: number;
+		attestorPubkey: PublicKey;
+		feePayerPubkey: PublicKey;
+	},
 	feePayerKeypair: Keypair,
-): Promise<BuildRecordEventTxResult> {
+): Promise<Transaction> {
 	if (args.payloadHash.length !== 32) {
 		throw new SolanaError(
 			`payload_hash must be 32 bytes, got ${args.payloadHash.length}`,
@@ -165,7 +142,7 @@ export async function buildRecordEventTx(
 			kindIndex,
 			Array.from(args.responderIdHash),
 			Array.from(args.payloadHash),
-			new BN(args.occurredAt),
+			new BN(args.occurredAtSecs),
 		)
 		.accounts({
 			event: eventPda,
@@ -181,7 +158,7 @@ export async function buildRecordEventTx(
 		recentBlockhash: blockhash,
 	});
 	tx.add(ix);
-	return { transaction: tx, eventPda };
+	return tx;
 }
 
 export function partialSignAsFeePayer(
@@ -191,9 +168,65 @@ export function partialSignAsFeePayer(
 	tx.partialSign(feePayer);
 }
 
+type TransactionLookup = {
+	getTransaction(
+		signature: string,
+		config: GetVersionedTransactionConfig,
+	): Promise<VersionedTransactionResponse | null>;
+};
+
+async function waitForTransaction(
+	connection: TransactionLookup,
+	signature: string,
+): Promise<VersionedTransactionResponse | null> {
+	const deadline = Date.now() + LANDING_TIMEOUT_MS;
+	for (;;) {
+		const tx = await connection.getTransaction(signature, {
+			commitment: "confirmed",
+			maxSupportedTransactionVersion: 0,
+		});
+		if (tx || Date.now() >= deadline) return tx;
+		await new Promise((resolve) => setTimeout(resolve, LANDING_POLL_MS));
+	}
+}
+
+export async function verifyRecordEventTx(
+	args: EventKey & {
+		connection: TransactionLookup;
+		signature: string;
+		attestorPubkey: PublicKey;
+	},
+): Promise<boolean> {
+	if (!SIGNATURE_PATTERN.test(args.signature)) return false;
+	const tx = await waitForTransaction(args.connection, args.signature);
+	if (!tx || tx.meta?.err) return false;
+
+	const message = tx.transaction.message;
+	const keys = message.staticAccountKeys;
+	const signers = keys.slice(0, message.header.numRequiredSignatures);
+	if (!signers.some((key) => key.equals(args.attestorPubkey))) return false;
+
+	const eventPda = deriveEventPda(
+		args.incidentId,
+		INCIDENT_EVENT_KIND_INDEX[args.kind],
+		args.responderIdHash,
+	);
+	return message.compiledInstructions.some(
+		(ix) =>
+			keys[ix.programIdIndex]?.equals(PROGRAM_ID) &&
+			ix.accountKeyIndexes.some((index) => keys[index]?.equals(eventPda)),
+	);
+}
+
 export async function recordIncidentEventOnChain(
 	provider: AnchorProvider,
-	args: RecordIncidentEventArgs,
+	args: {
+		incidentId: Uint8Array;
+		kind: IncidentEventKindName;
+		responderIdHash: Uint8Array | null;
+		payloadHash: Uint8Array;
+		occurredAtSecs: number;
+	},
 ): Promise<string> {
 	try {
 		const program = new Program(idl, provider);
@@ -207,29 +240,21 @@ export async function recordIncidentEventOnChain(
 		}
 
 		const eventPda = deriveEventPda(args.incidentId, kindIndex, responderHash);
-		const attestorKey = args.attestor
-			? args.attestor.publicKey
-			: provider.wallet.publicKey;
-
-		const builder = program.methods
+		return await program.methods
 			.recordEvent(
 				Array.from(args.incidentId),
 				kindIndex,
 				Array.from(responderHash),
 				Array.from(args.payloadHash),
-				new BN(args.occurredAt),
+				new BN(args.occurredAtSecs),
 			)
 			.accounts({
 				event: eventPda,
 				feePayer: provider.wallet.publicKey,
-				attestor: attestorKey,
+				attestor: provider.wallet.publicKey,
 				systemProgram: PublicKey.default,
-			});
-
-		if (args.attestor) {
-			return await builder.signers([args.attestor]).rpc();
-		}
-		return await builder.rpc();
+			})
+			.rpc();
 	} catch (err: unknown) {
 		if (err instanceof SolanaError) throw err;
 		throw new SolanaError(

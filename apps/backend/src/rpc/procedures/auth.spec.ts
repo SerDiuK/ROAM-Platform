@@ -1,9 +1,8 @@
 import { call, ORPCError } from "@orpc/server";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
-	makeFakeBroadcaster,
-	makeFakeLogger,
 	makeResponder,
+	makeRpcContext,
 	makeVehicle,
 } from "../../../test/factories.js";
 import {
@@ -16,10 +15,10 @@ import { VehicleModel } from "../../db/models/vehicle.js";
 import type { AuthedUser, RpcContext } from "../context.js";
 import { authRouter } from "./auth.js";
 
-const fakeConfig = {
+const fakeConfig: Partial<Config> = {
 	SOLANA_OPERATOR_KEYPAIR: undefined,
 	SOLANA_CLUSTER: "devnet",
-} as unknown as Config;
+};
 
 const fakeUser: AuthedUser = {
 	id: "test-responder",
@@ -28,18 +27,7 @@ const fakeUser: AuthedUser = {
 };
 
 function buildContext(user: AuthedUser | null = fakeUser): RpcContext {
-	return {
-		config: fakeConfig,
-		incidentBroadcaster:
-			makeFakeBroadcaster() as unknown as RpcContext["incidentBroadcaster"],
-		dispatchBroadcaster:
-			makeFakeBroadcaster() as unknown as RpcContext["dispatchBroadcaster"],
-		transcriber: {} as RpcContext["transcriber"],
-		anthropic: {} as RpcContext["anthropic"],
-		pushClient: {} as RpcContext["pushClient"],
-		log: makeFakeLogger() as unknown as RpcContext["log"],
-		user,
-	};
+	return makeRpcContext(fakeConfig, { user });
 }
 
 describe("auth.checkin", () => {

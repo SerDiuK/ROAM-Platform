@@ -1,4 +1,6 @@
+import { ORPCError } from "@orpc/client";
 import type { Briefing, Dispatch, Incident, Responder } from "@roam/shared";
+import { SeekerAuthorizationError } from "@/lib/mwa";
 
 export type DispatchInboxState =
 	| { kind: "idle" }
@@ -35,22 +37,11 @@ export type DispatchInboxApi = {
 	clear: (req: { dispatchId: string }) => Promise<void>;
 };
 
-export type DispatchInboxDeps = {
+type DispatchInboxDeps = {
 	api: DispatchInboxApi;
 	getResponderId: () => string | undefined;
+	forgetDevice: () => Promise<void>;
 };
-
-// CONFLICT comes back as an oRPC error code — typed as { code, message }.
-function isConflictError(
-	err: unknown,
-): err is { code: string; message: string } {
-	return (
-		typeof err === "object" &&
-		err !== null &&
-		"code" in err &&
-		(err as { code?: unknown }).code === "CONFLICT"
-	);
-}
 
 export class DispatchInbox {
 	private current: DispatchInboxState = { kind: "idle" };
@@ -129,13 +120,7 @@ export class DispatchInbox {
 				this.dismiss();
 			}
 		} catch (err: unknown) {
-			if (isConflictError(err)) {
-				this.set({ kind: "conflict", data, message: err.message });
-				return;
-			}
-			const message =
-				err instanceof Error ? err.message : "Couldn't submit response";
-			this.set({ kind: "error", message });
+			await this.fail(err, data, "Couldn't submit response");
 		}
 	};
 
@@ -156,13 +141,23 @@ export class DispatchInbox {
 			await this.deps.api.clear({ dispatchId: data.dispatch._id });
 			this.dismiss();
 		} catch (err: unknown) {
-			if (isConflictError(err)) {
-				this.set({ kind: "conflict", data, message: err.message });
-				return;
-			}
-			const message =
-				err instanceof Error ? err.message : "Couldn't clear dispatch";
-			this.set({ kind: "error", message });
+			await this.fail(err, data, "Couldn't clear dispatch");
 		}
 	};
+
+	private async fail(
+		err: unknown,
+		data: DispatchInboxData,
+		fallback: string,
+	): Promise<void> {
+		if (err instanceof SeekerAuthorizationError) {
+			await this.deps.forgetDevice();
+		}
+		if (err instanceof ORPCError && err.code === "CONFLICT") {
+			this.set({ kind: "conflict", data, message: err.message });
+			return;
+		}
+		const message = err instanceof Error ? err.message : fallback;
+		this.set({ kind: "error", message });
+	}
 }

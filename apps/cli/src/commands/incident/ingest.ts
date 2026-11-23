@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { basename, dirname, extname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Args, Flags } from "@oclif/core";
+import type { Briefing } from "@roam/shared";
 import chalk from "chalk";
 import ora from "ora";
 import { BaseCommand } from "../../base-command.js";
@@ -31,17 +32,20 @@ function truncate(s: string, n: number): string {
 	return s.length > n ? `${s.slice(0, n - 1)}…` : s;
 }
 
+function errorCode(err: Error): string | undefined {
+	return "code" in err && typeof err.code === "string" ? err.code : undefined;
+}
+
 function describeError(err: unknown): { headline: string; details: string[] } {
 	const lines: string[] = [];
 	let current: unknown = err;
-	let depth = 0;
-	while (current && depth < 5) {
-		const e = current as { code?: string; message?: string; cause?: unknown };
-		const code = e.code ? `${e.code} ` : "";
-		const msg = e.message ?? String(current);
-		lines.push(`${code}${msg}`);
-		current = e.cause;
-		depth += 1;
+	for (let depth = 0; depth < 5 && current; depth += 1) {
+		if (!(current instanceof Error)) {
+			lines.push(String(current));
+			break;
+		}
+		lines.push(`${errorCode(current) ?? ""} ${current.message}`.trim());
+		current = current.cause;
 	}
 	return { headline: lines[0] ?? "unknown error", details: lines.slice(1) };
 }
@@ -56,10 +60,10 @@ const TRANSIENT_CODES = new Set([
 
 function isTransientFetchError(err: unknown): boolean {
 	let current: unknown = err;
-	for (let depth = 0; depth < 5 && current; depth += 1) {
-		const code = (current as { code?: string }).code;
+	for (let depth = 0; depth < 5 && current instanceof Error; depth += 1) {
+		const code = errorCode(current);
 		if (code && TRANSIENT_CODES.has(code)) return true;
-		current = (current as { cause?: unknown }).cause;
+		current = current.cause;
 	}
 	return false;
 }
@@ -132,7 +136,7 @@ export default class IncidentIngest extends BaseCommand {
 			this.log("");
 			this.log(
 				chalk.dim(
-					"Dashboard: incident appears in the right sidebar · briefing arrives over /ws/incidents",
+					"Dashboard: incident appears in the right sidebar; the briefing follows when the agent finishes",
 				),
 			);
 
@@ -154,7 +158,7 @@ export default class IncidentIngest extends BaseCommand {
 			this.log(chalk.bold("Briefing summary"));
 			this.log(`  ${briefing.summary}`);
 			this.log(
-				`  payout      ${briefing.payout.totalUsdc} USDC · ${briefing.recommendedResponderIds.length} responders · ${briefing.recommendedVehicleIds.length} vehicles`,
+				`  units       ${briefing.recommendedResponderIds.length} responders · ${briefing.recommendedVehicleIds.length} vehicles`,
 			);
 			this.log("");
 			this.log(chalk.dim("Next:"));
@@ -216,13 +220,7 @@ export default class IncidentIngest extends BaseCommand {
 	private async waitForBriefing(
 		incidentId: string,
 		timeoutMs: number,
-	): Promise<{
-		_id: string;
-		summary: string;
-		payout: { totalUsdc: number };
-		recommendedResponderIds: string[];
-		recommendedVehicleIds: string[];
-	} | null> {
+	): Promise<Briefing | null> {
 		const startedAt = Date.now();
 		const POLL_MS = 1500;
 		while (Date.now() - startedAt < timeoutMs) {

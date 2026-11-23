@@ -1,6 +1,7 @@
 import { ORPCError } from "@orpc/server";
 import type { Responder } from "@roam/shared";
 import { Types } from "mongoose";
+import { isDuplicateKeyError } from "../../db/errors.js";
 import { ResponderModel } from "../../db/models/responder.js";
 import { VehicleModel } from "../../db/models/vehicle.js";
 import { serializeVehicle } from "../../db/serializers/vehicle.js";
@@ -8,13 +9,6 @@ import { os } from "../builder.js";
 
 function isObjectIdHex(value: string): boolean {
 	return Types.ObjectId.isValid(value) && /^[0-9a-fA-F]{24}$/.test(value);
-}
-
-// Asserts `code: unknown`, not `number`: nothing guarantees the error's shape.
-function isDuplicateKeyError(err: unknown): boolean {
-	if (!(err instanceof Error) || !("code" in err)) return false;
-	const { code } = err as { code: unknown };
-	return code === 11000;
 }
 
 export const authRouter = {
@@ -25,23 +19,17 @@ export const authRouter = {
 		if (!responder) {
 			throw new ORPCError("NOT_FOUND", {
 				message: "responder_not_found",
-				data: { error: "responder_not_found" as const },
 			});
 		}
 		if (responder.currentVehicleId) {
 			throw new ORPCError("CONFLICT", {
 				message: "responder_already_checked_in",
-				data: {
-					error: "responder_already_checked_in" as const,
-					vehicleId: responder.currentVehicleId,
-				},
 			});
 		}
 
 		if (!isObjectIdHex(input.vehicleId)) {
 			throw new ORPCError("NOT_FOUND", {
 				message: "vehicle_not_found",
-				data: { error: "vehicle_not_found" as const },
 			});
 		}
 
@@ -56,12 +44,10 @@ export const authRouter = {
 			if (!exists) {
 				throw new ORPCError("NOT_FOUND", {
 					message: "vehicle_not_found",
-					data: { error: "vehicle_not_found" as const },
 				});
 			}
 			throw new ORPCError("CONFLICT", {
 				message: "vehicle_not_available",
-				data: { error: "vehicle_not_available" as const },
 			});
 		}
 
@@ -73,7 +59,6 @@ export const authRouter = {
 				if (res.matchedCount === 0) {
 					throw new ORPCError("CONFLICT", {
 						message: "responder_already_checked_in",
-						data: { error: "responder_already_checked_in" as const },
 					});
 				}
 			});
@@ -84,7 +69,6 @@ export const authRouter = {
 			if (isDuplicateKeyError(err)) {
 				throw new ORPCError("CONFLICT", {
 					message: "responder_already_checked_in",
-					data: { error: "responder_already_checked_in" as const },
 				});
 			}
 			throw err;
@@ -107,7 +91,6 @@ export const authRouter = {
 		if (!responder) {
 			throw new ORPCError("CONFLICT", {
 				message: "not_checked_in",
-				data: { error: "not_checked_in" as const },
 			});
 		}
 
@@ -125,7 +108,6 @@ export const authRouter = {
 		if (!vehicleDoc) {
 			throw new ORPCError("NOT_FOUND", {
 				message: "vehicle_not_found",
-				data: { error: "vehicle_not_found" as const },
 			});
 		}
 

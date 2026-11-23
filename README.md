@@ -14,10 +14,10 @@ The demo scenario is a multi-vehicle crash at Biscayne Blvd & NE 36th St, Miami.
 
 - **The responder's phone signs the record.** Accepting or declining a dispatch, and clearing it from the app, are `record_event` instructions signed by the responder's Seeker as the attestor, while the operator key pays the fee.
 - **Exactly the right number of crews.** Accepting a dispatch is one atomic MongoDB update that only succeeds while claims are below `requiredAccepts`, so simultaneous taps can't over-assign a call.
-- **Dispatch never waits on the chain.** Solana writes are non-blocking: operations go through even when Solana is slow or unreachable.
-- **Passwordless sign-in.** Sign-in-with-Solana through the Mobile Wallet Adapter takes one fingerprint, and the wallet session is cached for silent re-authorisation.
+- **Dispatch never waits on the chain.** The backend writes the events it records itself (call received, dispatched, a clear from the CLI) to Solana in the background, so dispatching goes through even when Solana is slow or unreachable. A crew's accept, decline or clear is their own signed transaction, so it does need the chain.
+- **Passwordless sign-in.** Sign-in-with-Solana through the Mobile Wallet Adapter, with the wallet session cached for silent re-authorisation.
 - **Payment over HTTP 402.** Completing a dispatch runs the x402 protocol: the server answers 402 with a settlement spec, and the client retries with a signed Solana payment. Built by Arjen van Gaal.
-- **Real hardware, or none.** A Raspberry Pi 5 reads GPS over serial and publishes telemetry over MQTT, and the fleet simulator replays routes for any number of vehicles, so the whole system runs on a laptop.
+- **Real hardware, or none.** A Raspberry Pi 5 reads GPS over serial and publishes telemetry over MQTT, and the fleet simulator checks in a demo fleet and can replay routes (`FLEET_CONFIG`) for any number of vehicles, so the whole system runs on a laptop.
 - **One schema everywhere.** Zod schemas in `packages/shared` type the API, the live telemetry, the dashboard and the app end to end over oRPC.
 - **Built with Claude Code**, session by session, from the plan in [`docs/ROAM-Tasks.md`](docs/ROAM-Tasks.md).
 
@@ -46,7 +46,7 @@ The demo scenario is a multi-vehicle crash at Biscayne Blvd & NE 36th St, Miami.
 
 ```
    911 audio ──▶ Backend (Fastify)         MQTT broker (Aedes)
-                  │  ├─ LLM transcribe          ▲      │
+                  │  ├─ STT (Deepgram)          ▲      │
                   │  ├─ Classify + dispatch     │      ▼
                   │  └─ MongoDB persistence    IoT bridge (Pi 5)
                   │                             ▲      │
@@ -62,9 +62,9 @@ The demo scenario is a multi-vehicle crash at Biscayne Blvd & NE 36th St, Miami.
               (record_event PDA per incident × kind × responder)
 ```
 
-- **MQTT topics:** `vehicles/{vehicleId}/telemetry` (IoT bridge → backend), `vehicles/{vehicleId}/commands` (backend → IoT bridge).
+- **MQTT topic:** `vehicles/{callsign}/telemetry` (IoT bridge → backend).
 - **Auth:** Sign-in-with-Solana (SIWS) over Mobile Wallet Adapter. The Seeker holds the responder's identity and signs the accept, decline and clear events made from the app. No passwords, no PINs.
-- **Solana writes are non-blocking** — operational paths must succeed even if Solana is slow or temporarily unreachable.
+- **Backend Solana writes are non-blocking** — the events the backend records itself go to the chain in the background, so its calls succeed even if Solana is slow or unreachable. The Seeker-signed accept, decline and clear need the chain.
 
 ## Repository layout
 
@@ -96,6 +96,7 @@ programs/
 - **Single instruction:** `record_event` writes a per-step PDA per `(incident, kind, responder)` tuple.
 - **Event kinds:** `received`, `dispatched`, `accepted`, `rejected`, `cleared`, and a reserved `arrived` that nothing records yet.
 - **Co-signing model:** the operator pubkey is the fee payer. The attestor is the Seeker on the responder's phone for accept, decline and a clear made from the app, and the operator for `received`, `dispatched` and a clear made from the CLI.
+- **Known gap:** `record_event` doesn't restrict who pays for an event account, so anyone who can read an incident's earlier events can create its later event accounts first and block the Seeker's own transaction. Constraining `fee_payer` to the operator needs a redeploy.
 
 ## Commands
 
@@ -119,6 +120,7 @@ pnpm roam                             # admin CLI
 anchor build                                                                    # IDL only
 cargo build-sbf --manifest-path programs/roam/Cargo.toml --sbf-out-dir target/deploy
 anchor deploy --provider.cluster <cluster>
+anchor test --skip-build                                                        # program tests on a local validator
 ```
 
 ## Conventions
@@ -143,7 +145,7 @@ Required for full local dev:
 
 ## Hardware
 
-- **Pi 5 (`roam-1`)** — primary IoT bridge with U-blox GPS over USB serial.
+- **Pi 5 (`roam-1`)** — primary IoT bridge with a SIM7670G GNSS HAT on the GPIO UART.
 - **Pi 4 (`roam-2`)** — secondary node.
 - **Solana Mobile Seeker** — responder device; runs the Expo dev-client build (`eas build --profile development --platform android`, `adb install`).
 
@@ -153,7 +155,7 @@ The IoT bridge (Pi GPS → MQTT, plus the simulator path), an early Expo mobile 
 
 ## Status and credits
 
-A hackathon prototype on Solana devnet, not a production system. Built by Thomas Goethals, with the x402 settlement flow by Arjen van Gaal.
+A hackathon prototype on Solana devnet, not a production system. The dispatcher side has no login, so anyone who can reach the backend can confirm or clear a dispatch. Built by Thomas Goethals, with the x402 settlement flow by Arjen van Gaal.
 
 ## License
 

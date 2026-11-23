@@ -1,17 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { call } from "@orpc/server";
 import { describe, expect, it } from "vitest";
-import {
-	makeFakeBroadcaster,
-	makeFakeLogger,
-	makeResponder,
-} from "../../../test/factories.js";
-import type { Config } from "../../config.js";
+import { makeResponder, makeRpcContext } from "../../../test/factories.js";
 import { ResponderModel } from "../../db/models/responder.js";
 import type { AuthedUser, RpcContext } from "../context.js";
 import { respondersRouter } from "./responders.js";
-
-const fakeConfig = {} as Config;
 
 const dispatcherUser: AuthedUser = {
 	id: "test-dispatcher",
@@ -24,18 +17,7 @@ function makeResponderUser(responderId: string, name = "TEST"): AuthedUser {
 }
 
 function buildContext(user: AuthedUser = dispatcherUser): RpcContext {
-	return {
-		config: fakeConfig,
-		incidentBroadcaster:
-			makeFakeBroadcaster() as unknown as RpcContext["incidentBroadcaster"],
-		dispatchBroadcaster:
-			makeFakeBroadcaster() as unknown as RpcContext["dispatchBroadcaster"],
-		transcriber: {} as RpcContext["transcriber"],
-		anthropic: {} as RpcContext["anthropic"],
-		pushClient: {} as RpcContext["pushClient"],
-		log: makeFakeLogger() as unknown as RpcContext["log"],
-		user,
-	};
+	return makeRpcContext({}, { user });
 }
 
 describe("responders.enrol", () => {
@@ -53,8 +35,6 @@ describe("responders.enrol", () => {
 
 		expect(first.responder._id).toBe(second.responder._id);
 		expect(second.responder.availability).toBe("occupied");
-		const docs = await ResponderModel.find({ name: "ALPHA-2" });
-		expect(docs).toHaveLength(1);
 	});
 });
 

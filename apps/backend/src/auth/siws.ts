@@ -37,8 +37,12 @@ const nonceStore = new Map<string, NonceEntry>();
 
 // Not bound to a pubkey: the wallet account is only picked during MWA authorize, after this.
 export function issueNonce(): { nonce: string; expiresAt: Date } {
+	const now = Date.now();
+	for (const [stale, entry] of nonceStore) {
+		if (entry.expiresAt < now) nonceStore.delete(stale);
+	}
 	const nonce = randomBytes(NONCE_BYTES).toString("hex");
-	const expiresAt = new Date(Date.now() + NONCE_TTL_MS);
+	const expiresAt = new Date(now + NONCE_TTL_MS);
 	nonceStore.set(nonce, { expiresAt: expiresAt.getTime() });
 	return { nonce, expiresAt };
 }

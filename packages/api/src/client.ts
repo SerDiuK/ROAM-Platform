@@ -5,7 +5,7 @@ import type { Contract } from "@roam/shared";
 
 export type ApiClient = ContractRouterClient<Contract>;
 
-export type CreateApiClientOptions = {
+type CreateApiClientOptions = {
 	getAuthToken?: () =>
 		| string
 		| null

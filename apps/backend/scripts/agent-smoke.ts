@@ -1,8 +1,9 @@
 import { createHash, randomUUID } from "node:crypto";
 import Anthropic from "@anthropic-ai/sdk";
-import dotenv from "dotenv";
+import { computeBriefingHash } from "@roam/shared";
 import mongoose from "mongoose";
-import { brief, computeBriefingHash } from "../src/agent/runner.js";
+import { AGENT_MAX_TOKENS, brief } from "../src/agent/runner.js";
+import { parseConfig } from "../src/config.js";
 import { connectDb } from "../src/db/connection.js";
 import { BriefingModel } from "../src/db/models/briefing.js";
 import { IncidentModel } from "../src/db/models/incident.js";
@@ -10,24 +11,7 @@ import { ResponderModel } from "../src/db/models/responder.js";
 import { VehicleModel } from "../src/db/models/vehicle.js";
 import { VehicleSpecModel } from "../src/db/models/vehicleSpec.js";
 
-dotenv.config({ path: ".env.local" });
-
-const MONGODB_URL = process.env.MONGODB_URL;
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
-const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-6";
-const AGENT_MAX_TURNS = Number(process.env.AGENT_MAX_TURNS ?? 8);
-const AGENT_MAX_TOKENS = Number(process.env.AGENT_MAX_TOKENS ?? 16384);
-
-if (!MONGODB_URL) {
-	console.error("MONGODB_URL is required (set it in apps/backend/.env.local)");
-	process.exit(1);
-}
-if (!ANTHROPIC_API_KEY) {
-	console.error(
-		"ANTHROPIC_API_KEY is required (set it in apps/backend/.env.local)",
-	);
-	process.exit(1);
-}
+const config = parseConfig();
 
 const PREFIX = "smoke-agent-";
 const SCENE = { lat: 25.808, lon: -80.19 };
@@ -127,24 +111,23 @@ async function seed(): Promise<void> {
 }
 
 async function main(): Promise<void> {
-	if (!MONGODB_URL) throw new Error("MONGODB_URL missing");
-	await connectDb(MONGODB_URL, console);
+	await connectDb(config.MONGODB_URL, console);
 	try {
 		await cleanup();
 		await seed();
 		await mongoose.connection.syncIndexes();
 
-		const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
+		const client = new Anthropic({ apiKey: config.ANTHROPIC_API_KEY });
 
 		console.log(
-			`Running brief() against ${ANTHROPIC_MODEL} (maxTurns=${AGENT_MAX_TURNS}, maxTokens=${AGENT_MAX_TOKENS}, effort=low)…`,
+			`Running brief() against ${config.ANTHROPIC_MODEL} (maxTurns=${config.AGENT_MAX_TURNS}, maxTokens=${AGENT_MAX_TOKENS}, effort=low)…`,
 		);
 		const start = Date.now();
 		const briefing = await brief(SMOKE_INCIDENT_ID, {
 			client,
-			model: ANTHROPIC_MODEL,
+			model: config.ANTHROPIC_MODEL,
 			maxTokens: AGENT_MAX_TOKENS,
-			maxTurns: AGENT_MAX_TURNS,
+			maxTurns: config.AGENT_MAX_TURNS,
 			log: console,
 			effort: "low",
 			onTurn: ({ turn, ms, toolUseCount, usage }) => {
@@ -165,7 +148,6 @@ async function main(): Promise<void> {
 			summary: briefing.summary,
 			recommendedVehicleIds: briefing.recommendedVehicleIds,
 			recommendedResponderIds: briefing.recommendedResponderIds,
-			payout: briefing.payout,
 		});
 		if (recomputed !== briefing.briefingHash) {
 			throw new Error(

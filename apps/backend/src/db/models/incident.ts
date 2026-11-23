@@ -1,6 +1,7 @@
 import {
 	INCIDENT_STATUSES,
 	INCIDENT_URGENCIES,
+	type Incident,
 	RESPONDER_CAPABILITIES,
 } from "@roam/shared";
 import mongoose from "mongoose";
@@ -36,7 +37,7 @@ const assignedSchema = new mongoose.Schema(
 	{ _id: false },
 );
 
-const incidentSchema = new mongoose.Schema(
+const incidentSchema = new mongoose.Schema<Incident>(
 	{
 		_id: { type: String, required: true },
 		callStartedAt: { type: Date, required: true },
@@ -58,4 +59,7 @@ const incidentSchema = new mongoose.Schema(
 
 incidentSchema.index({ status: 1, callStartedAt: -1 });
 
-export const IncidentModel = mongoose.model("Incident", incidentSchema);
+export const IncidentModel = mongoose.model<Incident>(
+	"Incident",
+	incidentSchema,
+);

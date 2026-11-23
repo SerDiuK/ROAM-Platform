@@ -1,14 +1,11 @@
 import { createHash } from "node:crypto";
 import { IncidentSchema } from "@roam/shared";
-import dotenv from "dotenv";
 import mongoose from "mongoose";
+import { parseConfig } from "../src/config.js";
 import { connectDb } from "../src/db/connection.js";
 import { IncidentModel } from "../src/db/models/incident.js";
 import { ResponderModel } from "../src/db/models/responder.js";
 import { VehicleModel } from "../src/db/models/vehicle.js";
-
-// Skips parseConfig() so it runs with only MONGODB_URL set.
-dotenv.config({ path: ".env.local" });
 
 const PREFIX = "demo-";
 
@@ -89,11 +86,9 @@ async function pickAvailableIds(): Promise<{
 		VehicleModel.find().select({ _id: 1 }).limit(10).lean(),
 		ResponderModel.find().select({ _id: 1 }).limit(10).lean(),
 	]);
-	// Mongoose types `_id` as ObjectId, but the responder schema makes it a String.
-	const opDocs = responders as unknown as { _id: string }[];
 	return {
 		vehicleIds: vehicles.map((v) => v._id.toHexString()),
-		responderIds: opDocs.map((o) => o._id),
+		responderIds: responders.map((r) => r._id),
 	};
 }
 
@@ -105,14 +100,7 @@ async function clearExisting(): Promise<number> {
 }
 
 async function seed(): Promise<void> {
-	const mongoUrl = process.env.MONGODB_URL;
-	if (!mongoUrl) {
-		console.error(
-			"MONGODB_URL is required (set it in apps/backend/.env.local)",
-		);
-		process.exit(1);
-	}
-	await connectDb(mongoUrl, console);
+	await connectDb(parseConfig().MONGODB_URL, console);
 
 	try {
 		const cleared = await clearExisting();

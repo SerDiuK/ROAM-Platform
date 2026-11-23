@@ -1,13 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { ORPCError } from "@orpc/server";
+import { ResponderSchema } from "@roam/shared";
 import { ResponderModel } from "../../db/models/responder.js";
-import { serializeResponder } from "../../db/serializers/responder.js";
+import { toWire } from "../../db/serializers/wire.js";
 import { authed, os } from "../builder.js";
 
 export const respondersRouter = {
 	list: os.responders.list.handler(async () => {
 		const responders = await ResponderModel.find().lean();
-		return responders.map(serializeResponder);
+		return responders.map((r) => toWire(ResponderSchema, r));
 	}),
 
 	enrol: os.responders.enrol.handler(async ({ input }) => {
@@ -27,7 +28,7 @@ export const respondersRouter = {
 			});
 		}
 
-		return { responder: serializeResponder(responder) };
+		return { responder: toWire(ResponderSchema, responder) };
 	}),
 
 	upsertPushToken: authed.responders.upsertPushToken.handler(

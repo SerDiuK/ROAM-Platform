@@ -40,10 +40,7 @@ export function startGps(onFix: (fix: GpsFix) => void): void {
 	});
 
 	port.on("open", () => {
-		void initSim7670g(port).catch((err: unknown) => {
-			logger.error(err, "SIM7670G init failed — closing port to retry");
-			port.close();
-		});
+		startSim7670g(port);
 	});
 
 	port.on("error", (err: Error) => {
@@ -56,6 +53,13 @@ export function startGps(onFix: (fix: GpsFix) => void): void {
 	port.on("close", () => {
 		logger.warn("Serial port closed — retrying in 5s");
 		setTimeout(() => startGps(onFix), RECONNECT_DELAY_MS);
+	});
+}
+
+function startSim7670g(port: SerialPort): void {
+	initSim7670g(port).catch((err: unknown) => {
+		logger.error(err, "SIM7670G init failed — closing port to retry");
+		port.close();
 	});
 }
 

@@ -1,4 +1,5 @@
 import type { VehicleStatus } from "@roam/shared";
+import { color } from "./tokens";
 
 export type StatusTone = "primary" | "warning" | "danger" | "offline";
 
@@ -17,8 +18,8 @@ export const STATUS_LABEL: Record<VehicleStatus, string> = {
 };
 
 export const STATUS_HEX: Record<VehicleStatus, string> = {
-	available: "#10b981",
-	in_use: "#f59e0b",
-	locked: "#ef4444",
-	offline: "#6b7280",
+	available: color("primary"),
+	in_use: color("warning"),
+	locked: color("danger"),
+	offline: color("offline"),
 };

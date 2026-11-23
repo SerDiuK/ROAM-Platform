@@ -1,9 +1,10 @@
+import { DEMO_CLUSTER } from "@roam/shared";
 import dotenv from "dotenv";
 import { z } from "zod";
 
 dotenv.config({ path: ".env.local" });
 
-export class ConfigError extends Error {
+class ConfigError extends Error {
 	constructor(message: string) {
 		super(message);
 		this.name = "ConfigError";
@@ -14,7 +15,9 @@ const ConfigSchema = z.object({
 	PORT: z.coerce.number().default(3001),
 	MONGODB_URL: z.string().min(1),
 	MQTT_PORT: z.coerce.number().default(1883),
-	SOLANA_CLUSTER: z.string().default("devnet"),
+	SOLANA_CLUSTER: z
+		.enum(["devnet", "mainnet-beta", "localnet"])
+		.default(DEMO_CLUSTER),
 	SOLANA_OPERATOR_KEYPAIR: z.string().optional(),
 	DASHBOARD_ORIGINS: z
 		.string()
@@ -43,12 +46,9 @@ const ConfigSchema = z.object({
 	// for longer than this returns to the login screen.
 	AUTH_TOKEN_TTL_SECS: z.coerce.number().int().positive().default(60),
 	X402_RECIPIENT_ADDRESS: z.string().min(32),
-	// Must match SOLANA_CLUSTER.
-	X402_NETWORK: z.enum(["solana-devnet", "solana"]).default("solana-devnet"),
 	DEEPGRAM_API_KEY: z.string().min(1),
 	ANTHROPIC_API_KEY: z.string().min(1),
 	ANTHROPIC_MODEL: z.string().default("claude-sonnet-4-6"),
-	// A briefing typically takes 3–5 turns.
 	AGENT_MAX_TURNS: z.coerce.number().int().positive().default(8),
 });
 

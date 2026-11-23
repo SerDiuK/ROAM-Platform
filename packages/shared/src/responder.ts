@@ -20,7 +20,6 @@ export const ResponderSchema = z.object({
 	role: z.enum(["responder", "dispatcher"]),
 	availability: ResponderAvailabilitySchema,
 	capabilities: z.array(ResponderCapabilitySchema).optional(),
-	pushTokens: z.array(z.string()).optional(),
 	walletAddress: z.string().optional(),
 	currentVehicleId: z.string().nullable().optional(),
 });
@@ -31,17 +30,12 @@ export const EnrolRequestSchema = z.object({
 	role: z.enum(["responder", "dispatcher"]),
 	availability: ResponderAvailabilitySchema,
 });
-export type EnrolRequest = z.infer<typeof EnrolRequestSchema>;
 
 export const UpsertPushTokenRequestSchema = z.object({
 	token: z.string().min(1),
 });
-export type UpsertPushTokenRequest = z.infer<
-	typeof UpsertPushTokenRequestSchema
->;
 
 export const SiwsChallengeRequestSchema = z.object({});
-export type SiwsChallengeRequest = z.infer<typeof SiwsChallengeRequestSchema>;
 
 export const SiwsChallengeResponseSchema = z.object({
 	nonce: z.string().min(1),
@@ -58,26 +52,24 @@ export const SiwsVerifyRequestSchema = z.object({
 	address: z.string().min(1),
 	name: z.string().min(1).optional(),
 });
-export type SiwsVerifyRequest = z.infer<typeof SiwsVerifyRequestSchema>;
 
 export const SiwsVerifyResponseSchema = z.object({
 	token: z.string(),
 	responder: ResponderSchema,
 });
-export type SiwsVerifyResponse = z.infer<typeof SiwsVerifyResponseSchema>;
+
+export const WALLET_UNBOUND = "WALLET_UNBOUND";
+export const RESPONDER_ALREADY_BOUND = "RESPONDER_ALREADY_BOUND";
 
 export const MeResponseSchema = z.object({
 	responder: ResponderSchema,
 });
-export type MeResponse = z.infer<typeof MeResponseSchema>;
 
 export const CheckinRequestSchema = z.object({
 	vehicleId: z.string(),
 	responderName: z.string(),
 });
-export type CheckinRequest = z.infer<typeof CheckinRequestSchema>;
 
 export const CheckoutRequestSchema = z.object({
 	vehicleId: z.string(),
 });
-export type CheckoutRequest = z.infer<typeof CheckoutRequestSchema>;

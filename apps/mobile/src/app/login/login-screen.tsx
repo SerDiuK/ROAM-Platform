@@ -1,3 +1,4 @@
+import { DEMO_RESPONDERS } from "@roam/shared";
 import { useAtomValue, useSetAtom } from "jotai";
 import * as React from "react";
 import { Pressable, View } from "react-native";
@@ -5,9 +6,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
 import { mwaAvailableAtom, signInWithSeekerAtom } from "@/state/wallet-auth";
-
-// Must match the responder names the backend seeds; unknown names are rejected.
-const RESPONDER_NAMES = ["THOMAS-1", "RSP-1", "RSP-2", "DSP-1"];
 
 type Props = {
 	cachedName: string | null;
@@ -22,25 +20,49 @@ export function LoginScreen({ cachedName }: Props): React.JSX.Element {
 	const [pickerOpen, setPickerOpen] = React.useState(false);
 	const [pendingPubkey, setPendingPubkey] = React.useState<string | null>(null);
 
-	const startSignIn = async (name?: string): Promise<void> => {
-		setPending(true);
+	const startSignIn = React.useCallback(
+		async (name?: string): Promise<void> => {
+			setPending(true);
+			setError(null);
+			try {
+				const result = await signIn({ name });
+				switch (result.kind) {
+					case "ok":
+						return;
+					case "wallet-unbound":
+						setPendingPubkey(result.pubkey);
+						setPickerOpen(true);
+						return;
+					case "responder-already-bound":
+						setError(
+							"That responder is already bound to another Seeker. Pick another name.",
+						);
+						return;
+					case "cancelled":
+						return;
+					case "error":
+						setError(result.message);
+						return;
+				}
+			} catch (err) {
+				setError(err instanceof Error ? err.message : "Sign-in failed");
+			} finally {
+				setPending(false);
+			}
+		},
+		[signIn],
+	);
+
+	const signInWithSeeker = React.useCallback(
+		() => startSignIn(),
+		[startSignIn],
+	);
+
+	const closePicker = React.useCallback(() => {
+		setPickerOpen(false);
+		setPendingPubkey(null);
 		setError(null);
-		const result = await signIn({ name });
-		setPending(false);
-		switch (result.kind) {
-			case "ok":
-				return;
-			case "wallet-unbound":
-				setPendingPubkey(result.pubkey);
-				setPickerOpen(true);
-				return;
-			case "cancelled":
-				return;
-			case "error":
-				setError(result.message);
-				return;
-		}
-	};
+	}, []);
 
 	if (!mwaAvailable) {
 		return (
@@ -74,27 +96,18 @@ export function LoginScreen({ cachedName }: Props): React.JSX.Element {
 						</Text>
 					</View>
 					<View className="gap-2">
-						{RESPONDER_NAMES.map((name) => (
-							<Button
+						{DEMO_RESPONDERS.map(({ name }) => (
+							<ResponderNameButton
 								key={name}
-								variant={name === cachedName ? "default" : "outline"}
-								onPress={() => {
-									void startSignIn(name);
-								}}
+								name={name}
+								highlighted={name === cachedName}
 								disabled={pending}
-							>
-								<Text>{name}</Text>
-							</Button>
+								onPick={startSignIn}
+							/>
 						))}
 					</View>
 					{error ? <Text className="text-destructive">{error}</Text> : null}
-					<Pressable
-						onPress={() => {
-							setPickerOpen(false);
-							setPendingPubkey(null);
-							setError(null);
-						}}
-					>
+					<Pressable onPress={closePicker}>
 						<Text className="text-center text-muted-foreground">Cancel</Text>
 					</Pressable>
 				</View>
@@ -110,12 +123,7 @@ export function LoginScreen({ cachedName }: Props): React.JSX.Element {
 					<Text variant="muted">Sign in with your Solana Seeker.</Text>
 				</View>
 
-				<Button
-					onPress={() => {
-						void startSignIn();
-					}}
-					disabled={pending}
-				>
+				<Button onPress={signInWithSeeker} disabled={pending}>
 					<Text>
 						{pending ? "Waiting on fingerprint…" : "Sign in with Seeker"}
 					</Text>
@@ -130,5 +138,28 @@ export function LoginScreen({ cachedName }: Props): React.JSX.Element {
 				</Text>
 			</View>
 		</SafeAreaView>
+	);
+}
+
+function ResponderNameButton({
+	name,
+	highlighted,
+	disabled,
+	onPick,
+}: {
+	name: string;
+	highlighted: boolean;
+	disabled: boolean;
+	onPick: (name: string) => Promise<void>;
+}): React.JSX.Element {
+	const pick = React.useCallback(() => onPick(name), [onPick, name]);
+	return (
+		<Button
+			variant={highlighted ? "default" : "outline"}
+			onPress={pick}
+			disabled={disabled}
+		>
+			<Text>{name}</Text>
+		</Button>
 	);
 }

@@ -8,40 +8,32 @@ type Props = {
 };
 
 export function DispatchNotifications({ onDispatch }: Props): null {
-	const onDispatchRef = React.useRef(onDispatch);
-	onDispatchRef.current = onDispatch;
-
 	React.useEffect(() => {
-		const handle = (
-			notification:
-				| Notifications.Notification
-				| Notifications.NotificationResponse,
-		): void => {
-			const content =
-				"request" in notification
-					? notification.request.content
-					: notification.notification.request.content;
-			const data = content.data as Record<string, unknown> | undefined;
-			if (!data || data.type !== DISPATCH_TYPE) return;
-			const dispatchId = data.dispatchId;
+		const handle = (notification: Notifications.Notification): void => {
+			const { data } = notification.request.content;
+			const dispatchId = data?.dispatchId;
+			if (data?.type !== DISPATCH_TYPE) return;
 			if (typeof dispatchId !== "string" || dispatchId.length === 0) return;
-			onDispatchRef.current(dispatchId);
+			onDispatch(dispatchId);
+		};
+		const handleTap = (response: Notifications.NotificationResponse): void => {
+			handle(response.notification);
+			Notifications.clearLastNotificationResponse();
 		};
 
 		const fgSub = Notifications.addNotificationReceivedListener(handle);
 		const tapSub =
-			Notifications.addNotificationResponseReceivedListener(handle);
+			Notifications.addNotificationResponseReceivedListener(handleTap);
 
 		// A cold-launch tap is delivered before the listeners attach, so read it once here.
-		void Notifications.getLastNotificationResponseAsync().then((response) => {
-			if (response) handle(response);
-		});
+		const launchResponse = Notifications.getLastNotificationResponse();
+		if (launchResponse) handleTap(launchResponse);
 
 		return () => {
 			fgSub.remove();
 			tapSub.remove();
 		};
-	}, []);
+	}, [onDispatch]);
 
 	return null;
 }

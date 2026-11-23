@@ -6,8 +6,6 @@ const payloadSchema = new mongoose.Schema(
 		briefingId: { type: String },
 		dispatchId: { type: String },
 		declineReason: { type: String },
-		vehicleId: { type: String },
-		distanceM: { type: Number },
 	},
 	{ _id: false, minimize: true },
 );

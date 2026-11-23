@@ -20,7 +20,6 @@ export const TelemetryIngestSchema = z.object({
 	batteryPct: z.number().min(0).max(100).optional(),
 	timestamp: z.coerce.date(),
 });
-export type TelemetryIngest = z.infer<typeof TelemetryIngestSchema>;
 
 export const TelemetrySnapshotSchema = TelemetrySchema.omit({
 	vehicleId: true,

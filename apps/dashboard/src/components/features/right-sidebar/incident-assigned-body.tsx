@@ -1,5 +1,9 @@
+"use client";
+
 import type { Incident, Responder, Vehicle } from "@roam/shared";
 import { cn, formatHHMM } from "@roam/ui";
+import type { ReactNode } from "react";
+import { formatUnitsAndCrew, resolveUnits } from "./recommendation-group.utils";
 
 type IncidentAssignedBodyProps = {
 	incident: Incident;
@@ -16,13 +20,12 @@ export function IncidentAssignedBody({
 	const address = incident.classification?.locationDescription ?? "—";
 	const isResolved = incident.status === "resolved";
 
-	const assignedVehicles = incident.assigned.vehicles
-		.map((id) => vehicles.find((v) => v._id === id))
-		.filter((v): v is Vehicle => v !== undefined);
-	const assignedResponderIds = new Set(incident.assigned.responders);
-	const unitCount = incident.assigned.vehicles.length;
-	const crewCount = incident.assigned.responders.length;
-	const unitLabel = unitCount === 1 ? "Unit" : "Units";
+	const units = resolveUnits(
+		incident.assigned.vehicles,
+		incident.assigned.responders,
+		vehicles,
+		responderMap,
+	);
 
 	return (
 		<>
@@ -57,43 +60,36 @@ export function IncidentAssignedBody({
 				)}
 			</InfoBox>
 
-			<InfoBox label={`${unitCount} ${unitLabel} · ${crewCount} Crew`}>
-				{assignedVehicles.length === 0 ? (
+			<InfoBox
+				label={formatUnitsAndCrew(
+					incident.assigned.vehicles,
+					incident.assigned.responders,
+				)}
+			>
+				{units.length === 0 ? (
 					<div className="text-2xs text-muted-foreground">
 						No units assigned.
 					</div>
 				) : (
-					assignedVehicles.map((vehicle) => {
-						const crewIds = (vehicle.assignedResponderIds ?? []).filter((id) =>
-							assignedResponderIds.has(id),
-						);
-						const crewNames = crewIds
-							.map((id) => {
-								const r = responderMap.get(id);
-								return r?.displayName ?? r?.name;
-							})
-							.filter((name): name is string => name !== undefined);
-						return (
-							<UnitCrewRow
-								key={vehicle._id}
-								callsign={vehicle.callsign}
-								crew={crewNames}
-							/>
-						);
-					})
+					units.map(({ vehicle, crew }) => (
+						<UnitCrewRow
+							key={vehicle._id}
+							callsign={vehicle.callsign}
+							crew={crew}
+						/>
+					))
 				)}
 			</InfoBox>
 		</>
 	);
 }
 
-function InfoBox({
-	label,
-	children,
-}: {
+type InfoBoxProps = {
 	label: string;
-	children: React.ReactNode;
-}) {
+	children: ReactNode;
+};
+
+function InfoBox({ label, children }: InfoBoxProps) {
 	return (
 		<div className="mx-2 rounded-md border border-sidebar-border bg-sidebar-accent/30 p-3">
 			<div className="mb-2 text-2xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -104,15 +100,13 @@ function InfoBox({
 	);
 }
 
-function InfoRow({
-	label,
-	value,
-	valueClassName,
-}: {
+type InfoRowProps = {
 	label: string;
 	value: string;
 	valueClassName?: string;
-}) {
+};
+
+function InfoRow({ label, value, valueClassName }: InfoRowProps) {
 	return (
 		<div className="flex items-baseline justify-between gap-3">
 			<span className="text-2xs text-muted-foreground">{label}</span>
@@ -128,7 +122,12 @@ function InfoRow({
 	);
 }
 
-function UnitCrewRow({ callsign, crew }: { callsign: string; crew: string[] }) {
+type UnitCrewRowProps = {
+	callsign: string;
+	crew: string[];
+};
+
+function UnitCrewRow({ callsign, crew }: UnitCrewRowProps) {
 	return (
 		<div className="flex items-start justify-between gap-3">
 			<span className="font-mono text-xs font-bold text-foreground">

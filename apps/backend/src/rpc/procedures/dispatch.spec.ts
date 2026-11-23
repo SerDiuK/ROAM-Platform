@@ -1,22 +1,29 @@
 import { randomUUID } from "node:crypto";
 import { call } from "@orpc/server";
-import type { Briefing, Dispatch, Incident } from "@roam/shared";
-import { Keypair, PublicKey, Transaction } from "@solana/web3.js";
+import {
+	type Briefing,
+	BriefingSchema,
+	computeBriefingHash,
+	type Dispatch,
+	DispatchSchema,
+	type Incident,
+	IncidentSchema,
+} from "@roam/shared";
+import { Keypair, Transaction } from "@solana/web3.js";
 import bs58 from "bs58";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
-	makeFakeBroadcaster,
-	makeFakeLogger,
+	makeFakePushClient,
 	makeResponder,
+	makeRpcContext,
 } from "../../../test/factories.js";
-import { computeBriefingHash } from "../../agent/runner.js";
 import type { Config } from "../../config.js";
 import { BriefingModel } from "../../db/models/briefing.js";
 import { DispatchModel } from "../../db/models/dispatch.js";
 import { DispatchResponseModel } from "../../db/models/dispatchResponse.js";
 import { IncidentModel } from "../../db/models/incident.js";
 import { ResponderModel } from "../../db/models/responder.js";
-import type { ExpoPushClient } from "../../push/expo.js";
+import { toWire } from "../../db/serializers/wire.js";
 import type { AuthedUser, RpcContext } from "../context.js";
 import { dispatchRouter } from "./dispatch.js";
 
@@ -28,71 +35,41 @@ vi.mock("@roam/solana-client", async () => {
 		...actual,
 		buildRecordEventTx: vi.fn(),
 		partialSignAsFeePayer: vi.fn(),
+		verifyRecordEventTx: vi.fn(),
 	};
 });
 
 vi.mock("../../x402/client.js", () => ({
 	triggerX402Payment: vi.fn(async () => "fake-x402-sig"),
-	SETTLEMENT_SOL: 0.001,
 }));
 
-const { buildRecordEventTx, partialSignAsFeePayer } = await import(
-	"@roam/solana-client"
-);
+const { buildRecordEventTx, partialSignAsFeePayer, verifyRecordEventTx } =
+	await import("@roam/solana-client");
 const buildRecordEventTxMock = vi.mocked(buildRecordEventTx);
 const partialSignAsFeePayerMock = vi.mocked(partialSignAsFeePayer);
+const verifyRecordEventTxMock = vi.mocked(verifyRecordEventTx);
 
 const { triggerX402Payment } = await import("../../x402/client.js");
 const triggerX402PaymentMock = vi.mocked(triggerX402Payment);
 
-function makeFakePushClient(): {
-	sendPushToResponders: ReturnType<typeof vi.fn>;
-} {
-	return {
-		sendPushToResponders: vi.fn(async () => ({
-			tickets: [],
-			delivered: 0,
-			skipped: 0,
-		})),
-	};
-}
-
 const TEST_HMAC_KEY = "0".repeat(64);
 const TEST_OPERATOR = Keypair.generate();
 
-const fakeConfig = {
+const fakeConfig: Partial<Config> = {
 	SOLANA_OPERATOR_KEYPAIR: bs58.encode(TEST_OPERATOR.secretKey),
 	SOLANA_CLUSTER: "devnet",
 	CHAIN_HMAC_KEY: TEST_HMAC_KEY,
-} as Config;
+};
 
-interface ContextOverrides {
-	dispatchBroadcaster?: ReturnType<typeof makeFakeBroadcaster>;
-	pushClient?: ReturnType<typeof makeFakePushClient>;
-	user?: AuthedUser | null;
-}
-
-function buildContext(overrides: ContextOverrides = {}): RpcContext & {
-	dispatchBroadcaster: ReturnType<typeof makeFakeBroadcaster>;
+function buildContext(
+	overrides: { user?: AuthedUser | null } = {},
+): RpcContext & {
 	pushClient: ReturnType<typeof makeFakePushClient>;
 } {
-	const dispatchBroadcaster =
-		overrides.dispatchBroadcaster ?? makeFakeBroadcaster();
-	const pushClient = overrides.pushClient ?? makeFakePushClient();
+	const pushClient = makeFakePushClient();
 	return {
-		config: fakeConfig,
-		incidentBroadcaster:
-			makeFakeBroadcaster() as unknown as RpcContext["incidentBroadcaster"],
-		dispatchBroadcaster:
-			dispatchBroadcaster as unknown as RpcContext["dispatchBroadcaster"],
-		transcriber: {} as RpcContext["transcriber"],
-		anthropic: {} as RpcContext["anthropic"],
-		pushClient: pushClient as unknown as ExpoPushClient,
-		log: makeFakeLogger() as unknown as RpcContext["log"],
-		user: overrides.user ?? null,
-	} as RpcContext & {
-		dispatchBroadcaster: ReturnType<typeof makeFakeBroadcaster>;
-		pushClient: ReturnType<typeof makeFakePushClient>;
+		...makeRpcContext(fakeConfig, { user: overrides.user ?? null }),
+		pushClient,
 	};
 }
 
@@ -107,7 +84,6 @@ async function seedBriefing(
 		recommendedResponderIds?: string[];
 		summary?: string;
 		incidentType?: string;
-		totalUsdc?: number;
 	} = {},
 ): Promise<SeededBriefing> {
 	const incidentId = randomUUID();
@@ -121,19 +97,10 @@ async function seedBriefing(
 		"responder-1",
 		"responder-2",
 	];
-	const totalUsdc = overrides.totalUsdc ?? 25;
-	const payout = {
-		baseUsdc: 10,
-		urgencyMultiplier: 2,
-		hazmatMultiplier: 1,
-		distanceMultiplier: 1.25,
-		totalUsdc,
-	};
 	const briefingHash = computeBriefingHash({
 		summary,
 		recommendedVehicleIds,
 		recommendedResponderIds,
-		payout,
 	});
 
 	await IncidentModel.create({
@@ -159,17 +126,13 @@ async function seedBriefing(
 		summary,
 		recommendedVehicleIds,
 		recommendedResponderIds,
-		payout,
 		briefingHash,
 	});
 
-	const incident = JSON.parse(
-		JSON.stringify(await IncidentModel.findById(incidentId).lean()),
-	) as Incident;
-	const briefing = JSON.parse(
-		JSON.stringify(await BriefingModel.findById(briefingId).lean()),
-	) as Briefing;
-	return { incident, briefing };
+	return {
+		incident: toWire(IncidentSchema, await IncidentModel.findById(incidentId)),
+		briefing: toWire(BriefingSchema, await BriefingModel.findById(briefingId)),
+	};
 }
 
 async function seedPendingDispatch(args: {
@@ -178,7 +141,6 @@ async function seedPendingDispatch(args: {
 	responderIds: string[];
 	requiredAccepts?: number;
 	expiresInSecs?: number;
-	payoutUsdc?: number;
 }): Promise<Dispatch> {
 	const dispatchId = randomUUID();
 	const now = new Date();
@@ -191,15 +153,12 @@ async function seedPendingDispatch(args: {
 		decidedAt: now,
 		assignedVehicleIds: ["vehicle-1"],
 		assignedResponderIds: args.responderIds,
-		payoutUsdc: args.payoutUsdc ?? 25,
 		requiredAccepts: args.requiredAccepts ?? 1,
 		status: "pending",
 		claimedByResponderIds: [],
 		expiresAt,
 	});
-	return JSON.parse(
-		JSON.stringify(await DispatchModel.findById(dispatchId).lean()),
-	) as Dispatch;
+	return toWire(DispatchSchema, await DispatchModel.findById(dispatchId));
 }
 
 async function seedSiwsResponder(idOverride?: string): Promise<{
@@ -241,14 +200,16 @@ async function commitFor(args: {
 beforeEach(() => {
 	buildRecordEventTxMock.mockReset();
 	partialSignAsFeePayerMock.mockReset();
+	verifyRecordEventTxMock.mockReset();
 	triggerX402PaymentMock.mockReset();
-	buildRecordEventTxMock.mockImplementation(async (args) => {
-		const tx = new Transaction({
-			feePayer: args.feePayerPubkey,
-			recentBlockhash: "11111111111111111111111111111111",
-		});
-		return { transaction: tx, eventPda: PublicKey.default };
-	});
+	buildRecordEventTxMock.mockImplementation(
+		async (args) =>
+			new Transaction({
+				feePayer: args.feePayerPubkey,
+				recentBlockhash: "11111111111111111111111111111111",
+			}),
+	);
+	verifyRecordEventTxMock.mockResolvedValue(true);
 	partialSignAsFeePayerMock.mockImplementation(() => {});
 	triggerX402PaymentMock.mockResolvedValue("fake-x402-sig");
 });
@@ -258,11 +219,10 @@ async function flushMicrotasks(): Promise<void> {
 }
 
 describe("dispatch.confirm", () => {
-	it("creates a Dispatch, flips Incident to responding, fires push, broadcasts dispatch.created", async () => {
+	it("creates a Dispatch, flips Incident to responding and fires the push", async () => {
 		const { incident, briefing } = await seedBriefing({
 			incidentType: "Cardiac arrest",
 			recommendedResponderIds: ["responder-A", "responder-B"],
-			totalUsdc: 42,
 		});
 		const ctx = buildContext();
 
@@ -284,7 +244,6 @@ describe("dispatch.confirm", () => {
 			"responder-A",
 			"responder-B",
 		]);
-		expect(dispatch.payoutUsdc).toBe(42);
 		expect(dispatch.requiredAccepts).toBe(1);
 		expect(dispatch.claimedByResponderIds).toEqual([]);
 
@@ -305,17 +264,52 @@ describe("dispatch.confirm", () => {
 				data: expect.objectContaining({
 					type: "dispatch.created",
 					dispatchId: dispatch._id,
-					payoutUsdc: 42,
 				}),
 			}),
 		);
+	});
 
-		expect(ctx.dispatchBroadcaster.broadcast).toHaveBeenCalledWith(
-			expect.objectContaining({
-				type: "dispatch.created",
-				dispatch: expect.objectContaining({ _id: dispatch._id }),
-			}),
-		);
+	it("rejects requiredAccepts above the briefing's crew", async () => {
+		const { briefing } = await seedBriefing();
+
+		await expect(
+			call(
+				dispatchRouter.confirm,
+				{
+					briefingId: briefing._id,
+					decisionMaker: "human",
+					requiredAccepts: 3,
+				},
+				{ context: buildContext() },
+			),
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+		expect(await DispatchModel.countDocuments()).toBe(0);
+	});
+
+	it("rejects a second confirm while the first dispatch is active", async () => {
+		const { briefing } = await seedBriefing();
+		const input = { briefingId: briefing._id, decisionMaker: "human" as const };
+		await call(dispatchRouter.confirm, input, { context: buildContext() });
+
+		await expect(
+			call(dispatchRouter.confirm, input, { context: buildContext() }),
+		).rejects.toMatchObject({ code: "CONFLICT" });
+		expect(await DispatchModel.countDocuments()).toBe(1);
+	});
+
+	it("allows a new dispatch once the previous one expired unclaimed", async () => {
+		const { briefing } = await seedBriefing();
+		const input = { briefingId: briefing._id, decisionMaker: "human" as const };
+		const first = await call(dispatchRouter.confirm, input, {
+			context: buildContext(),
+		});
+		await DispatchModel.findByIdAndUpdate(first._id, {
+			expiresAt: new Date(Date.now() - 1000),
+		});
+
+		await call(dispatchRouter.confirm, input, { context: buildContext() });
+
+		expect(await DispatchModel.countDocuments()).toBe(2);
 	});
 
 	it("falls back to a generic title when the incident has no classification", async () => {
@@ -353,7 +347,6 @@ describe("dispatch.confirm", () => {
 		).rejects.toMatchObject({ code: "CONFLICT" });
 
 		expect(ctx.pushClient.sendPushToResponders).not.toHaveBeenCalled();
-		expect(ctx.dispatchBroadcaster.broadcast).not.toHaveBeenCalled();
 		expect(await DispatchModel.countDocuments()).toBe(0);
 	});
 
@@ -444,6 +437,32 @@ describe("dispatch.prepareResponseTx", () => {
 			message: "dispatch_already_claimed",
 		});
 
+		expect(buildRecordEventTxMock).not.toHaveBeenCalled();
+	});
+
+	it("rejects an accept from a responder who already declined, before the fingerprint", async () => {
+		const { briefing } = await seedBriefing();
+		const seeker = await seedSiwsResponder();
+		const other = await seedSiwsResponder();
+		const dispatch = await seedPendingDispatch({
+			briefingId: briefing._id,
+			incidentId: briefing.incidentId,
+			responderIds: [seeker.id, other.id],
+			requiredAccepts: 2,
+		});
+		await commitFor({
+			user: seeker.user,
+			dispatchId: dispatch._id,
+			decision: "decline",
+		});
+
+		await expect(
+			call(
+				dispatchRouter.prepareResponseTx,
+				{ dispatchId: dispatch._id, decision: "accept" },
+				{ context: buildContext({ user: seeker.user }) },
+			),
+		).rejects.toMatchObject({ code: "CONFLICT" });
 		expect(buildRecordEventTxMock).not.toHaveBeenCalled();
 	});
 
@@ -540,18 +559,30 @@ describe("dispatch.commitSignedResponse — accept", () => {
 		expect(result.response.responderId).toBe(seekerA.id);
 		expect(result.response.solanaTxSignature).toBe("sig-A-1");
 		expect(result.response.attestorPubkey).toBe(seekerA.pubkey);
+	});
 
-		expect(ctx.dispatchBroadcaster.broadcast).toHaveBeenCalledWith(
-			expect.objectContaining({
-				type: "dispatch.responded.signed",
+	it("rejects a signature that doesn't verify on chain", async () => {
+		const { briefing } = await seedBriefing();
+		const seeker = await seedSiwsResponder();
+		const dispatch = await seedPendingDispatch({
+			briefingId: briefing._id,
+			incidentId: briefing.incidentId,
+			responderIds: [seeker.id],
+		});
+		verifyRecordEventTxMock.mockResolvedValue(false);
+
+		await expect(
+			commitFor({
+				user: seeker.user,
 				dispatchId: dispatch._id,
-				response: expect.objectContaining({
-					decision: "accept",
-					solanaTxSignature: "sig-A-1",
-				}),
-				dispatch: expect.objectContaining({ status: "claimed" }),
+				decision: "accept",
+				signature: "x",
 			}),
-		);
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+
+		const after = await DispatchModel.findById(dispatch._id).lean();
+		expect(after?.claimedByResponderIds).toEqual([]);
+		expect(await DispatchResponseModel.countDocuments()).toBe(0);
 	});
 
 	it("stays pending when more accepts are still required", async () => {
@@ -651,7 +682,7 @@ describe("dispatch.commitSignedResponse — accept", () => {
 });
 
 describe("dispatch.commitSignedResponse — decline", () => {
-	it("records the decline without modifying the dispatch", async () => {
+	it("records the decline; a sole crew's decline leaves the dispatch pending", async () => {
 		const { briefing } = await seedBriefing();
 		const seeker = await seedSiwsResponder();
 		const dispatch = await seedPendingDispatch({
@@ -677,6 +708,33 @@ describe("dispatch.commitSignedResponse — decline", () => {
 		expect(result.response.decision).toBe("decline");
 		expect(result.response.declineReason).toBe("off-shift");
 		expect(result.response.solanaTxSignature).toBe("sig-decline");
+	});
+
+	it("lowers requiredAccepts so the remaining crew's accept claims the dispatch", async () => {
+		const { briefing } = await seedBriefing();
+		const seekerA = await seedSiwsResponder();
+		const seekerB = await seedSiwsResponder();
+		const dispatch = await seedPendingDispatch({
+			briefingId: briefing._id,
+			incidentId: briefing.incidentId,
+			responderIds: [seekerA.id, seekerB.id],
+			requiredAccepts: 2,
+		});
+
+		await commitFor({
+			user: seekerA.user,
+			dispatchId: dispatch._id,
+			decision: "accept",
+		});
+		await commitFor({
+			user: seekerB.user,
+			dispatchId: dispatch._id,
+			decision: "decline",
+		});
+
+		const after = await DispatchModel.findById(dispatch._id).lean();
+		expect(after?.requiredAccepts).toBe(1);
+		expect(after?.status).toBe("claimed");
 	});
 
 	it("records a decline even on an expired dispatch", async () => {
@@ -739,6 +797,7 @@ describe("dispatch.commitSignedResponse — duplicate response", () => {
 
 		const after = await DispatchModel.findById(dispatch._id).lean();
 		expect(after?.claimedByResponderIds).toEqual([]);
+		expect(after?.status).toBe("pending");
 		expect(await DispatchResponseModel.countDocuments()).toBe(1);
 	});
 });
@@ -845,7 +904,7 @@ describe("dispatch.clear", () => {
 
 		const cleared = await call(
 			dispatchRouter.clear,
-			{ dispatchId: dispatch._id, clearedBy: seeker.id },
+			{ dispatchId: dispatch._id },
 			{ context: ctx },
 		);
 
@@ -854,17 +913,6 @@ describe("dispatch.clear", () => {
 		const updatedIncident = await IncidentModel.findById(incident._id).lean();
 		expect(updatedIncident?.status).toBe("resolved");
 		expect(updatedIncident?.clearedAt).toBeInstanceOf(Date);
-
-		expect(ctx.dispatchBroadcaster.broadcast).toHaveBeenCalledWith(
-			expect.objectContaining({
-				type: "dispatch.cleared",
-				dispatch: expect.objectContaining({
-					_id: dispatch._id,
-					status: "cleared",
-				}),
-				clearedBy: seeker.id,
-			}),
-		);
 	});
 
 	it("rejects clear on a pending dispatch", async () => {
@@ -1011,7 +1059,7 @@ describe("dispatch.clear", () => {
 });
 
 describe("dispatch.commitSignedClear", () => {
-	it("flips a claimed dispatch to cleared, resolves the incident, broadcasts, and fires x402", async () => {
+	it("flips a claimed dispatch to cleared, resolves the incident and fires x402", async () => {
 		const { incident, briefing } = await seedBriefing();
 		const seeker = await seedSiwsResponder();
 		const dispatch = await seedPendingDispatch({
@@ -1041,23 +1089,68 @@ describe("dispatch.commitSignedClear", () => {
 		expect(updatedIncident?.status).toBe("resolved");
 		expect(updatedIncident?.clearedAt).toBeInstanceOf(Date);
 
-		expect(ctx.dispatchBroadcaster.broadcast).toHaveBeenCalledWith(
-			expect.objectContaining({
-				type: "dispatch.cleared",
-				dispatch: expect.objectContaining({
-					_id: dispatch._id,
-					status: "cleared",
-				}),
-				clearedBy: seeker.id,
-			}),
-		);
-
 		expect(triggerX402PaymentMock).toHaveBeenCalledTimes(1);
 		expect(triggerX402PaymentMock).toHaveBeenCalledWith(
 			ctx.config,
 			ctx.log,
 			dispatch._id,
 		);
+	});
+
+	it("rejects a responder who didn't claim the dispatch", async () => {
+		const { briefing } = await seedBriefing();
+		const claimer = await seedSiwsResponder();
+		const other = await seedSiwsResponder();
+		const dispatch = await seedPendingDispatch({
+			briefingId: briefing._id,
+			incidentId: briefing.incidentId,
+			responderIds: [claimer.id, other.id],
+		});
+		await commitFor({
+			user: claimer.user,
+			dispatchId: dispatch._id,
+			decision: "accept",
+		});
+
+		await expect(
+			call(
+				dispatchRouter.commitSignedClear,
+				{ dispatchId: dispatch._id, signature: "sig-not-mine" },
+				{ context: buildContext({ user: other.user }) },
+			),
+		).rejects.toMatchObject({ code: "FORBIDDEN" });
+		await flushMicrotasks();
+
+		const after = await DispatchModel.findById(dispatch._id).lean();
+		expect(after?.status).toBe("claimed");
+		expect(triggerX402PaymentMock).not.toHaveBeenCalled();
+	});
+
+	it("rejects a clear signature that doesn't verify on chain", async () => {
+		const { briefing } = await seedBriefing();
+		const seeker = await seedSiwsResponder();
+		const dispatch = await seedPendingDispatch({
+			briefingId: briefing._id,
+			incidentId: briefing.incidentId,
+			responderIds: [seeker.id],
+		});
+		await commitFor({
+			user: seeker.user,
+			dispatchId: dispatch._id,
+			decision: "accept",
+		});
+		verifyRecordEventTxMock.mockResolvedValue(false);
+
+		await expect(
+			call(
+				dispatchRouter.commitSignedClear,
+				{ dispatchId: dispatch._id, signature: "x" },
+				{ context: buildContext({ user: seeker.user }) },
+			),
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+
+		const after = await DispatchModel.findById(dispatch._id).lean();
+		expect(after?.status).toBe("claimed");
 	});
 
 	it("does not fire x402 when the dispatch is still pending (CONFLICT)", async () => {
@@ -1199,6 +1292,5 @@ describe("dispatch lifecycle smoke", () => {
 		expect(accepted.dispatch.claimedByResponderIds).toEqual([seekerA.id]);
 
 		expect(ctx.pushClient.sendPushToResponders).toHaveBeenCalledTimes(1);
-		expect(ctx.dispatchBroadcaster.broadcast).toHaveBeenCalledTimes(2);
 	});
 });

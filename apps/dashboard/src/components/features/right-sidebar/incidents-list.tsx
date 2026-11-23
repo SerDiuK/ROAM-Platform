@@ -10,14 +10,16 @@ type IncidentsListProps = {
 	incidents: Incident[];
 	loading: boolean;
 	connected: boolean;
+	now: number;
 	selectedIncidentId: string | null;
-	onSelectIncident: (incident: Incident) => void;
+	onSelectIncident: (id: string) => void;
 };
 
 export function IncidentsList({
 	incidents,
 	loading,
 	connected,
+	now,
 	selectedIncidentId,
 	onSelectIncident,
 }: IncidentsListProps) {
@@ -45,7 +47,8 @@ export function IncidentsList({
 								key={incident._id}
 								incident={incident}
 								isActive={incident._id === selectedIncidentId}
-								onSelect={() => onSelectIncident(incident)}
+								now={now}
+								onSelect={onSelectIncident}
 							/>
 						))}
 					</ol>

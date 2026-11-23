@@ -1,7 +1,7 @@
-import type { Mock } from "vitest";
+import { vi } from "vitest";
 import { withSolanaProvider } from "../../src/services/solana.js";
 
-export const mockedWithSolanaProvider = withSolanaProvider as unknown as Mock;
+export const mockedWithSolanaProvider = vi.mocked(withSolanaProvider);
 
 export function resetSolanaMock(): void {
 	mockedWithSolanaProvider.mockReset();

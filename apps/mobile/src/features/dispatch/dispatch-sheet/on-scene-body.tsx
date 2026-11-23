@@ -26,7 +26,7 @@ export function OnSceneBody({
 }): React.JSX.Element {
 	const { dispatch, incident, briefing, responders } = data;
 	const vehicles = useAtomValue(vehiclesAtom);
-	const events = useIncidentEvents(incident._id);
+	const { events, failed } = useIncidentEvents(incident._id);
 
 	const vehicle = React.useMemo(
 		() =>
@@ -107,7 +107,7 @@ export function OnSceneBody({
 				/>
 			</View>
 
-			<ChainTimeline events={events} responders={responders} />
+			<ChainTimeline events={events} responders={responders} failed={failed} />
 		</DispatchSheetLayout>
 	);
 }

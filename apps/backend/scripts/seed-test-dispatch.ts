@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
+import { computeBriefingHash } from "@roam/shared";
 import mongoose from "mongoose";
-import { computeBriefingHash } from "../src/agent/runner.js";
 import { parseConfig } from "../src/config.js";
 import { connectDb } from "../src/db/connection.js";
 import { BriefingModel } from "../src/db/models/briefing.js";
@@ -28,13 +28,6 @@ async function main(): Promise<void> {
 	const recommendedVehicleIds = vehicles.map((v) => String(v._id));
 	const summary =
 		"Multi-vehicle crash at Biscayne Blvd & NE 36th St. Two cars, multiple injuries, possible entrapment. Lights & sirens.";
-	const payout = {
-		baseUsdc: 10,
-		urgencyMultiplier: 2,
-		hazmatMultiplier: 1,
-		distanceMultiplier: 1.25,
-		totalUsdc: 25,
-	};
 
 	const incidentId = randomUUID();
 	const briefingId = randomUUID();
@@ -53,7 +46,7 @@ async function main(): Promise<void> {
 			locationDescription: "Biscayne & NE 36th",
 			requiredCapabilities: ["medic"],
 		},
-		status: "live",
+		status: "pending",
 		assigned: { vehicles: [], responders: [] },
 	});
 
@@ -65,12 +58,10 @@ async function main(): Promise<void> {
 		summary,
 		recommendedVehicleIds,
 		recommendedResponderIds,
-		payout,
 		briefingHash: computeBriefingHash({
 			summary,
 			recommendedVehicleIds,
 			recommendedResponderIds,
-			payout,
 		}),
 	});
 

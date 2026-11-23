@@ -1,65 +1,41 @@
 "use client";
 
-import type { Incident, Responder, Telemetry, Vehicle } from "@roam/shared";
+import type { Briefing, Incident, Responder, Vehicle } from "@roam/shared";
 import { cn } from "@roam/ui";
-import { useEffect, useRef } from "react";
+import { useState } from "react";
 import { Button } from "../../ui/button";
 import { Icon } from "../../ui/icon";
 import { SidebarContent, SidebarHeader } from "../../ui/sidebar-primitives";
 import { IncidentAssignedBody } from "./incident-assigned-body";
 import { IncidentChainLog } from "./incident-chain-log";
 import { IncidentPendingBody } from "./incident-pending-body";
-
-function playAlertTone(audio: HTMLAudioElement | null): void {
-	if (!audio) return;
-	audio.currentTime = 0;
-	audio.play().catch((err) => {
-		console.warn("[incident-detail] alert tone blocked:", err);
-	});
-}
+import type { DispatchState } from "./recommendation-group";
 
 type IncidentDetailProps = {
 	incident: Incident | null;
 	vehicles: Vehicle[];
-	positions: Map<string, Telemetry>;
 	responderMap: Map<string, Responder>;
+	now: number;
+	dispatchState: DispatchState | undefined;
 	open: boolean;
 	onClose: () => void;
-	onDispatch?: (incident: Incident) => void;
+	onDispatch: (briefing: Briefing) => void;
 };
 
 export function IncidentDetail({
 	incident,
 	vehicles,
-	positions,
 	responderMap,
+	now,
+	dispatchState,
 	open,
 	onClose,
 	onDispatch,
 }: IncidentDetailProps) {
-	const lastIncidentRef = useRef<Incident | null>(null);
-	useEffect(() => {
-		if (incident) lastIncidentRef.current = incident;
-	}, [incident]);
+	const [lastIncident, setLastIncident] = useState(incident);
+	if (incident !== null && incident !== lastIncident) setLastIncident(incident);
+	const display = incident ?? lastIncident;
 
-	const alertAudioRef = useRef<HTMLAudioElement | null>(null);
-	useEffect(() => {
-		const audio = new Audio("/911call.wav");
-		audio.preload = "auto";
-		audio.volume = 1;
-		alertAudioRef.current = audio;
-		return () => {
-			audio.pause();
-			alertAudioRef.current = null;
-		};
-	}, []);
-	useEffect(() => {
-		if (!open) return;
-		if (incident?.status !== "live") return;
-		playAlertTone(alertAudioRef.current);
-	}, [open, incident?.status]);
-
-	const display = incident ?? lastIncidentRef.current;
 	const isAssigned =
 		display?.status === "responding" ||
 		display?.status === "arrived" ||
@@ -77,7 +53,6 @@ export function IncidentDetail({
 			<SidebarHeader className="justify-between">
 				<Button
 					variant="ghost"
-					size="sm"
 					onClick={onClose}
 					className="-ml-1 px-2 tracking-widest"
 				>
@@ -98,15 +73,17 @@ export function IncidentDetail({
 					<IncidentPendingBody
 						incident={display}
 						vehicles={vehicles}
-						positions={positions}
+						responderMap={responderMap}
+						now={now}
 						panelOpen={open}
+						dispatchState={dispatchState}
 						onDispatch={onDispatch}
 					/>
 				)}
-				{display && (
+				{open && display && (
 					<IncidentChainLog
+						key={display._id}
 						incidentId={display._id}
-						vehicles={vehicles}
 						responderMap={responderMap}
 					/>
 				)}

@@ -21,10 +21,8 @@ export function useTokenRenewal({ intervalMs = 20_000 }: Options = {}): void {
 		};
 		const start = (): void => {
 			if (timer) return;
-			void tick();
-			timer = setInterval(() => {
-				void tick();
-			}, intervalMs);
+			tick();
+			timer = setInterval(tick, intervalMs);
 		};
 		const stop = (): void => {
 			if (timer) {

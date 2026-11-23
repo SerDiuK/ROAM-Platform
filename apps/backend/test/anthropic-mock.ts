@@ -1,7 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { vi } from "vitest";
 
-export interface MockAnthropicClient {
+interface MockAnthropicClient {
 	client: Anthropic;
 	create: ReturnType<typeof vi.fn>;
 	calls: { args: unknown }[];
@@ -21,6 +21,7 @@ export function makeMockAnthropic(
 		}
 		return responses[i++];
 	});
+	// The runner only calls messages.create; the rest of the SDK client is never touched.
 	const client = { messages: { create } } as unknown as Anthropic;
 	return { client, create, calls };
 }
@@ -29,6 +30,7 @@ export function fakeMessage(
 	content: Anthropic.ContentBlock[],
 	stopReason: Anthropic.Message["stop_reason"] = "end_turn",
 ): Anthropic.Message {
+	// The SDK's usage type grows fields with each release; the runner reads none of them.
 	return {
 		id: `msg_${Math.random().toString(36).slice(2, 10)}`,
 		type: "message",

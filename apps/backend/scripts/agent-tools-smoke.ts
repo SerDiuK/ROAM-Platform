@@ -1,20 +1,15 @@
 import { createHash, randomUUID } from "node:crypto";
-import dotenv from "dotenv";
 import mongoose from "mongoose";
 import type { AgentToolContext } from "../src/agent/tools/index.js";
 import { agentTools, dispatchToolCall } from "../src/agent/tools/index.js";
+import { parseConfig } from "../src/config.js";
 import { connectDb } from "../src/db/connection.js";
 import { IncidentModel } from "../src/db/models/incident.js";
 import { ResponderModel } from "../src/db/models/responder.js";
 import { VehicleModel } from "../src/db/models/vehicle.js";
 import { VehicleSpecModel } from "../src/db/models/vehicleSpec.js";
 
-dotenv.config({ path: ".env.local" });
-const MONGODB_URL = process.env.MONGODB_URL;
-if (!MONGODB_URL) {
-	console.error("MONGODB_URL is required (set it in apps/backend/.env.local)");
-	process.exit(1);
-}
+const config = parseConfig();
 
 const PREFIX = "smoke-agent-tools-";
 
@@ -147,8 +142,7 @@ function pretty(label: string, value: unknown): void {
 }
 
 async function main(): Promise<void> {
-	if (!MONGODB_URL) throw new Error("MONGODB_URL missing");
-	await connectDb(MONGODB_URL, console);
+	await connectDb(config.MONGODB_URL, console);
 	try {
 		await cleanup();
 		await seed();

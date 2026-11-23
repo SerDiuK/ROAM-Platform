@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-	agentTools,
 	dispatchToolCall,
 	ToolInputValidationError,
 	UnknownToolError,
@@ -8,30 +7,6 @@ import {
 import type { AgentToolContext } from "./types.js";
 
 const ctx = { log: {} as AgentToolContext["log"] } satisfies AgentToolContext;
-
-describe("agentTools registry", () => {
-	const expectedNames = [
-		"classify_incident",
-		"find_nearest_vehicles",
-		"get_responder_status",
-		"get_active_incidents",
-	];
-
-	it("exposes the four agent tools", () => {
-		expect(agentTools.map((t) => t.name).sort()).toEqual(
-			[...expectedNames].sort(),
-		);
-	});
-
-	it("each entry has a non-empty description and a JSON-schema input_schema", () => {
-		for (const tool of agentTools) {
-			expect(tool.description.length).toBeGreaterThan(20);
-			expect(tool.input_schema).toBeTypeOf("object");
-			// JSON Schema for a Zod object surfaces type:'object' at the root.
-			expect((tool.input_schema as { type?: string }).type).toBe("object");
-		}
-	});
-});
 
 describe("dispatchToolCall", () => {
 	it("throws UnknownToolError for an unregistered tool name", async () => {

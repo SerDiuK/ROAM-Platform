@@ -1,8 +1,7 @@
 import type { Incident, IncidentStatus } from "@roam/shared";
+import type { Tone } from "../../ui/status-pill";
 
-export function statusToneFor(
-	status: IncidentStatus,
-): "primary" | "warning" | "danger" | "offline" | "muted" {
+export function statusToneFor(status: IncidentStatus): Tone {
 	switch (status) {
 		case "cancelled":
 			return "muted";

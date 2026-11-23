@@ -17,5 +17,3 @@ export const rpcRouter = os.router({
 	dispatch: dispatchRouter,
 	events: eventsRouter,
 });
-
-export type RpcRouter = typeof rpcRouter;

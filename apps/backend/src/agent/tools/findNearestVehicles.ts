@@ -32,7 +32,7 @@ const MAX_RESULTS = 5;
 
 export const findNearestVehiclesTool: AgentTool<Input, OutputItem[]> = {
 	name: "find_nearest_vehicles",
-	description: `Return up to ${MAX_RESULTS} available vehicles nearest to a (lat, lon) within radiusKm. Optional requiredCapabilities filters to vehicles whose assigned responders include at least one of the listed capabilities. Results are ordered nearest-first with explicit distanceMeters.`,
+	description: `Return up to ${MAX_RESULTS} dispatchable vehicles (available, or in use by a checked-in crew) nearest to a (lat, lon) within radiusKm. Optional requiredCapabilities filters to vehicles whose assigned responders include at least one of the listed capabilities. Results are ordered nearest-first with explicit distanceMeters.`,
 	inputSchema: InputSchema,
 	handler: async ({ lat, lon, radiusKm, requiredCapabilities }) => {
 		let qualifyingResponderIds: string[] | null = null;
@@ -42,19 +42,18 @@ export const findNearestVehiclesTool: AgentTool<Input, OutputItem[]> = {
 			})
 				.select({ _id: 1 })
 				.lean();
-			// lean() types _id as ObjectId, but the Responder schema overrides it to a string.
-			qualifyingResponderIds = (ops as unknown as { _id: string }[]).map(
-				(o) => o._id,
-			);
+			qualifyingResponderIds = ops.map((o) => o._id);
 			if (qualifyingResponderIds.length === 0) return [];
 		}
 
-		const match: Record<string, unknown> = { status: "available" };
+		const match: Record<string, unknown> = {
+			status: { $in: ["available", "in_use"] },
+		};
 		if (qualifyingResponderIds) {
 			match.assignedResponderIds = { $in: qualifyingResponderIds };
 		}
 
-		const docs = (await VehicleModel.aggregate([
+		const docs = await VehicleModel.aggregate<NearbyVehicleDoc>([
 			{
 				$geoNear: {
 					near: { type: "Point", coordinates: [lon, lat] },
@@ -65,7 +64,7 @@ export const findNearestVehiclesTool: AgentTool<Input, OutputItem[]> = {
 				},
 			},
 			{ $limit: MAX_RESULTS },
-		])) as NearbyVehicleDoc[];
+		]);
 
 		return docs.map((d) => ({
 			id: d._id.toHexString(),

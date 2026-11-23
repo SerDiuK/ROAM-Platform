@@ -45,10 +45,9 @@ export default class DispatchGet extends BaseCommand {
 		this.log(
 			`  required     ${dispatch.claimedByResponderIds.length}/${dispatch.requiredAccepts}`,
 		);
-		this.log(`  payoutUsdc   ${dispatch.payoutUsdc}`);
 		this.log(`  decidedAt    ${new Date(dispatch.decidedAt).toISOString()}`);
 		this.log(
-			`  expiresAt    ${new Date(dispatch.expiresAt).toISOString()} (${formatRelative(dispatch.expiresAt)})`,
+			`  expiresAt    ${new Date(dispatch.expiresAt).toISOString()} (${formatRelative(dispatch.expiresAt, Date.now())})`,
 		);
 		this.log("");
 		this.log(chalk.bold("Assigned responders"));

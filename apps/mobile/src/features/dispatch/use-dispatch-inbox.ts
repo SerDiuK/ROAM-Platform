@@ -1,10 +1,9 @@
 import { Transaction } from "@solana/web3.js";
 import { getDefaultStore } from "jotai";
-import { Base64 } from "js-base64";
 import * as React from "react";
 import { api } from "@/lib/api";
-import { mwa, SeekerProtocolError } from "@/lib/mwa";
-import { readAuthToken } from "@/lib/secure-storage";
+import { mwa, SeekerAuthorizationError } from "@/lib/mwa";
+import { readAuthToken, writeAuthToken } from "@/lib/secure-storage";
 import { forgetDeviceAtom } from "@/state/wallet-auth";
 import {
 	DispatchInbox,
@@ -25,6 +24,17 @@ type UseDispatchInbox = {
 	dismiss: () => void;
 };
 
+async function signWithSeeker(serializedTx: string): Promise<string> {
+	const authToken = await readAuthToken();
+	if (!authToken) {
+		throw new SeekerAuthorizationError("Sign in again to use your Seeker");
+	}
+	const tx = Transaction.from(Buffer.from(serializedTx, "base64"));
+	const signed = await mwa.signAndSendTransaction(tx, { authToken });
+	await writeAuthToken(signed.authToken);
+	return signed.signature;
+}
+
 const apiAdapter: DispatchInboxApi = {
 	getDispatch: async (id) => (await api.dispatch.get({ id })).dispatch,
 	getIncident: async (id) => {
@@ -33,58 +43,20 @@ const apiAdapter: DispatchInboxApi = {
 	},
 	listResponders: () => api.responders.list(),
 	respond: async (req) => {
-		const authToken = await readAuthToken();
-		if (!authToken) {
-			void getDefaultStore().set(forgetDeviceAtom);
-			throw new Error("Sign-in required before responding");
-		}
-		const prepared = await api.dispatch.prepareResponseTx({
-			dispatchId: req.dispatchId,
-			decision: req.decision,
-			declineReason: req.declineReason,
-		});
-		const txBytes = Base64.toUint8Array(prepared.serializedTx);
-		const tx = Transaction.from(txBytes);
-		try {
-			const signature = await mwa.signAndSendTransaction(tx, { authToken });
-			await api.dispatch.commitSignedResponse({
-				dispatchId: req.dispatchId,
-				decision: req.decision,
-				declineReason: req.declineReason,
-				signature,
-			});
-		} catch (err) {
-			if (err instanceof SeekerProtocolError) {
-				void getDefaultStore().set(forgetDeviceAtom);
-			}
-			throw err;
-		}
+		const prepared = await api.dispatch.prepareResponseTx(req);
+		const signature = await signWithSeeker(prepared.serializedTx);
+		await api.dispatch.commitSignedResponse({ ...req, signature });
 	},
 	clear: async (req) => {
-		const authToken = await readAuthToken();
-		if (!authToken) {
-			void getDefaultStore().set(forgetDeviceAtom);
-			throw new Error("Sign-in required before clearing");
-		}
-		const prepared = await api.dispatch.prepareClearTx({
-			dispatchId: req.dispatchId,
-		});
-		const txBytes = Base64.toUint8Array(prepared.serializedTx);
-		const tx = Transaction.from(txBytes);
-		try {
-			const signature = await mwa.signAndSendTransaction(tx, { authToken });
-			await api.dispatch.commitSignedClear({
-				dispatchId: req.dispatchId,
-				signature,
-			});
-		} catch (err) {
-			if (err instanceof SeekerProtocolError) {
-				void getDefaultStore().set(forgetDeviceAtom);
-			}
-			throw err;
-		}
+		const prepared = await api.dispatch.prepareClearTx(req);
+		const signature = await signWithSeeker(prepared.serializedTx);
+		await api.dispatch.commitSignedClear({ ...req, signature });
 	},
 };
+
+function forgetDevice(): Promise<void> {
+	return getDefaultStore().set(forgetDeviceAtom);
+}
 
 export type { DispatchInboxData, DispatchInboxState } from "./dispatch-inbox";
 
@@ -97,6 +69,7 @@ export function useDispatchInbox({ responderId }: Options): UseDispatchInbox {
 			new DispatchInbox({
 				api: apiAdapter,
 				getResponderId: () => responderIdRef.current,
+				forgetDevice,
 			}),
 		[],
 	);
@@ -112,7 +85,7 @@ export function useDispatchInbox({ responderId }: Options): UseDispatchInbox {
 	React.useEffect(() => {
 		if (!responderId) return;
 		let cancelled = false;
-		void (async () => {
+		const showLatestPending = async (): Promise<void> => {
 			try {
 				const dispatches = await api.dispatch.list({});
 				if (cancelled) return;
@@ -133,10 +106,11 @@ export function useDispatchInbox({ responderId }: Options): UseDispatchInbox {
 				if (!candidate) return;
 				shown.current.add(candidate._id);
 				await inbox.showFor(candidate._id);
-			} catch {
-				// Sweep is best-effort — push handler is the canonical path.
+			} catch (err) {
+				console.warn("[dispatch] checking for pending dispatches failed", err);
 			}
-		})();
+		};
+		showLatestPending();
 		return () => {
 			cancelled = true;
 		};

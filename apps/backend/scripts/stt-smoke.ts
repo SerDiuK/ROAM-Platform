@@ -8,8 +8,9 @@ const DEFAULT_FIXTURE_PATH = path.resolve(
 	path.dirname(fileURLToPath(import.meta.url)),
 	"../test/fixtures/sample-call.wav",
 );
-const FIXTURE_PATH = process.env.STT_SMOKE_FIXTURE
-	? path.resolve(process.env.STT_SMOKE_FIXTURE)
+const fixtureArg = process.argv[2];
+const FIXTURE_PATH = fixtureArg
+	? path.resolve(fixtureArg)
 	: DEFAULT_FIXTURE_PATH;
 const EXPECTED =
 	FIXTURE_PATH === DEFAULT_FIXTURE_PATH

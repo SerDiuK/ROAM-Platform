@@ -23,8 +23,7 @@ export async function registerMqttHandlers(
 			`Default VehicleSpec '${DEFAULT_MODEL_SLUG}' not found — seed step did not run`,
 		);
 	}
-	// Typed as string by the shared VehicleSpec schema, but Mongoose stores an ObjectId.
-	const defaultModelId = defaultSpec._id as unknown as Types.ObjectId;
+	const defaultModelId = defaultSpec._id;
 
 	aedes.on("publish", (packet, client) => {
 		if (!client) return;

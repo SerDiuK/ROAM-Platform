@@ -9,7 +9,7 @@ export const EVENT_KIND_LABEL: Record<IncidentEventKind, string> = {
 	cleared: "CLEARED",
 };
 
-export type EventKindTone = "primary" | "red" | "muted";
+type EventKindTone = "primary" | "red" | "muted";
 
 export const EVENT_KIND_TONE: Record<IncidentEventKind, EventKindTone> = {
 	received: "muted",

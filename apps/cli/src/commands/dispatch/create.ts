@@ -51,9 +51,6 @@ export default class DispatchCreate extends BaseCommand {
 		"incident-type": Flags.string({
 			description: "Override the incident classification type.",
 		}),
-		payout: Flags.integer({
-			description: "Override the briefing payout total (USDC).",
-		}),
 		responders: Flags.integer({
 			description: "How many responders to recommend in the briefing.",
 			default: 2,
@@ -81,12 +78,9 @@ export default class DispatchCreate extends BaseCommand {
 			if (incidentId) {
 				const result = await this.api.incidents.get({ id: incidentId });
 				if (!result.briefing) {
-					spinner.fail(
-						chalk.red(
-							`Incident ${shortId(incidentId)} has no briefing yet. Wait for the agent or re-run \`roam incident ingest\`.`,
-						),
+					throw new Error(
+						`Incident ${shortId(incidentId)} has no briefing yet. Wait for the agent or re-run \`roam incident ingest\`.`,
 					);
-					this.exit(1);
 				}
 				briefingId = result.briefing._id;
 				spinner.succeed(
@@ -97,7 +91,6 @@ export default class DispatchCreate extends BaseCommand {
 				const seeded = await seedBriefing({
 					summary: flags.summary,
 					incidentType: flags["incident-type"],
-					totalUsdc: flags.payout,
 					responderCount: flags.responders,
 					responderName: flags["responder-name"],
 					vehicleCount: flags.vehicles,
@@ -132,7 +125,6 @@ export default class DispatchCreate extends BaseCommand {
 			this.log(
 				`  mode        ${dispatch.decisionMaker}${dispatch.decidedBy ? ` (by ${shortId(dispatch.decidedBy)})` : ""}`,
 			);
-			this.log(`  payoutUsdc  ${dispatch.payoutUsdc}`);
 			this.log(
 				`  required    ${dispatch.requiredAccepts} of ${dispatch.assignedResponderIds.length}`,
 			);

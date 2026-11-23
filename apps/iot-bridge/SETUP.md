@@ -165,7 +165,7 @@ Pick `LOCATION_SOURCE` based on environment:
 | `wifi`     | Indoors with mapped WiFi APs nearby         | `GOOGLE_GEOLOCATION_API_KEY` (Google Cloud → enable Geolocation API → create key) |
 | `simulate` | Demo/dev with no real hardware              | nothing extra — generates Miami random walk |
 
-Set `VEHICLE_CALLSIGN` to the callsign of the vehicle the Pi rides in; it is the `{vehicleId}` segment of the MQTT telemetry topic.
+Set `VEHICLE_CALLSIGN` to the callsign of the vehicle the Pi rides in; it is the `{callsign}` segment of the MQTT telemetry topic.
 
 ## 8. Start it
 

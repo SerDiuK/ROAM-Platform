@@ -37,7 +37,7 @@ export function TopBar({
 					ROAM
 				</span>
 				<span className="px-1 text-muted-foreground">|</span>
-				<span className="hidden uppercase text-xs tracking-widest text-secondary-text sm:inline">
+				<span className="hidden uppercase text-xs tracking-widest text-muted-foreground sm:inline">
 					Command Dashboard
 				</span>
 				<span className="px-1 text-muted-foreground">|</span>
@@ -62,11 +62,10 @@ export function TopBar({
 						Solana
 					</span>
 				</div>
-				<Divider />
 			</div>
 
 			{!rightOpen && (
-				<IconButton onClick={onToggleRight} aria-label="Show activity feed">
+				<IconButton onClick={onToggleRight} aria-label="Show incidents">
 					<Icon name="right_panel_open" />
 				</IconButton>
 			)}

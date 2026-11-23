@@ -1,7 +1,6 @@
 import {
 	type IncidentStatus,
 	IncidentStatusSchema,
-	type IncidentUrgency,
 	IncidentUrgencySchema,
 } from "@roam/shared";
 import { z } from "zod";
@@ -29,32 +28,17 @@ const OutputItemSchema = z.object({
 });
 type OutputItem = z.infer<typeof OutputItemSchema>;
 
-interface IncidentLeanDoc {
-	_id: string;
-	status: IncidentStatus;
-	callStartedAt: Date;
-	classification?: {
-		incidentType?: string;
-		urgency?: IncidentUrgency;
-		locationDescription?: string;
-	};
-	assigned?: {
-		vehicles?: string[];
-		responders?: string[];
-	};
-}
-
 export const getActiveIncidentsTool: AgentTool<Input, OutputItem[]> = {
 	name: "get_active_incidents",
 	description:
 		"Return every incident currently in flight (status = live, pending, or responding). Use this before recommending a vehicle to avoid double-dispatching a unit that is already assigned to another scene. Terminal incidents (resolved/cancelled) are excluded.",
 	inputSchema: InputSchema,
 	handler: async () => {
-		const docs = (await IncidentModel.find({
+		const docs = await IncidentModel.find({
 			status: { $in: ACTIVE_STATUSES },
 		})
 			.sort({ callStartedAt: -1 })
-			.lean()) as unknown as IncidentLeanDoc[];
+			.lean();
 
 		return docs.map((d) => ({
 			id: d._id,

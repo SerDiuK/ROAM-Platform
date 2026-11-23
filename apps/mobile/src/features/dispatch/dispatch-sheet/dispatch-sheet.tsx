@@ -1,3 +1,4 @@
+import type { Telemetry } from "@roam/shared";
 import * as React from "react";
 import { ScrollView, useWindowDimensions, View } from "react-native";
 import { Button } from "@/components/ui/button";
@@ -10,6 +11,7 @@ import { OnSceneBody } from "./on-scene-body";
 
 type Props = {
 	state: DispatchInboxState;
+	positions: Map<string, Telemetry>;
 	onAccept: () => void;
 	onDecline: () => void;
 	onClear: () => void;
@@ -18,6 +20,7 @@ type Props = {
 
 export function DispatchSheet({
 	state,
+	positions,
 	onAccept,
 	onDecline,
 	onClear,
@@ -25,15 +28,18 @@ export function DispatchSheet({
 }: Props): React.JSX.Element {
 	const open = state.kind !== "idle";
 
+	const handleOpenChange = React.useCallback(
+		(next: boolean) => {
+			if (!next) onDismiss();
+		},
+		[onDismiss],
+	);
+
 	return (
-		<Sheet
-			open={open}
-			onOpenChange={(next) => {
-				if (!next) onDismiss();
-			}}
-		>
+		<Sheet open={open} onOpenChange={handleOpenChange}>
 			<DispatchSheetBody
 				state={state}
+				positions={positions}
 				onAccept={onAccept}
 				onDecline={onDecline}
 				onClear={onClear}
@@ -45,6 +51,7 @@ export function DispatchSheet({
 
 function DispatchSheetBody({
 	state,
+	positions,
 	onAccept,
 	onDecline,
 	onClear,
@@ -78,7 +85,11 @@ function DispatchSheetBody({
 				}
 			>
 				<SheetTitle>Couldn't load dispatch</SheetTitle>
-				<Text className="text-sm text-destructive">{state.message}</Text>
+				<Text className="text-sm text-destructive">
+					{state.message === "signature_not_verified"
+						? "Solana didn't confirm your transaction, so it wasn't recorded."
+						: state.message}
+				</Text>
 			</DispatchSheetLayout>
 		);
 	}
@@ -110,6 +121,7 @@ function DispatchSheetBody({
 	return (
 		<IncomingBody
 			data={state.data}
+			positions={positions}
 			submittingDecision={decision}
 			disabled={submitting}
 			onAccept={onAccept}

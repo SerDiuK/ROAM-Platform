@@ -1,10 +1,9 @@
 import type { IncidentEvent, Responder } from "@roam/shared";
-import { cn, formatTime } from "@roam/ui";
+import { cn, formatTime, solanaExplorerTxUrl } from "@roam/ui";
 import * as React from "react";
 import { Linking, View } from "react-native";
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
-import { solanaExplorerTxUrl } from "@/lib/solana-explorer";
 import {
 	EVENT_KIND_LABEL,
 	EVENT_KIND_TONE,
@@ -14,9 +13,11 @@ import {
 export function ChainTimeline({
 	events,
 	responders,
+	failed,
 }: {
 	events: IncidentEvent[];
 	responders: Responder[];
+	failed: boolean;
 }): React.JSX.Element {
 	const sorted = React.useMemo(
 		() =>
@@ -32,6 +33,11 @@ export function ChainTimeline({
 			<Text className="text-2xs font-sans-bold uppercase tracking-wider text-solana">
 				On-Chain · Solana
 			</Text>
+			{failed ? (
+				<Text className="text-2xs text-destructive">
+					Couldn't refresh the on-chain events.
+				</Text>
+			) : null}
 			{sorted.length === 0 ? (
 				<Text className="text-2xs text-muted-foreground">
 					No events yet — they'll land here as the chain confirms.
@@ -110,14 +116,7 @@ function ChainTimelineRow({
 				</Text>
 				<View className="mt-1 flex-row items-center gap-2">
 					{sig ? (
-						<Button
-							onPress={() => void Linking.openURL(solanaExplorerTxUrl(sig))}
-							variant="solana"
-							size="pill"
-							accessibilityLabel="Open transaction in Solana explorer"
-						>
-							<Text>{shortSig(sig)} ↗</Text>
-						</Button>
+						<ExplorerPill signature={sig} />
 					) : (
 						<View className="rounded border border-sidebar-border bg-sidebar-accent/40 px-2 py-0.5">
 							<Text className="text-2xs uppercase tracking-wider text-muted-foreground">
@@ -128,5 +127,26 @@ function ChainTimelineRow({
 				</View>
 			</View>
 		</View>
+	);
+}
+
+function ExplorerPill({ signature }: { signature: string }): React.JSX.Element {
+	const openExplorer = React.useCallback(async (): Promise<void> => {
+		try {
+			await Linking.openURL(solanaExplorerTxUrl(signature));
+		} catch (err) {
+			console.warn("[explorer]", err);
+		}
+	}, [signature]);
+
+	return (
+		<Button
+			onPress={openExplorer}
+			variant="solana"
+			size="pill"
+			accessibilityLabel="Open transaction in Solana explorer"
+		>
+			<Text>{shortSig(signature)} ↗</Text>
+		</Button>
 	);
 }

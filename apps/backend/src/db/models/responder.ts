@@ -1,7 +1,13 @@
-import { RESPONDER_AVAILABILITIES, RESPONDER_CAPABILITIES } from "@roam/shared";
+import {
+	RESPONDER_AVAILABILITIES,
+	RESPONDER_CAPABILITIES,
+	type Responder,
+} from "@roam/shared";
 import mongoose from "mongoose";
 
-const responderSchema = new mongoose.Schema({
+type ResponderDoc = Responder & { pushTokens?: string[] };
+
+const responderSchema = new mongoose.Schema<ResponderDoc>({
 	_id: { type: String, required: true },
 	name: { type: String, required: true, unique: true },
 	displayName: { type: String },
@@ -31,4 +37,7 @@ responderSchema.index(
 	},
 );
 
-export const ResponderModel = mongoose.model("Responder", responderSchema);
+export const ResponderModel = mongoose.model<ResponderDoc>(
+	"Responder",
+	responderSchema,
+);

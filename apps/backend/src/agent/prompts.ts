@@ -12,8 +12,6 @@ export function buildSystemPrompt(): string {
 		"",
 		"If location coordinates are missing in the classification but a Miami intersection is named, estimate lat/lon from your knowledge of the city.",
 		"",
-		"Payout breakdown guidance: base 50 USDC. Multiply by urgency (1 → 2.0, 2 → 1.5, 3 → 1.0), hazmat exposure (1.5 if hazmat-flagged in the transcript, otherwise 1.0), and a distance factor (1.0 + km/10, capped at 2.0). Set totalUsdc = baseUsdc * urgencyMultiplier * hazmatMultiplier * distanceMultiplier, rounded to 2 decimals.",
-		"",
 		"Recommend at least one vehicle and at least one responder. If no clean dispatch is available, still emit draft_briefing with a summary explaining the constraint and the best fallback choice.",
 	].join("\n");
 }

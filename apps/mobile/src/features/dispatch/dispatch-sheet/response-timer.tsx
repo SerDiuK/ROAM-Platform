@@ -29,13 +29,12 @@ export function ResponseTimer({
 	);
 
 	const progress = useSharedValue(1);
-	const expiredRef = React.useRef(false);
 	const [remainingSecs, setRemainingSecs] = React.useState(() =>
 		Math.max(0, Math.ceil((expiresMs - Date.now()) / 1000)),
 	);
 
 	React.useEffect(() => {
-		expiredRef.current = false;
+		let expired = false;
 		progress.value = 1;
 		const remainingMs = Math.max(0, expiresMs - Date.now());
 		progress.value = withTiming(0, { duration: remainingMs });
@@ -43,8 +42,8 @@ export function ResponseTimer({
 		const tick = (): void => {
 			const left = Math.max(0, Math.ceil((expiresMs - Date.now()) / 1000));
 			setRemainingSecs(left);
-			if (left <= 0 && !expiredRef.current) {
-				expiredRef.current = true;
+			if (left <= 0 && !expired) {
+				expired = true;
 				onExpire();
 			}
 		};

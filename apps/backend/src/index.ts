@@ -6,10 +6,10 @@ import { OpenAPIGenerator } from "@orpc/openapi";
 import { OpenAPIHandler } from "@orpc/openapi/fastify";
 import { RPCHandler } from "@orpc/server/fastify";
 import { ZodSmartCoercionPlugin, ZodToJsonSchemaConverter } from "@orpc/zod";
-import type { FastifyBaseLogger, FastifyRequest } from "fastify";
+import type { FastifyBaseLogger } from "fastify";
 import Fastify from "fastify";
 import { createTranscriber } from "./agent/transcribe.js";
-import { resolveUserFromSource } from "./auth/resolveUser.js";
+import { resolveUser } from "./auth/resolveUser.js";
 import { parseConfig } from "./config.js";
 import { connectDb } from "./db/connection.js";
 import { seedVehicleSpecs } from "./db/seed.js";
@@ -18,8 +18,6 @@ import { registerMqttHandlers } from "./mqtt/handlers.js";
 import { createExpoPushClient } from "./push/expo.js";
 import type { RpcContext } from "./rpc/context.js";
 import { rpcRouter } from "./rpc/router.js";
-import { createDispatchBroadcaster } from "./ws/dispatchBroadcaster.js";
-import { createIncidentBroadcaster } from "./ws/incidentBroadcaster.js";
 import { createTelemetryBroadcaster } from "./ws/telemetryBroadcaster.js";
 import { registerDispatchCompleteRoute } from "./x402/route.js";
 
@@ -43,8 +41,6 @@ async function main(): Promise<void> {
 	const mqttBroker = await createMqttBroker(config.MQTT_PORT, app.log);
 
 	const telemetryBroadcaster = createTelemetryBroadcaster(app.log);
-	const incidentBroadcaster = createIncidentBroadcaster(app.log);
-	const dispatchBroadcaster = createDispatchBroadcaster(app.log);
 	await registerMqttHandlers(mqttBroker.aedes, telemetryBroadcaster, app.log);
 
 	const transcriber = createTranscriber({ apiKey: config.DEEPGRAM_API_KEY });
@@ -59,39 +55,32 @@ async function main(): Promise<void> {
 	});
 	await app.register(websocket);
 
-	const buildContext = async (
-		request: FastifyRequest,
-	): Promise<RpcContext> => ({
+	const buildContext = async (request: {
+		headers: { authorization?: string };
+	}): Promise<RpcContext> => ({
 		config,
-		incidentBroadcaster,
-		dispatchBroadcaster,
 		transcriber,
 		anthropic,
 		pushClient,
 		log: app.log,
-		user: await resolveUserFromSource(
-			{ authorization: request.headers.authorization },
-			config,
-			app.log,
-		),
+		user: await resolveUser(request.headers.authorization, config, app.log),
 	});
 
 	const logRpcError = (
 		log: FastifyBaseLogger,
 		path: readonly string[],
-		input: unknown,
 		error: unknown,
 	): void => {
 		const pathStr = path.join(".");
 		const cause = error instanceof Error ? error.cause : undefined;
 		if (cause instanceof ValidationError) {
 			log.error(
-				{ path: pathStr, input, issues: cause.issues, data: cause.data },
+				{ path: pathStr, issues: cause.issues },
 				`oRPC ${cause.message} at ${pathStr}`,
 			);
 			return;
 		}
-		log.error({ path: pathStr, input, err: error }, `oRPC error at ${pathStr}`);
+		log.error({ path: pathStr, err: error }, `oRPC error at ${pathStr}`);
 	};
 
 	const rpcHandler = new RPCHandler(rpcRouter, {
@@ -100,7 +89,7 @@ async function main(): Promise<void> {
 				try {
 					return await options.next();
 				} catch (error) {
-					logRpcError(app.log, options.path, options.input, error);
+					logRpcError(app.log, options.path, error);
 					throw error;
 				}
 			},
@@ -113,7 +102,7 @@ async function main(): Promise<void> {
 				try {
 					return await options.next();
 				} catch (error) {
-					logRpcError(app.log, options.path, options.input, error);
+					logRpcError(app.log, options.path, error);
 					throw error;
 				}
 			},
@@ -123,7 +112,7 @@ async function main(): Promise<void> {
 		schemaConverters: [new ZodToJsonSchemaConverter()],
 	});
 
-	registerDispatchCompleteRoute(app, config, dispatchBroadcaster, app.log);
+	registerDispatchCompleteRoute(app, config, app.log);
 
 	app.all("/rpc/*", async (request, reply) => {
 		const { matched } = await rpcHandler.handle(request, reply, {
@@ -140,7 +129,7 @@ async function main(): Promise<void> {
 		reply: Parameters<typeof openapiHandler.handle>[1],
 	): Promise<void> => {
 		const { matched } = await openapiHandler.handle(request, reply, {
-			context: await buildContext(request as FastifyRequest),
+			context: await buildContext(request),
 		});
 		if (!matched) {
 			reply.status(404).send({ error: "not_found" });
@@ -159,20 +148,6 @@ async function main(): Promise<void> {
 		telemetryBroadcaster.addClient(socket);
 		socket.on("close", () => {
 			telemetryBroadcaster.removeClient(socket);
-		});
-	});
-
-	app.get("/ws/incidents", { websocket: true }, (socket) => {
-		incidentBroadcaster.addClient(socket);
-		socket.on("close", () => {
-			incidentBroadcaster.removeClient(socket);
-		});
-	});
-
-	app.get("/ws/dispatch", { websocket: true }, (socket) => {
-		dispatchBroadcaster.addClient(socket);
-		socket.on("close", () => {
-			dispatchBroadcaster.removeClient(socket);
 		});
 	});
 

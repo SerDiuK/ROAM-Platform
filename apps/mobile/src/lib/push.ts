@@ -1,3 +1,4 @@
+import { DISPATCH_PUSH_CHANNEL } from "@roam/shared";
 import Constants from "expo-constants";
 import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
@@ -15,7 +16,7 @@ Notifications.setNotificationHandler({
 
 async function ensureAndroidChannel(): Promise<void> {
 	if (Platform.OS !== "android") return;
-	await Notifications.setNotificationChannelAsync("dispatch", {
+	await Notifications.setNotificationChannelAsync(DISPATCH_PUSH_CHANNEL, {
 		name: "Dispatches",
 		importance: Notifications.AndroidImportance.MAX,
 		sound: "default",
@@ -38,44 +39,18 @@ function getProjectId(): string | undefined {
 	);
 }
 
-export type RegisterPushTokenResult =
-	| { ok: true; token: string; tokenCount: number }
-	| { ok: false; reason: string };
-
-export async function registerPushToken(): Promise<RegisterPushTokenResult> {
-	if (!Device.isDevice) {
-		return { ok: false, reason: "Push notifications need a physical device" };
-	}
-
-	await ensureAndroidChannel();
-
-	const granted = await ensurePermission();
-	if (!granted) {
-		return { ok: false, reason: "Notification permission denied" };
-	}
-
-	const projectId = getProjectId();
-	if (!projectId) {
-		return {
-			ok: false,
-			reason: "Expo projectId not configured (run `eas init`)",
-		};
-	}
-
-	let token: string;
+export async function registerPushToken(): Promise<void> {
+	if (!Device.isDevice) return;
 	try {
-		const tokenResponse = await Notifications.getExpoPushTokenAsync({
+		await ensureAndroidChannel();
+		if (!(await ensurePermission())) return;
+		const projectId = getProjectId();
+		if (!projectId) return;
+		const { data: token } = await Notifications.getExpoPushTokenAsync({
 			projectId,
 		});
-		token = tokenResponse.data;
+		await api.responders.upsertPushToken({ token });
 	} catch (err) {
-		// Expo Go on Android (SDK 53+) and builds without FCM credentials throw here, so fail soft.
-		const reason =
-			err instanceof Error ? err.message : "Failed to get push token";
-		return { ok: false, reason };
+		console.warn("[push] registering the push token failed", err);
 	}
-
-	const { tokenCount } = await api.responders.upsertPushToken({ token });
-
-	return { ok: true, token, tokenCount };
 }

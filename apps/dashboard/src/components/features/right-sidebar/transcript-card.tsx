@@ -3,15 +3,19 @@
 import { cn } from "@roam/ui";
 import { useMemo } from "react";
 import { Icon } from "../../ui/icon";
-import { useCallDuration, useTypingReveal } from "./transcript-card.hooks";
-import { parseTurns, sliceTurns } from "./transcript-card.utils";
+import { useTypingReveal } from "./transcript-card.hooks";
+import {
+	formatCallDuration,
+	parseTurns,
+	sliceTurns,
+} from "./transcript-card.utils";
 
 type TranscriptCardProps = {
 	transcript: string;
 	callStartedAt: Date;
 	isLive: boolean;
 	panelOpen: boolean;
-	resetKey: string;
+	now: number;
 };
 
 export function TranscriptCard({
@@ -19,12 +23,11 @@ export function TranscriptCard({
 	callStartedAt,
 	isLive,
 	panelOpen,
-	resetKey,
+	now,
 }: TranscriptCardProps) {
 	const turns = useMemo(() => parseTurns(transcript), [transcript]);
 	const totalChars = turns.reduce((sum, t) => sum + t.text.length, 0);
-	const revealed = useTypingReveal(resetKey, totalChars, panelOpen);
-	const duration = useCallDuration(callStartedAt, isLive);
+	const revealed = useTypingReveal(totalChars, panelOpen);
 	const visible = sliceTurns(turns, revealed);
 	const showCursor = panelOpen && revealed < totalChars;
 
@@ -40,14 +43,16 @@ export function TranscriptCard({
 						{isLive ? "Call in progress" : "Call transcript"}
 					</span>
 				</div>
-				<span className="font-mono text-2xs tabular-nums text-muted-foreground">
-					{duration}
-				</span>
+				{isLive && (
+					<span className="font-mono text-2xs tabular-nums text-muted-foreground">
+						{formatCallDuration(callStartedAt, now)}
+					</span>
+				)}
 			</div>
 			<div className="flex flex-col gap-1.5">
 				{visible.map((turn, i) => (
 					<p
-						key={`${resetKey}-${i}`}
+						key={i}
 						className={cn(
 							"m-0 whitespace-pre-wrap font-mono text-xs leading-relaxed",
 							turn.speaker === "dispatcher"

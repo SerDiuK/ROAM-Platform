@@ -1,23 +1,20 @@
 "use client";
 
-import type {
-	IncidentEvent,
-	IncidentEventKind,
-	Responder,
-	Vehicle,
-} from "@roam/shared";
+import type { IncidentEvent, IncidentEventKind, Responder } from "@roam/shared";
 import { cn } from "@roam/ui";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
+import { usePollingResource } from "@/hooks/use-polling-resource";
 import { api } from "@/lib/api";
 import { ExplorerLink } from "../../ui/explorer-link";
+import { StatusDot } from "../../ui/status-pill";
 
 type IncidentChainLogProps = {
 	incidentId: string;
-	vehicles: Vehicle[];
 	responderMap: Map<string, Responder>;
 };
 
 const POLL_MS = 3_000;
+const NO_EVENTS: IncidentEvent[] = [];
 
 const KIND_LABEL: Record<IncidentEventKind, string> = {
 	received: "Call received",
@@ -37,9 +34,8 @@ const KIND_TONE: Record<IncidentEventKind, { text: string; dot: string }> = {
 	cleared: { text: "text-primary", dot: "bg-primary" },
 };
 
-function formatHHMMSS(date: Date | string): string {
-	const d = typeof date === "string" ? new Date(date) : date;
-	return d.toLocaleTimeString([], {
+function formatHHMMSS(date: Date): string {
+	return date.toLocaleTimeString([], {
 		hour: "2-digit",
 		minute: "2-digit",
 		second: "2-digit",
@@ -49,44 +45,24 @@ function formatHHMMSS(date: Date | string): string {
 
 export function IncidentChainLog({
 	incidentId,
-	vehicles,
 	responderMap,
 }: IncidentChainLogProps) {
-	const [events, setEvents] = useState<IncidentEvent[]>([]);
-	const [loading, setLoading] = useState(true);
-
-	useEffect(() => {
-		let cancelled = false;
-		const load = async (): Promise<void> => {
-			try {
-				const next = await api.events.listByIncident({ incidentId });
-				if (!cancelled) setEvents(next);
-			} catch {
-				// Keep the last good events; the next tick retries.
-			} finally {
-				if (!cancelled) setLoading(false);
-			}
-		};
-		void load();
-		const interval = setInterval(() => void load(), POLL_MS);
-		return () => {
-			cancelled = true;
-			clearInterval(interval);
-		};
-	}, [incidentId]);
+	const loadEvents = useCallback(
+		() => api.events.listByIncident({ incidentId }),
+		[incidentId],
+	);
+	const {
+		data: events,
+		loading,
+		connected,
+	} = usePollingResource(loadEvents, NO_EVENTS, POLL_MS);
 
 	const ordered = useMemo(
 		() =>
 			[...events].sort(
-				(a, b) =>
-					new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime(),
+				(a, b) => b.occurredAt.getTime() - a.occurredAt.getTime(),
 			),
 		[events],
-	);
-
-	const vehicleMap = useMemo(
-		() => new Map(vehicles.map((v) => [v._id, v])),
-		[vehicles],
 	);
 
 	const shortId = `INC-${incidentId.slice(-4).toUpperCase()}`;
@@ -113,11 +89,21 @@ export function IncidentChainLog({
 							key={event._id}
 							event={event}
 							isLast={index === ordered.length - 1}
-							vehicleMap={vehicleMap}
 							responderMap={responderMap}
 						/>
 					))}
 				</ol>
+			)}
+
+			{!loading && (
+				<div className="mt-2 flex items-center gap-2 border-t border-sidebar-border pt-2 text-2xs text-muted-foreground">
+					<StatusDot
+						tone={connected ? "primary" : "danger"}
+						size="xs"
+						pulse={connected}
+					/>
+					{connected ? "Live" : "Disconnected"}
+				</div>
 			)}
 		</div>
 	);
@@ -126,28 +112,15 @@ export function IncidentChainLog({
 type ChainLogRowProps = {
 	event: IncidentEvent;
 	isLast: boolean;
-	vehicleMap: Map<string, Vehicle>;
 	responderMap: Map<string, Responder>;
 };
 
-function ChainLogRow({
-	event,
-	isLast,
-	vehicleMap,
-	responderMap,
-}: ChainLogRowProps) {
+function ChainLogRow({ event, isLast, responderMap }: ChainLogRowProps) {
 	const tone = KIND_TONE[event.kind];
 	const responder = event.responderId
 		? responderMap.get(event.responderId)
 		: undefined;
-	const responderLabel = responder?.displayName ?? responder?.name;
-	const vehicle = event.payload?.vehicleId
-		? vehicleMap.get(event.payload.vehicleId)
-		: undefined;
-	const subjectParts = [vehicle?.callsign, responderLabel].filter(
-		(s): s is string => Boolean(s),
-	);
-	const subject = subjectParts.join(" · ");
+	const subject = responder?.displayName ?? responder?.name;
 
 	return (
 		<li className="flex gap-2.5">

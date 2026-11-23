@@ -3,8 +3,6 @@ import type { FastifyBaseLogger } from "fastify";
 import type { Transcriber } from "../agent/transcribe.js";
 import type { Config } from "../config.js";
 import type { ExpoPushClient } from "../push/expo.js";
-import type { DispatchBroadcaster } from "../ws/dispatchBroadcaster.js";
-import type { IncidentBroadcaster } from "../ws/incidentBroadcaster.js";
 
 export type AuthedUser = {
 	id: string;
@@ -14,8 +12,6 @@ export type AuthedUser = {
 
 export interface RpcContext {
 	config: Config;
-	incidentBroadcaster: IncidentBroadcaster;
-	dispatchBroadcaster: DispatchBroadcaster;
 	transcriber: Transcriber;
 	anthropic: Anthropic;
 	pushClient: ExpoPushClient;

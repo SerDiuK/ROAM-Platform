@@ -31,18 +31,9 @@ export default class DispatchList extends BaseCommand {
 				mode: d.decisionMaker,
 				required: `${d.claimedByResponderIds.length}/${d.requiredAccepts}`,
 				responders: d.assignedResponderIds.length,
-				usdc: d.payoutUsdc,
-				expiresIn: formatRelative(d.expiresAt),
+				expiresIn: formatRelative(d.expiresAt, Date.now()),
 			})),
-			columns: [
-				"id",
-				"status",
-				"mode",
-				"required",
-				"responders",
-				"usdc",
-				"expiresIn",
-			],
+			columns: ["id", "status", "mode", "required", "responders", "expiresIn"],
 		});
 	}
 }

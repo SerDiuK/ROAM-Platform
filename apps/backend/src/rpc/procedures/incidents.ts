@@ -1,18 +1,16 @@
 import { createHash, randomUUID } from "node:crypto";
 import { ORPCError } from "@orpc/server";
-import type { Briefing, Incident } from "@roam/shared";
-import { brief } from "../../agent/runner.js";
+import { BriefingSchema, IncidentSchema } from "@roam/shared";
+import { AGENT_MAX_TOKENS, brief } from "../../agent/runner.js";
 import { classifyIncidentTool } from "../../agent/tools/classifyIncident.js";
 import { BriefingModel } from "../../db/models/briefing.js";
 import { IncidentModel } from "../../db/models/incident.js";
+import { toWire } from "../../db/serializers/wire.js";
 import { recordIncidentEvent } from "../../services/incidentEvents.js";
 import { os } from "../builder.js";
 import type { RpcContext } from "../context.js";
 
 const RECENT_LIMIT = 20;
-
-// Headroom for thinking blocks plus a multi-paragraph `draft_briefing` payload.
-const AGENT_MAX_TOKENS = 16384;
 
 export const incidentsRouter = {
 	list: os.incidents.list.handler(async () => {
@@ -20,8 +18,7 @@ export const incidentsRouter = {
 			.sort({ callStartedAt: -1 })
 			.limit(RECENT_LIMIT)
 			.lean();
-		// JSON round-trip turns Date fields into the ISO strings of the wire type.
-		return JSON.parse(JSON.stringify(docs)) as Incident[];
+		return docs.map((doc) => toWire(IncidentSchema, doc));
 	}),
 
 	get: os.incidents.get.handler(async ({ input }) => {
@@ -34,9 +31,10 @@ export const incidentsRouter = {
 		const briefing = await BriefingModel.findOne({ incidentId: input.id })
 			.sort({ generatedAt: -1 })
 			.lean();
-		return JSON.parse(
-			JSON.stringify({ incident, briefing: briefing ?? undefined }),
-		) as { incident: Incident; briefing?: Briefing };
+		return {
+			incident: toWire(IncidentSchema, incident),
+			briefing: briefing ? toWire(BriefingSchema, briefing) : undefined,
+		};
 	}),
 
 	ingest: os.incidents.ingest.handler(async ({ input, context }) => {
@@ -53,7 +51,7 @@ export const incidentsRouter = {
 			{ log: context.log },
 		);
 
-		await IncidentModel.create({
+		const created = await IncidentModel.create({
 			_id: incidentId,
 			callStartedAt: new Date(),
 			transcript,
@@ -62,29 +60,14 @@ export const incidentsRouter = {
 			status: "live",
 			assigned: { vehicles: [], responders: [] },
 		});
-		const persisted = await IncidentModel.findById(incidentId).lean();
-		if (!persisted) {
-			throw new ORPCError("INTERNAL_SERVER_ERROR", {
-				message: "Incident vanished after create",
-			});
-		}
-		const incident = JSON.parse(JSON.stringify(persisted)) as Incident;
-
-		context.incidentBroadcaster.broadcast({
-			type: "incident.created",
-			incident,
-		});
+		const incident = toWire(IncidentSchema, created);
 
 		await recordIncidentEvent(
-			{
-				config: context.config,
-				log: context.log,
-				incidentBroadcaster: context.incidentBroadcaster,
-			},
+			{ config: context.config, log: context.log },
 			{
 				incidentId,
 				kind: "received",
-				occurredAt: new Date(persisted.callStartedAt),
+				occurredAt: incident.callStartedAt,
 			},
 		);
 
@@ -95,29 +78,16 @@ export const incidentsRouter = {
 };
 
 function runBriefingAgent(context: RpcContext, incidentId: string): void {
-	void brief(incidentId, {
+	brief(incidentId, {
 		client: context.anthropic,
 		model: context.config.ANTHROPIC_MODEL,
 		maxTokens: AGENT_MAX_TOKENS,
 		maxTurns: context.config.AGENT_MAX_TURNS,
 		log: context.log,
 		effort: "low",
-	})
-		.then((briefing) => {
-			context.incidentBroadcaster.broadcast({
-				type: "briefing.ready",
-				incidentId,
-				briefing: JSON.parse(JSON.stringify(briefing)) as Briefing,
-			});
-		})
-		.catch((err: unknown) => {
-			context.log.error({ err, incidentId }, "runBriefingAgent failed");
-			context.incidentBroadcaster.broadcast({
-				type: "briefing.failed",
-				incidentId,
-				error: err instanceof Error ? err.message : String(err),
-			});
-		});
+	}).catch((err: unknown) => {
+		context.log.error({ err, incidentId }, "runBriefingAgent failed");
+	});
 }
 
 async function resolveTranscript(
@@ -127,11 +97,14 @@ async function resolveTranscript(
 	if (input.transcript !== undefined) {
 		return input.transcript;
 	}
-	// Schema-enforced: when transcript is absent, audio + mimeType are present.
-	const audioBuffer = Buffer.from(input.audio as string, "base64");
+	if (input.audio === undefined || input.mimeType === undefined) {
+		throw new ORPCError("BAD_REQUEST", {
+			message: "Provide exactly one of audio or transcript",
+		});
+	}
 	const result = await context.transcriber.transcribeAudioFile(
-		audioBuffer,
-		input.mimeType as string,
+		Buffer.from(input.audio, "base64"),
+		input.mimeType,
 	);
 	return result.transcript;
 }

@@ -21,7 +21,7 @@ export const INCIDENT_STATUSES = [
 export const IncidentStatusSchema = z.enum(INCIDENT_STATUSES);
 export type IncidentStatus = z.infer<typeof IncidentStatusSchema>;
 
-export const AssignedSchema = z.object({
+const AssignedSchema = z.object({
 	vehicles: z.array(z.string()).default([]),
 	responders: z.array(z.string()).default([]),
 });
@@ -68,4 +68,3 @@ export const IncidentIngestRequestSchema = z
 	.refine((val) => !val.audio || !!val.mimeType, {
 		message: "mimeType is required when audio is provided",
 	});
-export type IncidentIngestRequest = z.infer<typeof IncidentIngestRequestSchema>;

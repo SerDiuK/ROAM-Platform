@@ -14,7 +14,7 @@ roam = "Ad9AUd1XbFT41b92R6XgqFZQeotynLWF5aUSMp65gKQy"
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "devnet"
+cluster = "localnet"
 wallet = "~/.config/solana/roam-operator.json"
 
 [scripts]

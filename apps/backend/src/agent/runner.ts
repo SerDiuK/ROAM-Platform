@@ -4,7 +4,6 @@ import {
 	type Briefing,
 	BriefingSchema,
 	computeBriefingHash,
-	type IncidentClassification,
 } from "@roam/shared";
 import type { MinimalLogger } from "../db/connection.js";
 import { BriefingModel } from "../db/models/briefing.js";
@@ -17,7 +16,8 @@ import {
 } from "./tools/draftBriefing.js";
 import { agentTools, dispatchToolCall } from "./tools/index.js";
 
-export { computeBriefingHash };
+// Headroom for thinking blocks plus a multi-paragraph `draft_briefing` payload.
+export const AGENT_MAX_TOKENS = 16384;
 
 export class BriefError extends Error {
 	constructor(message: string) {
@@ -26,7 +26,7 @@ export class BriefError extends Error {
 	}
 }
 
-export interface BriefContext {
+interface BriefContext {
 	client: Anthropic;
 	model: string;
 	maxTokens: number;
@@ -42,19 +42,13 @@ export interface BriefContext {
 	}) => void;
 }
 
-interface IncidentLeanDoc {
-	_id: string;
-	transcript: string;
-	classification?: IncidentClassification;
-}
-
 export async function brief(
 	incidentId: string,
 	ctx: BriefContext,
 ): Promise<Briefing> {
-	const incident = (await IncidentModel.findById(incidentId)
+	const incident = await IncidentModel.findById(incidentId)
 		.select({ _id: 1, transcript: 1, classification: 1 })
-		.lean()) as unknown as IncidentLeanDoc | null;
+		.lean();
 	if (!incident) {
 		throw new BriefError(`Incident not found: ${incidentId}`);
 	}
@@ -137,11 +131,14 @@ export async function brief(
 		summary: draftPayload.summary,
 		recommendedVehicleIds: draftPayload.recommendedVehicleIds,
 		recommendedResponderIds: draftPayload.recommendedResponderIds,
-		payout: draftPayload.payout,
 		briefingHash: computeBriefingHash(draftPayload),
 	});
 
 	await BriefingModel.create(briefing);
+	await IncidentModel.updateOne(
+		{ _id: incidentId, status: "live" },
+		{ $set: { status: "pending" } },
+	);
 	return briefing;
 }
 

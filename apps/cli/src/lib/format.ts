@@ -32,9 +32,8 @@ export function formatRole(role: Responder["role"]): string {
 		: chalk.white("responder");
 }
 
-export function formatRelative(date: Date | string): string {
-	const ts = new Date(date).getTime();
-	const deltaMs = ts - Date.now();
+export function formatRelative(date: Date | string, now: number): string {
+	const deltaMs = new Date(date).getTime() - now;
 	const sign = deltaMs >= 0 ? "+" : "-";
 	const abs = Math.abs(deltaMs);
 	if (abs < 60_000) return `${sign}${Math.round(abs / 1000)}s`;

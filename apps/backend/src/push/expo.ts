@@ -1,3 +1,4 @@
+import { DISPATCH_PUSH_CHANNEL } from "@roam/shared";
 import {
 	Expo,
 	type ExpoPushMessage,
@@ -5,13 +6,13 @@ import {
 } from "expo-server-sdk";
 import { ResponderModel } from "../db/models/responder.js";
 
-export type PushMessage = {
+type PushMessage = {
 	title: string;
 	body: string;
 	data?: Record<string, unknown>;
 };
 
-export type SendPushResult = {
+type SendPushResult = {
 	tickets: ExpoPushTicket[];
 	delivered: number;
 	skipped: number;
@@ -28,7 +29,7 @@ type PushLogger = {
 	warn: (obj: object, msg: string) => void;
 };
 
-export type ExpoPushClientOptions = {
+type ExpoPushClientOptions = {
 	accessToken?: string;
 	logger?: PushLogger;
 };
@@ -84,8 +85,7 @@ export function createExpoPushClient(
 			data: message.data,
 			sound: "default",
 			priority: "high",
-			// Must match the Android channel the mobile app registers; ignored on iOS.
-			channelId: "dispatch",
+			channelId: DISPATCH_PUSH_CHANNEL,
 		}));
 
 		const chunks = expo.chunkPushNotifications(messages);

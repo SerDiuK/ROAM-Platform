@@ -1,6 +1,43 @@
 import { z } from "zod";
+import type { ResponderAvailability } from "./responder";
 
-export const DemoFleetVehicleSchema = z.object({
+export const DEMO_CLUSTER = "devnet";
+
+type DemoResponder = {
+	name: string;
+	displayName: string;
+	role: "responder" | "dispatcher";
+	availability: ResponderAvailability;
+};
+
+export const DEMO_RESPONDERS: DemoResponder[] = [
+	{
+		name: "THOMAS-1",
+		displayName: "Thomas Goethals",
+		role: "responder",
+		availability: "available",
+	},
+	{
+		name: "RSP-1",
+		displayName: "Alex Ramirez",
+		role: "responder",
+		availability: "available",
+	},
+	{
+		name: "RSP-2",
+		displayName: "Sam Patel",
+		role: "responder",
+		availability: "available",
+	},
+	{
+		name: "DSP-1",
+		displayName: "Mia Bennett",
+		role: "dispatcher",
+		availability: "off_duty",
+	},
+];
+
+const DemoFleetVehicleSchema = z.object({
 	routeFile: z.string().min(1),
 	callsign: z.string().min(1),
 	responderName: z.string().min(1),

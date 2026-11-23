@@ -3,7 +3,7 @@ import { jwtVerify, SignJWT } from "jose";
 const ALG = "HS256";
 const ISSUER = "roam-backend";
 
-export type SessionClaims = {
+type SessionClaims = {
 	sub: string;
 	name: string;
 	role: "responder" | "dispatcher";

@@ -1,4 +1,10 @@
-import type { Responder, SiwsChallengeResponse } from "@roam/shared";
+import { ORPCError } from "@orpc/client";
+import {
+	RESPONDER_ALREADY_BOUND,
+	type Responder,
+	type SiwsChallengeResponse,
+	WALLET_UNBOUND,
+} from "@roam/shared";
 import { atom } from "jotai";
 import { api, setApiToken } from "@/lib/api";
 import { mwa, SeekerCancelledError, type SignInResult } from "@/lib/mwa";
@@ -17,18 +23,12 @@ import { authStateAtom } from "@/state/responder";
 
 export const mwaAvailableAtom = atom<boolean>(mwa.mwaAvailable);
 
-export type SignInWithSeekerResult =
+type SignInWithSeekerResult =
 	| { kind: "ok"; responder: Responder }
 	| { kind: "wallet-unbound"; pubkey: string }
+	| { kind: "responder-already-bound" }
 	| { kind: "cancelled" }
 	| { kind: "error"; message: string };
-
-// oRPC error the backend throws when this Seeker isn't bound to a responder yet.
-function isWalletUnbound(err: unknown): boolean {
-	if (typeof err !== "object" || err === null) return false;
-	const e = err as { code?: string; message?: string };
-	return e.code === "UNAUTHORIZED" && e.message === "WALLET_UNBOUND";
-}
 
 type SignInArgs = { name?: string };
 
@@ -99,33 +99,25 @@ export const signInWithSeekerAtom = atom(
 			await writeToken(verified.token);
 			await writeCachedName(verified.responder.name);
 			set(authStateAtom, { kind: "signed-in", responder: verified.responder });
-			void registerPushToken();
+			await registerPushToken();
 			return { kind: "ok", responder: verified.responder };
 		} catch (err) {
-			if (isWalletUnbound(err)) {
+			if (
+				err instanceof ORPCError &&
+				err.code === "UNAUTHORIZED" &&
+				err.message === WALLET_UNBOUND
+			) {
 				return { kind: "wallet-unbound", pubkey: signed.address };
+			}
+			if (
+				err instanceof ORPCError &&
+				err.code === "CONFLICT" &&
+				err.message === RESPONDER_ALREADY_BOUND
+			) {
+				return { kind: "responder-already-bound" };
 			}
 			const message = err instanceof Error ? err.message : "Verify failed";
 			return { kind: "error", message };
-		}
-	},
-);
-
-export const refreshTokenAtom = atom(
-	null,
-	async (_get, set): Promise<boolean> => {
-		try {
-			const { token, responder } = await api.auth.refresh();
-			setApiToken(token);
-			await writeToken(token);
-			set(authStateAtom, { kind: "signed-in", responder });
-			return true;
-		} catch {
-			setApiToken(null);
-			await clearToken();
-			const cachedName = await readCachedName();
-			set(authStateAtom, { kind: "signed-out", cachedName });
-			return false;
 		}
 	},
 );
@@ -135,6 +127,21 @@ export const signOutAtom = atom(null, async (_get, set) => {
 	await clearToken();
 	const cachedName = await readCachedName();
 	set(authStateAtom, { kind: "signed-out", cachedName });
+});
+
+export const refreshTokenAtom = atom(null, async (_get, set): Promise<void> => {
+	try {
+		const { token, responder } = await api.auth.refresh();
+		setApiToken(token);
+		await writeToken(token);
+		set(authStateAtom, { kind: "signed-in", responder });
+	} catch (err) {
+		if (err instanceof ORPCError && err.code === "UNAUTHORIZED") {
+			await set(signOutAtom);
+			return;
+		}
+		console.warn("[auth] token refresh failed", err);
+	}
 });
 
 export const forgetDeviceAtom = atom(null, async (_get, set) => {

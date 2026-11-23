@@ -1,10 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { call } from "@orpc/server";
-import { Connection, Keypair } from "@solana/web3.js";
+import { computeBriefingHash } from "@roam/shared";
+import { Keypair, Transaction } from "@solana/web3.js";
+import type { FastifyBaseLogger } from "fastify";
 import mongoose from "mongoose";
 import nacl from "tweetnacl";
-import { computeBriefingHash } from "../src/agent/runner.js";
-import { parseConfig } from "../src/config.js";
+import { type Config, parseConfig } from "../src/config.js";
 import { connectDb } from "../src/db/connection.js";
 import { BriefingModel } from "../src/db/models/briefing.js";
 import { DispatchModel } from "../src/db/models/dispatch.js";
@@ -14,52 +15,30 @@ import { ResponderModel } from "../src/db/models/responder.js";
 import type { AuthedUser, RpcContext } from "../src/rpc/context.js";
 import { dispatchRouter } from "../src/rpc/procedures/dispatch.js";
 import { sessionAuthRouter } from "../src/rpc/procedures/sessionAuth.js";
+import { buildConnection } from "../src/services/solana.js";
 
 // Requires SOLANA_OPERATOR_KEYPAIR funded with > 0.01 SOL on devnet.
 
-function fakeBroadcaster(): {
-	addClient: () => void;
-	removeClient: () => void;
-	broadcast: () => void;
-} {
-	return { addClient: () => {}, removeClient: () => {}, broadcast: () => {} };
-}
-
-function fakeLogger(): {
-	info: () => void;
-	warn: () => void;
-	error: () => void;
-	debug: () => void;
-	trace: () => void;
-	fatal: () => void;
-	child: () => ReturnType<typeof fakeLogger>;
-	level: string;
-	silent: () => void;
-} {
-	const log = {
-		info: () => {},
-		warn: () => {},
-		error: () => {},
-		debug: () => {},
-		trace: () => {},
-		fatal: () => {},
-		child: () => log,
+function silentLogger(): FastifyBaseLogger {
+	const noop = (): void => {};
+	const log: FastifyBaseLogger = {
 		level: "silent",
-		silent: () => {},
+		info: noop,
+		warn: noop,
+		error: noop,
+		debug: noop,
+		trace: noop,
+		fatal: noop,
+		silent: noop,
+		child: () => log,
 	};
 	return log;
 }
 
-function buildContext(
-	config: ReturnType<typeof parseConfig>,
-	user: AuthedUser | null,
-): RpcContext {
+function buildContext(config: Config, user: AuthedUser | null): RpcContext {
 	return {
 		config,
-		incidentBroadcaster:
-			fakeBroadcaster() as unknown as RpcContext["incidentBroadcaster"],
-		dispatchBroadcaster:
-			fakeBroadcaster() as unknown as RpcContext["dispatchBroadcaster"],
+		// The Seeker flow never transcribes audio or calls the agent.
 		transcriber: {} as RpcContext["transcriber"],
 		anthropic: {} as RpcContext["anthropic"],
 		pushClient: {
@@ -68,8 +47,8 @@ function buildContext(
 				delivered: 0,
 				skipped: 0,
 			}),
-		} as unknown as RpcContext["pushClient"],
-		log: fakeLogger() as unknown as RpcContext["log"],
+		},
+		log: silentLogger(),
 		user,
 	};
 }
@@ -154,18 +133,10 @@ async function main(): Promise<void> {
 	const summary = "smoke briefing";
 	const recommendedVehicleIds = ["smoke-vehicle"];
 	const recommendedResponderIds = [responderId];
-	const payout = {
-		baseUsdc: 10,
-		urgencyMultiplier: 1,
-		hazmatMultiplier: 1,
-		distanceMultiplier: 1,
-		totalUsdc: 10,
-	};
 	const briefingHash = computeBriefingHash({
 		summary,
 		recommendedVehicleIds,
 		recommendedResponderIds,
-		payout,
 	});
 	await BriefingModel.create({
 		_id: briefingId,
@@ -175,7 +146,6 @@ async function main(): Promise<void> {
 		summary,
 		recommendedVehicleIds,
 		recommendedResponderIds,
-		payout,
 		briefingHash,
 	});
 	await DispatchModel.create({
@@ -186,7 +156,6 @@ async function main(): Promise<void> {
 		decidedAt: new Date(),
 		assignedVehicleIds: recommendedVehicleIds,
 		assignedResponderIds: recommendedResponderIds,
-		payoutUsdc: 10,
 		requiredAccepts: 1,
 		status: "pending",
 		claimedByResponderIds: [],
@@ -219,16 +188,10 @@ async function main(): Promise<void> {
 		);
 		console.log("[seeker-smoke] prepareResponseTx OK");
 
-		const { Transaction } = await import("@solana/web3.js");
 		const tx = Transaction.from(Buffer.from(prepared.serializedTx, "base64"));
 		tx.partialSign(seeker);
 
-		const cluster =
-			config.SOLANA_CLUSTER === "mainnet-beta" ||
-			config.SOLANA_CLUSTER === "mainnet"
-				? "https://api.mainnet-beta.solana.com"
-				: "https://api.devnet.solana.com";
-		const connection = new Connection(cluster, "confirmed");
+		const connection = buildConnection(config);
 		const sigBase58 = await connection.sendRawTransaction(
 			tx.serialize({ requireAllSignatures: true }),
 			{ skipPreflight: false },
@@ -256,14 +219,9 @@ async function main(): Promise<void> {
 			);
 		}
 
-		const explorerCluster =
-			config.SOLANA_CLUSTER === "mainnet" ||
-			config.SOLANA_CLUSTER === "mainnet-beta"
-				? ""
-				: `?cluster=${config.SOLANA_CLUSTER}`;
 		console.log("[seeker-smoke] ✓ on-chain attestor matches synthetic Seeker");
 		console.log(
-			`[seeker-smoke] explorer: https://explorer.solana.com/tx/${sigBase58}${explorerCluster}`,
+			`[seeker-smoke] explorer: https://explorer.solana.com/tx/${sigBase58}?cluster=${config.SOLANA_CLUSTER}`,
 		);
 	} finally {
 		await cleanup();
@@ -271,12 +229,7 @@ async function main(): Promise<void> {
 	}
 }
 
-main().catch(async (err: unknown) => {
+main().catch((err: unknown) => {
 	console.error("[seeker-smoke] failed:", err);
-	try {
-		await mongoose.disconnect();
-	} catch {
-		// Best-effort disconnect; the original error is already logged.
-	}
 	process.exit(1);
 });

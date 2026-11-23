@@ -1,48 +1,15 @@
 import { randomUUID } from "node:crypto";
+import { DEMO_RESPONDERS } from "@roam/shared";
 import mongoose from "mongoose";
 import { parseConfig } from "../src/config.js";
 import { connectDb } from "../src/db/connection.js";
 import { ResponderModel } from "../src/db/models/responder.js";
 
-type Seed = {
-	name: string;
-	displayName: string;
-	role: "responder" | "dispatcher";
-	availability: "available" | "off_duty";
-};
-
-const SEEDS: Seed[] = [
-	{
-		name: "THOMAS-1",
-		displayName: "Thomas Goethals",
-		role: "responder",
-		availability: "available",
-	},
-	{
-		name: "RSP-1",
-		displayName: "Alex Ramirez",
-		role: "responder",
-		availability: "available",
-	},
-	{
-		name: "RSP-2",
-		displayName: "Sam Patel",
-		role: "responder",
-		availability: "available",
-	},
-	{
-		name: "DSP-1",
-		displayName: "Mia Bennett",
-		role: "dispatcher",
-		availability: "off_duty",
-	},
-];
-
 async function main(): Promise<void> {
 	const config = parseConfig();
 	await connectDb(config.MONGODB_URL, console);
 
-	for (const seed of SEEDS) {
+	for (const seed of DEMO_RESPONDERS) {
 		const existing = await ResponderModel.findOne({ name: seed.name });
 		const responder =
 			existing ??

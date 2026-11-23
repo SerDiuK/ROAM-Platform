@@ -14,11 +14,10 @@ import * as React from "react";
 import { View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { LoginScreen } from "@/app/login";
+import { LoginScreen } from "@/app/login/login-screen";
 import { Text } from "@/components/ui/text";
 import { NAV_THEME } from "@/lib/theme";
 import { AppNavigator } from "@/navigators/app-navigator";
-import { RealtimeProvider } from "@/state/realtime-provider";
 import { authStateAtom, bootAuthAtom } from "@/state/responder";
 import { useTokenRenewal } from "@/state/use-token-renewal";
 
@@ -48,7 +47,7 @@ function AuthGate(): React.JSX.Element {
 	const boot = useSetAtom(bootAuthAtom);
 
 	React.useEffect(() => {
-		void boot();
+		boot();
 	}, [boot]);
 
 	if (auth.kind === "unknown") {
@@ -62,15 +61,13 @@ function AuthGate(): React.JSX.Element {
 	return <SignedInShell />;
 }
 
-// Renewal must only run signed in: a failed refresh clears the stored JWT.
+// Renewal must only run signed in: an UNAUTHORIZED refresh signs out.
 function SignedInShell(): React.JSX.Element {
 	useTokenRenewal();
 	return (
-		<RealtimeProvider>
-			<NavigationContainer theme={NAV_THEME}>
-				<AppNavigator />
-			</NavigationContainer>
-		</RealtimeProvider>
+		<NavigationContainer theme={NAV_THEME}>
+			<AppNavigator />
+		</NavigationContainer>
 	);
 }
 

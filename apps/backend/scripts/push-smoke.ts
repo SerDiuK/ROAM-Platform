@@ -6,11 +6,12 @@ import { ResponderModel } from "../src/db/models/responder.js";
 import { createExpoPushClient } from "../src/push/expo.js";
 
 async function main(): Promise<void> {
-	const name = process.env.PUSH_SMOKE_NAME;
-	const pushToken = process.env.PUSH_SMOKE_TOKEN;
+	const [flag, value] = process.argv.slice(2);
+	const name = flag === "--name" ? value : undefined;
+	const pushToken = flag === "--token" ? value : undefined;
 	if (!name && !pushToken) {
 		throw new Error(
-			"Set either PUSH_SMOKE_NAME (preferred) or PUSH_SMOKE_TOKEN",
+			"Usage: pnpm push:smoke -- --name <responder> | --token <ExponentPushToken[...]>",
 		);
 	}
 
@@ -43,7 +44,7 @@ async function main(): Promise<void> {
 		);
 	} else {
 		if (!pushToken) {
-			throw new Error("PUSH_SMOKE_TOKEN required when PUSH_SMOKE_NAME unset");
+			throw new Error("Pass --name or --token");
 		}
 		responderId = randomUUID();
 		const tempName = `push-smoke-${responderId.slice(0, 8)}`;

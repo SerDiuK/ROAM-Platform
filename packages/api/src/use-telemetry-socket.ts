@@ -2,10 +2,7 @@ import { type Telemetry, TelemetrySchema } from "@roam/shared";
 import { useCallback, useState } from "react";
 import { useReconnectingSocket } from "./use-reconnecting-socket";
 
-export function useTelemetrySocket(
-	baseWsUrl: string,
-	token?: string | null,
-): {
+export function useTelemetrySocket(baseWsUrl: string): {
 	positions: Map<string, Telemetry>;
 	connected: boolean;
 } {
@@ -21,13 +18,8 @@ export function useTelemetrySocket(
 		});
 	}, []);
 
-	// Browsers can't set headers on a WS upgrade, so the token goes in the query string.
-	const url = token
-		? `${baseWsUrl}/ws/telemetry?token=${encodeURIComponent(token)}`
-		: `${baseWsUrl}/ws/telemetry`;
-
 	const { connected } = useReconnectingSocket({
-		url,
+		url: `${baseWsUrl}/ws/telemetry`,
 		schema: TelemetrySchema,
 		onMessage: handleMessage,
 	});

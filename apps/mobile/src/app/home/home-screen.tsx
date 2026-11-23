@@ -1,14 +1,16 @@
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { useTelemetrySocket } from "@roam/api";
 import type { Coord, Incident, Vehicle } from "@roam/shared";
 import { color, STATUS_HEX } from "@roam/ui";
-import { useAtomValue } from "jotai";
+import { useAtomValue, useSetAtom } from "jotai";
 import { History } from "lucide-react-native";
 import * as React from "react";
 import { Pressable, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
+import { config } from "@/config";
 import { DispatchSheet } from "@/features/dispatch/dispatch-sheet/dispatch-sheet";
 import { DispatchNotifications } from "@/features/dispatch/notifications";
 import { useDispatchInbox } from "@/features/dispatch/use-dispatch-inbox";
@@ -17,19 +19,29 @@ import { useRouteToIncident } from "@/features/live-map/use-route-to-incident";
 import { MyEventsSheet } from "@/features/my-events-sheet";
 import type { RootStackParamList } from "@/navigators/navigation-types";
 import { currentResponderAtom } from "@/state/responder";
-import { connectedAtom, telemetryAtom, vehiclesAtom } from "@/state/vehicles";
+import {
+	fetchVehiclesAtom,
+	vehiclesAtom,
+	vehiclesFailedAtom,
+} from "@/state/vehicles";
 
 export function HomeScreen(): React.JSX.Element {
+	const { positions, connected } = useTelemetrySocket(config.WS_URL);
 	const vehicles = useAtomValue(vehiclesAtom);
-	const positions = useAtomValue(telemetryAtom);
-	const connected = useAtomValue(connectedAtom);
+	const vehiclesFailed = useAtomValue(vehiclesFailedAtom);
+	const fetchVehicles = useSetAtom(fetchVehiclesAtom);
 	const responder = useAtomValue(currentResponderAtom);
 	const [eventsOpen, setEventsOpen] = React.useState(false);
 	const navigation =
 		useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
+	React.useEffect(() => {
+		if (connected) fetchVehicles();
+	}, [connected, fetchVehicles]);
+
 	const inbox = useDispatchInbox({ responderId: responder?._id });
 	const inboxState = inbox.state;
+	const { declineDispatch } = inbox;
 
 	const isClaimed = inboxState.kind === "claimed";
 	const claimedData = isClaimed ? inboxState.data : null;
@@ -68,6 +80,13 @@ export function HomeScreen(): React.JSX.Element {
 		enabled: isClaimed,
 	});
 
+	const openProfile = React.useCallback(
+		() => navigation.navigate("Profile"),
+		[navigation],
+	);
+	const openEvents = React.useCallback(() => setEventsOpen(true), []);
+	const decline = React.useCallback(() => declineDispatch(), [declineDispatch]);
+
 	const transmitting = positions.size;
 
 	return (
@@ -75,7 +94,7 @@ export function HomeScreen(): React.JSX.Element {
 			<LiveMap
 				vehicles={vehicles}
 				positions={positions}
-				route={route.coordinates}
+				route={route}
 				incident={activeIncident}
 			/>
 
@@ -86,7 +105,7 @@ export function HomeScreen(): React.JSX.Element {
 			>
 				<View className="mx-3 mt-2 flex-row items-start justify-between">
 					<Pressable
-						onPress={() => navigation.navigate("Profile")}
+						onPress={openProfile}
 						className="rounded-lg bg-black/80 px-3 py-2"
 						accessibilityLabel="Open profile"
 					>
@@ -114,9 +133,14 @@ export function HomeScreen(): React.JSX.Element {
 							<Text className="text-xs text-neutral-300">
 								{transmitting} transmitting / {vehicles.length} total
 							</Text>
+							{vehiclesFailed ? (
+								<Text className="text-xs text-destructive">
+									Couldn't load vehicles
+								</Text>
+							) : null}
 						</View>
 						<Button
-							onPress={() => setEventsOpen(true)}
+							onPress={openEvents}
 							size="sm"
 							accessibilityLabel="Open my events"
 						>
@@ -131,23 +155,14 @@ export function HomeScreen(): React.JSX.Element {
 
 			<DispatchSheet
 				state={inbox.state}
-				onAccept={() => {
-					void inbox.acceptDispatch();
-				}}
-				onDecline={() => {
-					void inbox.declineDispatch();
-				}}
-				onClear={() => {
-					void inbox.clearDispatch();
-				}}
+				positions={positions}
+				onAccept={inbox.acceptDispatch}
+				onDecline={decline}
+				onClear={inbox.clearDispatch}
 				onDismiss={inbox.dismiss}
 			/>
 
-			<DispatchNotifications
-				onDispatch={(dispatchId) => {
-					void inbox.showFor(dispatchId);
-				}}
-			/>
+			<DispatchNotifications onDispatch={inbox.showFor} />
 		</View>
 	);
 }
