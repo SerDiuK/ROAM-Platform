@@ -116,6 +116,8 @@ pnpm roam                             # admin CLI
 
 ### Solana program
 
+Needs Rust, the Anchor CLI and the Solana CLI.
+
 ```bash
 anchor build                                                                    # IDL only
 cargo build-sbf --manifest-path programs/roam/Cargo.toml --sbf-out-dir target/deploy
@@ -123,30 +125,33 @@ anchor deploy --provider.cluster <cluster>
 anchor test --skip-build                                                        # program tests on a local validator
 ```
 
-## Conventions
+## Run it locally
 
-- **TypeScript strict mode** everywhere — no `any`, no type assertions without an inline justification.
-- **Named exports only** — Next.js `page.tsx`/`layout.tsx` use `export { Foo as default }` to keep function names.
-- **All Zod schemas** live in `packages/shared/` — never redefine types in app code.
-- **Env vars** validated with Zod in each app's `src/config.ts` — never read `process.env` directly elsewhere.
-- **Domain vocabulary:** *responders* (medics) sign in with their Seeker; *dispatchers* approve briefings; *vehicles* keep callsigns (e.g. `MEDIC-1`).
+You need Node, pnpm, Docker, a Deepgram key for transcription and an Anthropic key for the briefing agent. No Raspberry Pi is needed: the fleet simulator drives the demo ambulances on simulated GPS.
 
-## Environment setup
+```bash
+pnpm install
+docker compose up -d mongo                              # MongoDB on port 27018
+cp apps/backend/.env.example apps/backend/.env.local    # fill it in, including both API keys
+pnpm --filter @roam/backend seed                        # responders, fleet, demo incidents
+```
 
-The backend, IoT bridge, fleet simulator and mobile app each have a `.env.example`. Copy it to `.env.local` and fill in values before running. `.env.local` is git-ignored.
+Then, each in its own terminal:
 
-Required for full local dev:
+```bash
+pnpm --filter @roam/backend dev       # API on 3001, MQTT broker on 1883
+pnpm --filter @roam/dashboard dev     # http://localhost:3000
+pnpm --filter @roam/sim-fleet dev     # checks in the demo fleet and drives its routes
+pnpm roam incident ingest             # plays the demo 911 call
+```
 
-- MongoDB: `docker compose up -d mongo` (port 27018) or an Atlas connection string
-- No Raspberry Pi needed: the IoT bridge simulates GPS by default (`LOCATION_SOURCE=simulate`)
-- Solana local validator (`solana-test-validator`) or devnet airdrop
-- Rust + Anchor CLI + Solana CLI for smart-contract development
-- For mobile: a Solana Mobile Seeker (or compatible MWA wallet) with a funded devnet account, plus your own Google Maps key as `GOOGLE_MAPS_API_KEY` in `apps/mobile/.env.local` and your own Firebase `apps/mobile/google-services.json`, since the one in the repo is revoked
+The call appears on the dashboard, Claude's briefing follows, and approving it dispatches the recommended crews. Without `SOLANA_OPERATOR_KEYPAIR` the backend skips its own chain writes; set it to a funded devnet keypair to record them.
+
+Accepting, declining and clearing happen in the mobile app, which needs a Solana Mobile Seeker (or compatible MWA wallet) with a funded devnet account, your own Google Maps key as `GOOGLE_MAPS_API_KEY` in `apps/mobile/.env.local`, and your own Firebase `apps/mobile/google-services.json`, since the one in the repo is revoked.
 
 ## Hardware
 
-- **Pi 5 (`roam-1`)** — primary IoT bridge with a SIM7670G GNSS HAT on the GPIO UART.
-- **Pi 4 (`roam-2`)** — secondary node.
+- **Raspberry Pi 5** — IoT bridge with a SIM7670G GNSS HAT on the GPIO UART. See the [setup guide](apps/iot-bridge/SETUP.md).
 - **Solana Mobile Seeker** — responder device; runs the Expo dev-client build (`eas build --profile development --platform android`, `adb install`).
 
 ## Prior work
