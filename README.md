@@ -10,6 +10,8 @@ Every step after that is a Solana transaction: the backend records the call and 
 
 The demo scenario is a multi-vehicle crash at Biscayne Blvd & NE 36th St, Miami. Two ambulances are dispatched at once, one vehicle's live GPS feed runs next to the dashboard, and Solana transactions land in real time as each ambulance is dispatched and its crew accepts.
 
+
+
 ## Highlights
 
 - **The responder's phone signs the record.** Accepting or declining a dispatch, and clearing it from the app, are `record_event` instructions signed by the responder's Seeker as the attestor, while the operator key pays the fee.
@@ -23,8 +25,8 @@ The demo scenario is a multi-vehicle crash at Biscayne Blvd & NE 36th St, Miami.
 
 ## Demo
 
-- [End-to-end demo](https://drive.google.com/file/d/1hUOJiqB6wVJGL29Kw7Rb31atHGUzaG8Y/view?usp=drive_link) — full system in action.
-- [Repo walkthrough](https://drive.google.com/file/d/1NKnXrKabCbmse314Kgd5K6qtFnqOAxO7/view?usp=sharing) — guided tour of the codebase.
+https://github.com/user-attachments/assets/a8076187-52bd-4386-8ccf-9181730b107f
+
 
 **Mobile (responder)**
 
